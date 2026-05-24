@@ -13,8 +13,13 @@ export const COMPANY_MAP: {
   { label: "헬로비전", dbName: "LG헬로비전", group: "가전&상조" },
   { label: "스마트렌탈", dbName: "스마트렌탈", group: "가전&상조" },
   { label: "이니렌탈", dbName: "이니렌탈", group: "가전&상조" },
-  { label: "KT렌탈", dbName: "KT", group: "가전&상조" },
-  { label: "BS렌탈", dbName: "BS렌탈", group: "가전&상조" },
+  { label: "KT렌탈", dbName: "KT", group: "가전&상조", categoryNot: "인터넷" },
+  {
+    label: "BS렌탈",
+    dbName: "BS렌탈",
+    group: "가전&상조",
+    categoryNot: "타이어",
+  },
   {
     label: "금호타이어",
     dbName: "BS렌탈",

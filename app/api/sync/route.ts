@@ -8,9 +8,11 @@ const supabase = createClient(
 
 const REDASH_URL = process.env.REDASH_URL!;
 const REDASH_API_KEY = process.env.REDASH_API_KEY!;
-const REDASH_QUERY_ID = process.env.REDASH_QUERY_ID!;
 
-interface RedashRow {
+const QUERY_ID_CONTRACT = 4445;
+const QUERY_ID_ORDER = 4441;
+
+interface RedashContractRow {
   PROP_ITEM_USID: number;
   계약완료일: string;
   주문확정일: string | null;
@@ -22,10 +24,35 @@ interface RedashRow {
   총렌탈료: number | null;
   공헌이익: number | null;
   매출: number | null;
+  판매장려금: number | null;
+  프로모션: number | null;
+  매출원가: number | null;
+  금융비용: number | null;
+  대손비: number | null;
 }
 
-async function fetchRedashData(startDate: string, endDate: string): Promise<RedashRow[]> {
-  const initRes = await fetch(`${REDASH_URL}/api/queries/${REDASH_QUERY_ID}`, {
+interface RedashOrderRow {
+  PROP_ITEM_USID: number;
+  견적신청일: string | null;
+  주문확정일: string | null;
+  렌탈사: string;
+  브랜드: string | null;
+  카테고리: string | null;
+  제품명: string | null;
+  모델명: string | null;
+  파트너명: string | null;
+  파트너사: string | null;
+  매출: number | null;
+  판매장려금: number | null;
+  프로모션: number | null;
+  매출원가: number | null;
+  금융비용: number | null;
+  대손비: number | null;
+  공헌이익: number | null;
+}
+
+async function fetchRedashData(queryId: number, startDate: string, endDate: string): Promise<unknown[]> {
+  const initRes = await fetch(`${REDASH_URL}/api/queries/${queryId}`, {
     headers: { Authorization: `Key ${REDASH_API_KEY}` },
   });
   const setCookie = initRes.headers.get("set-cookie") ?? "";
@@ -40,7 +67,7 @@ async function fetchRedashData(startDate: string, endDate: string): Promise<Reda
     .filter(Boolean)
     .join("; ");
 
-  const jobRes = await fetch(`${REDASH_URL}/api/queries/${REDASH_QUERY_ID}/results`, {
+  const jobRes = await fetch(`${REDASH_URL}/api/queries/${queryId}/results`, {
     method: "POST",
     headers: {
       Authorization: `Key ${REDASH_API_KEY}`,
@@ -84,15 +111,50 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}));
     const startDate = body.startDate ?? "2026-01-01";
     const endDate = body.endDate ?? new Date().toISOString().slice(0, 10);
-    const dataType: string = body.dataType ?? "계약완료";
+    const type: "contract" | "order" = body.type ?? "contract";
 
-    const rows = await fetchRedashData(startDate, endDate);
+    if (type === "order") {
+      const rows = (await fetchRedashData(QUERY_ID_ORDER, startDate, endDate)) as RedashOrderRow[];
+
+      const records = rows
+        .filter((r) => r.PROP_ITEM_USID && r.렌탈사)
+        .map((r) => ({
+          prop_item_usid: r.PROP_ITEM_USID,
+          quote_date: r.견적신청일 ? r.견적신청일.slice(0, 10) : null,
+          order_confirmed_at: r.주문확정일 ? r.주문확정일.slice(0, 10) : null,
+          rental_company: r.렌탈사,
+          brand: r.브랜드 ?? null,
+          category: r.카테고리 ?? null,
+          product_name: r.제품명 ?? null,
+          model_name: r.모델명 ?? null,
+          partner_name: r.파트너명 ?? null,
+          partner_company: r.파트너사 ?? null,
+          sales: r.매출 ?? null,
+          sales_incentive: r.판매장려금 ?? null,
+          promotion: r.프로모션 ?? null,
+          cost_of_goods: r.매출원가 ?? null,
+          financial_cost: r.금융비용 ?? null,
+          bad_debt: r.대손비 ?? null,
+          contribution_margin: r.공헌이익 ?? null,
+          synced_at: new Date().toISOString(),
+        }));
+
+      const { error } = await supabase.from("raw_orders").upsert(records, {
+        onConflict: "prop_item_usid",
+        ignoreDuplicates: false,
+      });
+
+      if (error) throw new Error(JSON.stringify(error));
+      return NextResponse.json({ ok: true, fetched: rows.length, upserted: records.length });
+    }
+
+    // contract (default)
+    const rows = (await fetchRedashData(QUERY_ID_CONTRACT, startDate, endDate)) as RedashContractRow[];
 
     const records = rows
       .filter((r) => r.PROP_ITEM_USID && r.계약완료일 && r.렌탈사)
       .map((r) => ({
         prop_item_usid: r.PROP_ITEM_USID,
-        data_type: dataType,
         contract_date: r.계약완료일.slice(0, 10),
         rental_company: r.렌탈사,
         brand: r.브랜드 ?? null,
@@ -102,17 +164,21 @@ export async function POST(req: Request) {
         total_rental_fee: r.총렌탈료 ?? null,
         contribution_margin: r.공헌이익 ?? null,
         sales: r.매출 ?? null,
+        sales_incentive: r.판매장려금 ?? null,
+        promotion: r.프로모션 ?? null,
+        cost_of_goods: r.매출원가 ?? null,
+        financial_cost: r.금융비용 ?? null,
+        bad_debt: r.대손비 ?? null,
         order_confirmed_at: r.주문확정일 ? r.주문확정일.slice(0, 10) : null,
         synced_at: new Date().toISOString(),
       }));
 
     const { error } = await supabase.from("raw_contracts").upsert(records, {
       onConflict: "prop_item_usid",
-      ignoreDuplicates: true,
+      ignoreDuplicates: false,
     });
 
     if (error) throw new Error(JSON.stringify(error));
-
     return NextResponse.json({ ok: true, fetched: rows.length, upserted: records.length });
   } catch (e) {
     const msg = e instanceof Error ? e.message : JSON.stringify(e);
