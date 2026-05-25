@@ -10,7 +10,9 @@ export default function Header() {
   let group: string | null = null;
   let title = "렌트리 애널리틱스";
 
-  if (pathname.startsWith("/company/")) {
+  if (pathname === "/weekly-products") {
+    title = "주차별 상품 현황";
+  } else if (pathname.startsWith("/company/")) {
     title = pathname.replace("/company/", "");
     group = COMPANY_MAP.find((c) => c.label === title)?.group ?? null;
   }
