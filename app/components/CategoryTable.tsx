@@ -40,13 +40,13 @@ export default function CategoryTable({
         >
           <thead>
             <tr className="border-b border-gray-100">
-              <th className="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider sticky left-0 bg-white z-10 min-w-[140px]">
+              <th className="px-5 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wider sticky left-0 bg-white z-10 min-w-[140px]">
                 카테고리
               </th>
               {weeks.map((w, i) => (
                 <th
                   key={w.weekStart}
-                  className={`px-4 py-3 text-center min-w-[130px] ${i === 0 ? "bg-indigo-50/60" : ""}`}
+                  className={`px-4 py-3 text-center min-w-[130px] ${i === 0 ? "bg-violet-50/60" : ""}`}
                 >
                   <div className="font-semibold text-gray-700 text-xs">{w.label}</div>
                   <div className="text-gray-400 text-[11px] font-normal mt-0.5">{w.weekStart}</div>
@@ -60,7 +60,7 @@ export default function CategoryTable({
               <tr key={cat.category} className="border-t border-gray-50">
                 <td className="px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider sticky left-0 bg-white">{cat.category}</td>
                 {cat.counts.map((count, i) => (
-                  <td key={i} className={`px-4 py-3 text-center text-gray-800 ${i === 0 ? "bg-indigo-50/40" : ""}`}>
+                  <td key={i} className={`px-4 py-3 text-center text-gray-800 ${i === 0 ? "bg-violet-50/40" : ""}`}>
                     {count > 0 ? fmt(count) : <span className="text-gray-200">-</span>}
                   </td>
                 ))}
@@ -72,7 +72,7 @@ export default function CategoryTable({
               {weeks.map((_, i) => {
                 const sum = categoryStats.reduce((s, c) => s + c.counts[i], 0);
                 return (
-                  <td key={i} className={`px-4 py-3 text-center font-semibold text-gray-700 ${i === 0 ? "bg-indigo-50/40" : ""}`}>
+                  <td key={i} className={`px-4 py-3 text-center font-semibold text-gray-700 ${i === 0 ? "bg-violet-50/40" : ""}`}>
                     {fmt(sum)}
                   </td>
                 );

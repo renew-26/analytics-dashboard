@@ -348,13 +348,13 @@ export default async function CompanyPage({
         >
           <thead>
             <tr className="border-b border-gray-100">
-              <th className="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider sticky left-0 bg-white z-10 min-w-[140px]">
+              <th className="px-5 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wider sticky left-0 bg-white z-10 min-w-[140px]">
                 지표
               </th>
               {weeks.map((w, i) => (
                 <th
                   key={w.weekStart}
-                  className={`px-4 py-3 text-center min-w-[130px] ${i === 0 ? "bg-indigo-50/60" : ""}`}
+                  className={`px-4 py-3 text-center min-w-[130px] ${i === 0 ? "bg-violet-50/60" : ""}`}
                 >
                   <div className="font-semibold text-gray-700 text-xs">
                     {w.label}
@@ -375,7 +375,7 @@ export default async function CompanyPage({
               {weeks.map((w, i) => (
                 <td
                   key={w.weekStart}
-                  className={`px-4 py-3.5 text-center text-gray-800 ${i === 0 ? "bg-indigo-50/40" : ""}`}
+                  className={`px-4 py-3.5 text-center text-gray-800 ${i === 0 ? "bg-violet-50/40" : ""}`}
                 >
                   {fmt(w.count)}
                 </td>
@@ -389,7 +389,7 @@ export default async function CompanyPage({
               {weeks.map((w, i) => (
                 <td
                   key={w.weekStart}
-                  className={`px-4 py-3.5 text-center text-gray-800 ${i === 0 ? "bg-indigo-50/40" : ""}`}
+                  className={`px-4 py-3.5 text-center text-gray-800 ${i === 0 ? "bg-violet-50/40" : ""}`}
                 >
                   {fmt(w.totalRentalFee)}
                 </td>
@@ -403,7 +403,7 @@ export default async function CompanyPage({
               {weeks.map((w, i) => (
                 <td
                   key={w.weekStart}
-                  className={`px-4 py-3.5 text-center font-medium ${i === 0 ? "bg-indigo-50/40" : ""} ${w.contributionMargin >= 0 ? "text-emerald-600" : "text-red-500"}`}
+                  className={`px-4 py-3.5 text-center font-medium ${i === 0 ? "bg-violet-50/40" : ""} ${w.contributionMargin >= 0 ? "text-emerald-600" : "text-red-500"}`}
                 >
                   {fmt(w.contributionMargin)}
                 </td>
@@ -417,7 +417,7 @@ export default async function CompanyPage({
               {weeks.map((w, i) => (
                 <td
                   key={w.weekStart}
-                  className={`px-4 py-3.5 text-center text-gray-600 ${i === 0 ? "bg-indigo-50/40" : ""}`}
+                  className={`px-4 py-3.5 text-center text-gray-600 ${i === 0 ? "bg-violet-50/40" : ""}`}
                 >
                   {fmt(w.marginPerContract)}
                 </td>
@@ -434,7 +434,7 @@ export default async function CompanyPage({
                   return (
                     <td
                       key={w.weekStart}
-                      className={`px-4 py-3 text-center text-gray-300 text-xs ${i === 0 ? "bg-indigo-50/40" : ""}`}
+                      className={`px-4 py-3 text-center text-gray-300 text-xs ${i === 0 ? "bg-violet-50/40" : ""}`}
                     >
                       -
                     </td>
@@ -448,7 +448,7 @@ export default async function CompanyPage({
                 return (
                   <td
                     key={w.weekStart}
-                    className={`px-4 py-3 text-center text-xs font-bold ${i === 0 ? "bg-indigo-50/40" : ""} ${isUp ? "text-red-500" : "text-blue-500"}`}
+                    className={`px-4 py-3 text-center text-xs font-bold ${i === 0 ? "bg-violet-50/40" : ""} ${isUp ? "text-red-500" : "text-blue-500"}`}
                   >
                     {isUp ? "▲" : "▼"} {Math.abs(rate).toFixed(1)}%
                   </td>
@@ -495,19 +495,25 @@ export default async function CompanyPage({
             />
           </div>
           <div className="overflow-x-auto rounded-xl shadow-sm border border-gray-100">
-            <table className="text-sm bg-white w-full">
+            <table className="text-sm bg-white w-full table-fixed">
+              <colgroup>
+                <col style={{ width: "40%" }} />
+                <col style={{ width: "20%" }} />
+                <col style={{ width: "20%" }} />
+                <col style={{ width: "20%" }} />
+              </colgroup>
               <thead>
                 <tr className="border-b border-gray-100">
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider min-w-[160px]">
+                  <th className="px-5 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wider">
                     카테고리
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-400">
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400">
                     건수
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-400 min-w-[100px]">
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400">
                     점유율
                   </th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[120px]">
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400">
                     순위
                   </th>
                 </tr>
@@ -519,12 +525,12 @@ export default async function CompanyPage({
                     <td className="px-4 py-3.5 text-right font-semibold text-gray-700">
                       {fmt(r.count)}
                     </td>
-                    <td className="px-4 py-3.5 text-right font-semibold text-indigo-500">
+                    <td className="px-4 py-3.5 text-right font-semibold text-violet-600">
                       {r.share.toFixed(1)}%
                     </td>
                     <td className="px-4 py-3.5 text-center">
                       <span
-                        className={`font-bold ${r.rank === 1 ? "text-amber-500" : r.rank <= 3 ? "text-indigo-500" : "text-gray-400"}`}
+                        className={`font-bold ${r.rank === 1 ? "text-amber-500" : r.rank <= 3 ? "text-violet-600" : "text-gray-400"}`}
                       >
                         {r.rank}위
                       </span>

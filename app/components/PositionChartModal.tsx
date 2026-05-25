@@ -44,7 +44,7 @@ export default function PositionChartModal({
     <>
       <button
         onClick={() => setOpen(true)}
-        className="text-xs text-indigo-500 hover:text-indigo-700 border border-indigo-200 hover:border-indigo-400 rounded-md px-2.5 py-1 transition focus:outline-none"
+        className="text-xs text-violet-500 hover:text-violet-700 border border-violet-200 hover:border-violet-400 rounded-md px-2.5 py-1 transition focus:outline-none"
       >
         그래프로 보기
       </button>
@@ -75,7 +75,7 @@ export default function PositionChartModal({
               {ranks.map((r) => (
                 <div key={r.category} className="rounded-lg border border-gray-100 py-3 text-center">
                   <div className="text-[11px] text-gray-400 mb-0.5">{r.category}</div>
-                  <div className={`text-sm font-bold ${r.rank === 1 ? "text-amber-500" : r.rank <= 3 ? "text-indigo-500" : "text-gray-500"}`}>
+                  <div className={`text-sm font-bold ${r.rank === 1 ? "text-amber-500" : r.rank <= 3 ? "text-violet-500" : "text-gray-500"}`}>
                     {r.rank}위
                   </div>
                   <div className="text-[11px] text-gray-400">{r.share.toFixed(1)}%</div>
@@ -91,7 +91,7 @@ export default function PositionChartModal({
                   onClick={() => setSelectedCat(cat)}
                   className={`text-xs px-3 py-1.5 rounded-full transition focus:outline-none ${
                     activeCat === cat
-                      ? "bg-indigo-500 text-white"
+                      ? "bg-violet-500 text-white"
                       : "bg-gray-100 text-gray-500 hover:bg-gray-200"
                   }`}
                 >
@@ -128,7 +128,7 @@ export default function PositionChartModal({
                             textAnchor="end"
                             fontSize={12}
                             fontWeight={isMe ? 700 : 400}
-                            fill={isMe ? "#6366f1" : "#6b7280"}
+                            fill={isMe ? "#6E56CF" : "#6b7280"}
                           >
                             {payload.value}
                           </text>
@@ -142,7 +142,7 @@ export default function PositionChartModal({
                       {companyData.map((d) => (
                         <Cell
                           key={d.company}
-                          fill={d.company === myDbName ? "#6366f1" : "#e5e7eb"}
+                          fill={d.company === myDbName ? "#6E56CF" : "#e5e7eb"}
                         />
                       ))}
                     </Bar>

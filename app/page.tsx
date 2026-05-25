@@ -90,7 +90,7 @@ export default async function Home() {
             <tr className="border-b border-gray-100">
               <th className="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider min-w-[140px]">기간</th>
               {metrics.map((m) => (
-                <th key={m.label} className="px-4 py-3 text-center min-w-[130px] bg-indigo-50/60">
+                <th key={m.label} className="px-4 py-3 text-center min-w-[130px] bg-violet-50/60">
                   <div className="font-semibold text-gray-700 text-xs">{m.label}</div>
                 </th>
               ))}
@@ -100,7 +100,7 @@ export default async function Home() {
             <tr className="border-t border-gray-50">
               <td className="px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider">{prevLabel}</td>
               {metrics.map((m) => (
-                <td key={m.label} className="px-4 py-3.5 text-center text-gray-800 bg-indigo-50/40">
+                <td key={m.label} className="px-4 py-3.5 text-center text-gray-800 bg-violet-50/40">
                   {fmt(m.prev)}
                 </td>
               ))}
@@ -108,7 +108,7 @@ export default async function Home() {
             <tr className="border-t border-gray-50">
               <td className="px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider">{currLabel}</td>
               {metrics.map((m) => (
-                <td key={m.label} className="px-4 py-3.5 text-center text-gray-800 bg-indigo-50/40">
+                <td key={m.label} className="px-4 py-3.5 text-center text-gray-800 bg-violet-50/40">
                   {fmt(m.curr)}
                 </td>
               ))}
@@ -119,7 +119,7 @@ export default async function Home() {
                 const p = pct(m.curr, m.prev);
                 const isUp = p !== null && p > 0;
                 return (
-                  <td key={m.label} className={`px-4 py-3 text-center text-xs font-bold bg-indigo-50/40 ${p === null ? "text-gray-300" : isUp ? "text-red-500" : "text-blue-500"}`}>
+                  <td key={m.label} className={`px-4 py-3 text-center text-xs font-bold bg-violet-50/40 ${p === null ? "text-gray-300" : isUp ? "text-red-500" : "text-blue-500"}`}>
                     {p === null ? "-" : `${isUp ? "▲" : "▼"} ${Math.abs(p).toFixed(1)}%`}
                   </td>
                 );
