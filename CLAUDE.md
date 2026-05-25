@@ -1,2 +1,3 @@
 @AGENTS.md
 @GUIDELINES.md
+@DESIGN.md
