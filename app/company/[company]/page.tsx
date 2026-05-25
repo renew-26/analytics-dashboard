@@ -144,7 +144,7 @@ function aggregateByCategoryProduct(
     const pm = catMap.get(cat)!;
     const cur = pm.get(key) ?? { count: 0, sales: 0 };
     cur.count += 1;
-    cur.sales += row.sales ?? 0;
+    cur.sales += row.total_rental_fee ?? 0;
     pm.set(key, cur);
   }
 
@@ -173,12 +173,33 @@ function aggregateByMonth(rows: RawRow[]) {
     const key = `${d.getMonth() + 1}월`;
     map.set(key, (map.get(key) ?? 0) + (row.total_rental_fee ?? 0));
   }
-  const months = ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"];
-  const sorted = months.filter((m) => map.has(m)).map((m) => ({ month: m, totalRentalFee: map.get(m)! }));
+  const months = [
+    "1월",
+    "2월",
+    "3월",
+    "4월",
+    "5월",
+    "6월",
+    "7월",
+    "8월",
+    "9월",
+    "10월",
+    "11월",
+    "12월",
+  ];
+  const sorted = months
+    .filter((m) => map.has(m))
+    .map((m) => ({ month: m, totalRentalFee: map.get(m)! }));
   return sorted.map((d, i) => ({
     ...d,
-    mom: i === 0 ? null : sorted[i - 1].totalRentalFee === 0 ? null
-      : ((d.totalRentalFee - sorted[i - 1].totalRentalFee) / sorted[i - 1].totalRentalFee) * 100,
+    mom:
+      i === 0
+        ? null
+        : sorted[i - 1].totalRentalFee === 0
+          ? null
+          : ((d.totalRentalFee - sorted[i - 1].totalRentalFee) /
+              sorted[i - 1].totalRentalFee) *
+            100,
   }));
 }
 
@@ -351,7 +372,9 @@ export default async function CompanyPage({
       {monthlyStats.length > 0 && (
         <div className="mb-10">
           <div className="mb-4 flex items-center gap-2">
-            <h2 className="text-base font-semibold text-gray-700">월별 총렌탈료</h2>
+            <h2 className="text-base font-semibold text-gray-700">
+              월별 매출 현황
+            </h2>
             <span className="text-xs text-gray-400">주문확정 기준 · MOM</span>
           </div>
           <div className="rounded-xl shadow-sm border border-gray-100 bg-white px-5 pt-5 pb-4">
