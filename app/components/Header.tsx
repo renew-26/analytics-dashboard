@@ -11,7 +11,7 @@ export default function Header() {
   let title = "렌트리 애널리틱스";
 
   if (pathname === "/weekly-products") {
-    title = "주차별 상품 현황";
+    title = "렌탈사별 상품 현황";
   } else if (pathname.startsWith("/company/")) {
     title = pathname.replace("/company/", "");
     group = COMPANY_MAP.find((c) => c.label === title)?.group ?? null;
@@ -20,9 +20,7 @@ export default function Header() {
   return (
     <header className="px-12 py-4 border-b border-gray-200 bg-white flex-shrink-0">
       <h1 className="text-xl font-bold text-gray-800">
-        {group && (
-          <span className="font-normal text-gray-400">{group} / </span>
-        )}
+        {group && <span className="font-normal text-gray-400">{group} / </span>}
         {title}
       </h1>
     </header>
