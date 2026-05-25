@@ -521,11 +521,11 @@ export default async function CompanyPage({
               <tbody>
                 {growthRanks.map((r) => (
                   <tr key={r.category} className="border-t border-gray-50">
-                    <td className="px-5 py-3.5 text-gray-700">{r.category}</td>
-                    <td className="px-4 py-3.5 text-right font-semibold text-gray-700">
+                    <td className="px-5 py-3.5 text-center text-gray-700">{r.category}</td>
+                    <td className="px-4 py-3.5 text-center font-semibold text-gray-700">
                       {fmt(r.count)}
                     </td>
-                    <td className="px-4 py-3.5 text-right font-semibold text-violet-600">
+                    <td className="px-4 py-3.5 text-center font-semibold text-violet-600">
                       {r.share.toFixed(1)}%
                     </td>
                     <td className="px-4 py-3.5 text-center">
@@ -582,16 +582,16 @@ export default async function CompanyPage({
               </colgroup>
               <thead>
                 <tr className="border-b border-gray-100">
-                  <th className="px-5 py-2.5 text-left text-xs font-bold text-gray-800">
+                  <th className="px-5 py-2.5 text-center text-xs font-bold text-gray-800">
                     제품명
                   </th>
-                  <th className="px-4 py-2.5 text-left text-xs font-bold text-gray-800">
+                  <th className="px-4 py-2.5 text-center text-xs font-bold text-gray-800">
                     모델명
                   </th>
-                  <th className="px-4 py-2.5 text-right text-xs font-bold text-gray-800">
+                  <th className="px-4 py-2.5 text-center text-xs font-bold text-gray-800">
                     건수
                   </th>
-                  <th className="px-5 py-2.5 text-right text-xs font-bold text-gray-800">
+                  <th className="px-5 py-2.5 text-center text-xs font-bold text-gray-800">
                     매출
                   </th>
                 </tr>
@@ -599,16 +599,16 @@ export default async function CompanyPage({
               <tbody>
                 {products.map((p, i) => (
                   <tr key={i} className="border-t border-gray-50">
-                    <td className="px-5 py-3 text-gray-700 truncate">
+                    <td className="px-5 py-3 text-center text-gray-700 truncate">
                       {p.product_name || "-"}
                     </td>
-                    <td className="px-4 py-3 text-gray-400 text-xs truncate">
+                    <td className="px-4 py-3 text-center text-gray-400 text-xs truncate">
                       {p.model_name || "-"}
                     </td>
-                    <td className="px-4 py-3 text-right font-semibold text-gray-700">
+                    <td className="px-4 py-3 text-center font-semibold text-gray-700">
                       {fmt(p.count)}
                     </td>
-                    <td className="px-5 py-3 text-right text-gray-700">
+                    <td className="px-5 py-3 text-center text-gray-700">
                       {fmt(p.sales)}
                     </td>
                   </tr>
