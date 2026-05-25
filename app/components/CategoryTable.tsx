@@ -27,6 +27,7 @@ export default function CategoryTable({
   totalCount: number;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [selectedRow, setSelectedRow] = useState<string | null>(null);
 
   const visible = expanded ? categoryStats : categoryStats.slice(0, 3);
   const hiddenCount = categoryStats.length - 3;
@@ -56,17 +57,27 @@ export default function CategoryTable({
             </tr>
           </thead>
           <tbody>
-            {visible.map((cat) => (
-              <tr key={cat.category} className="border-t border-gray-50">
-                <td className="px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider sticky left-0 bg-white">{cat.category}</td>
-                {cat.counts.map((count, i) => (
-                  <td key={i} className={`px-4 py-3 text-center text-gray-800 ${i === 0 ? "cell-highlight" : ""}`}>
-                    {count > 0 ? fmt(count) : <span className="text-gray-200">-</span>}
-                  </td>
-                ))}
-                <td className="px-4 py-3 text-center font-semibold text-gray-700">{fmt(cat.total)}</td>
-              </tr>
-            ))}
+            {visible.map((cat) => {
+              const isSelected = selectedRow === cat.category;
+              return (
+                <tr
+                  key={cat.category}
+                  className="border-t border-gray-50 cursor-pointer transition-colors"
+                  style={isSelected ? { backgroundColor: "var(--color-tint-sky)" } : {}}
+                  onClick={() => setSelectedRow(isSelected ? null : cat.category)}
+                >
+                  <td className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider sticky left-0 transition-colors"
+                    style={{ color: isSelected ? "var(--color-accent-blue)" : undefined, backgroundColor: isSelected ? "var(--color-tint-sky)" : "white" }}
+                  >{cat.category}</td>
+                  {cat.counts.map((count, i) => (
+                    <td key={i} className={`px-4 py-3 text-center text-gray-800 ${i === 0 && !isSelected ? "cell-highlight" : ""}`}>
+                      {count > 0 ? fmt(count) : <span className="text-gray-200">-</span>}
+                    </td>
+                  ))}
+                  <td className="px-4 py-3 text-center font-semibold text-gray-700">{fmt(cat.total)}</td>
+                </tr>
+              );
+            })}
             <tr className="border-t-2 border-gray-200">
               <td className="px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider sticky left-0 bg-white">합계</td>
               {weeks.map((_, i) => {

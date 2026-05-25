@@ -168,8 +168,8 @@ export default function PositionChartModal({
                         }}
                       />
                       <Tooltip
-                        formatter={(value: number) => [
-                          `${value.toLocaleString("ko-KR")}건`,
+                        formatter={(value) => [
+                          `${Number(value).toLocaleString("ko-KR")}건`,
                           "주문건수",
                         ]}
                         contentStyle={{
