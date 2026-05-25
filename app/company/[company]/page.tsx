@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { COMPANY_MAP } from "@/lib/company-map";
 import CategoryTable from "@/app/components/CategoryTable";
 import PositionChartModal from "@/app/components/PositionChartModal";
+import MonthlyRevenueChart from "@/app/components/MonthlyRevenueChart";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -165,6 +166,22 @@ function aggregateByCategoryProduct(
     });
 }
 
+function aggregateByMonth(rows: RawRow[]) {
+  const map = new Map<string, number>();
+  for (const row of rows) {
+    const d = new Date(row.order_confirmed_at);
+    const key = `${d.getMonth() + 1}월`;
+    map.set(key, (map.get(key) ?? 0) + (row.total_rental_fee ?? 0));
+  }
+  const months = ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"];
+  const sorted = months.filter((m) => map.has(m)).map((m) => ({ month: m, totalRentalFee: map.get(m)! }));
+  return sorted.map((d, i) => ({
+    ...d,
+    mom: i === 0 ? null : sorted[i - 1].totalRentalFee === 0 ? null
+      : ((d.totalRentalFee - sorted[i - 1].totalRentalFee) / sorted[i - 1].totalRentalFee) * 100,
+  }));
+}
+
 function fmt(n: number) {
   return n.toLocaleString("ko-KR");
 }
@@ -235,6 +252,7 @@ export default async function CompanyPage({
 
   const weeks = aggregateByWeek(rows ?? []);
   const totalCount = weeks.reduce((s, w) => s + w.count, 0);
+  const monthlyStats = aggregateByMonth(rows ?? []);
 
   const weekIndices = weeks.map((w) => w.idx);
   const categoryStats = aggregateByCategory(rows ?? [], weekIndices);
@@ -329,6 +347,19 @@ export default async function CompanyPage({
 
   return (
     <div className="px-12 pt-5 pb-8">
+      {/* 월별 총렌탈료 */}
+      {monthlyStats.length > 0 && (
+        <div className="mb-10">
+          <div className="mb-4 flex items-center gap-2">
+            <h2 className="text-base font-semibold text-gray-700">월별 총렌탈료</h2>
+            <span className="text-xs text-gray-400">주문확정 기준 · MOM</span>
+          </div>
+          <div className="rounded-xl shadow-sm border border-gray-100 bg-white px-5 pt-5 pb-4">
+            <MonthlyRevenueChart data={monthlyStats} />
+          </div>
+        </div>
+      )}
+
       {/* 주차별 현황 */}
       <div className="mb-4 flex items-center gap-2">
         <h2 className="text-base font-semibold text-gray-700">
@@ -385,7 +416,7 @@ export default async function CompanyPage({
             {/* 총렌탈료 */}
             <tr className="border-t border-gray-50">
               <td className="px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider sticky left-0 bg-white">
-                총렌탈료
+                매출 (총렌탈료)
               </td>
               {weeks.map((w, i) => (
                 <td
