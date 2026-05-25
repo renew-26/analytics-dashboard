@@ -62,6 +62,8 @@ export default function Sidebar() {
 
       {/* 네비게이션 */}
       <nav className="flex-1 min-h-0 overflow-y-auto px-2 py-2">
+        <NavItem href="/weekly-products" label="주차별 상품 현황" active={pathname === "/weekly-products"} />
+
         {NAV_SECTIONS.map((section, index) => {
           const hasActive = section.items.some(
             (item) => item.href === pathname,
