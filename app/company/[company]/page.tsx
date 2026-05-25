@@ -268,7 +268,8 @@ export default async function CompanyPage({
     total: number;
     share: number;
   }[] = [];
-  let categoryAllData: Record<string, { company: string; count: number }[]> = {};
+  let categoryAllData: Record<string, { company: string; count: number }[]> =
+    {};
 
   if (positionCategories.length > 0) {
     const allGrowthRows: { rental_company: string; category: string }[] = [];
@@ -354,7 +355,7 @@ export default async function CompanyPage({
               {weeks.map((w, i) => (
                 <th
                   key={w.weekStart}
-                  className={`px-4 py-3 text-center min-w-[130px] ${i === 0 ? "bg-violet-50/60" : ""}`}
+                  className={`px-4 py-3 text-center min-w-[130px] ${i === 0 ? "cell-highlight" : ""}`}
                 >
                   <div className="font-semibold text-gray-700 text-xs">
                     {w.label}
@@ -375,7 +376,7 @@ export default async function CompanyPage({
               {weeks.map((w, i) => (
                 <td
                   key={w.weekStart}
-                  className={`px-4 py-3.5 text-center text-gray-800 ${i === 0 ? "bg-violet-50/40" : ""}`}
+                  className={`px-4 py-3.5 text-center text-gray-800 ${i === 0 ? "cell-highlight" : ""}`}
                 >
                   {fmt(w.count)}
                 </td>
@@ -389,7 +390,7 @@ export default async function CompanyPage({
               {weeks.map((w, i) => (
                 <td
                   key={w.weekStart}
-                  className={`px-4 py-3.5 text-center text-gray-800 ${i === 0 ? "bg-violet-50/40" : ""}`}
+                  className={`px-4 py-3.5 text-center text-gray-800 ${i === 0 ? "cell-highlight" : ""}`}
                 >
                   {fmt(w.totalRentalFee)}
                 </td>
@@ -403,7 +404,13 @@ export default async function CompanyPage({
               {weeks.map((w, i) => (
                 <td
                   key={w.weekStart}
-                  className={`px-4 py-3.5 text-center font-medium ${i === 0 ? "bg-violet-50/40" : ""} ${w.contributionMargin >= 0 ? "text-emerald-600" : "text-red-500"}`}
+                  className={`px-4 py-3.5 text-center font-medium ${i === 0 ? "cell-highlight" : ""}`}
+                  style={{
+                    color:
+                      w.contributionMargin >= 0
+                        ? "var(--color-success)"
+                        : "var(--color-error)",
+                  }}
                 >
                   {fmt(w.contributionMargin)}
                 </td>
@@ -417,7 +424,7 @@ export default async function CompanyPage({
               {weeks.map((w, i) => (
                 <td
                   key={w.weekStart}
-                  className={`px-4 py-3.5 text-center text-gray-600 ${i === 0 ? "bg-violet-50/40" : ""}`}
+                  className={`px-4 py-3.5 text-center text-gray-600 ${i === 0 ? "cell-highlight" : ""}`}
                 >
                   {fmt(w.marginPerContract)}
                 </td>
@@ -434,7 +441,7 @@ export default async function CompanyPage({
                   return (
                     <td
                       key={w.weekStart}
-                      className={`px-4 py-3 text-center text-gray-300 text-xs ${i === 0 ? "bg-violet-50/40" : ""}`}
+                      className={`px-4 py-3 text-center text-gray-300 text-xs ${i === 0 ? "cell-highlight" : ""}`}
                     >
                       -
                     </td>
@@ -448,7 +455,10 @@ export default async function CompanyPage({
                 return (
                   <td
                     key={w.weekStart}
-                    className={`px-4 py-3 text-center text-xs font-bold ${i === 0 ? "bg-violet-50/40" : ""} ${isUp ? "text-red-500" : "text-blue-500"}`}
+                    className={`px-4 py-3 text-center text-xs font-bold ${i === 0 ? "cell-highlight" : ""}`}
+                    style={{
+                      color: isUp ? "var(--color-error)" : "var(--color-down)",
+                    }}
                   >
                     {isUp ? "▲" : "▼"} {Math.abs(rate).toFixed(1)}%
                   </td>
@@ -489,7 +499,11 @@ export default async function CompanyPage({
             <PositionChartModal
               ranks={growthRanks}
               categoryAllData={categoryAllData}
-              title={mapping.group === "정수기" ? "정수기 & 크로스셀 내 포지션" : "성장카테고리 내 포지션"}
+              title={
+                mapping.group === "정수기"
+                  ? "정수기 & 크로스셀 내 포지션"
+                  : "성장카테고리 내 포지션"
+              }
               companyLabel={label}
               myDbName={dbName}
             />
@@ -497,10 +511,10 @@ export default async function CompanyPage({
           <div className="overflow-x-auto rounded-xl shadow-sm border border-gray-100">
             <table className="text-sm bg-white w-full table-fixed">
               <colgroup>
-                <col style={{ width: "40%" }} />
-                <col style={{ width: "20%" }} />
-                <col style={{ width: "20%" }} />
-                <col style={{ width: "20%" }} />
+                <col style={{ width: "25%" }} />
+                <col style={{ width: "25%" }} />
+                <col style={{ width: "25%" }} />
+                <col style={{ width: "25%" }} />
               </colgroup>
               <thead>
                 <tr className="border-b border-gray-100">
@@ -521,16 +535,26 @@ export default async function CompanyPage({
               <tbody>
                 {growthRanks.map((r) => (
                   <tr key={r.category} className="border-t border-gray-50">
-                    <td className="px-5 py-3.5 text-center text-gray-700">{r.category}</td>
+                    <td className="px-5 py-3.5 text-center text-gray-700">
+                      {r.category}
+                    </td>
                     <td className="px-4 py-3.5 text-center font-semibold text-gray-700">
                       {fmt(r.count)}
                     </td>
-                    <td className="px-4 py-3.5 text-center font-semibold text-violet-600">
+                    <td
+                      className="px-4 py-3.5 text-center font-semibold"
+                      style={{
+                        color:
+                          r.share >= 10
+                            ? "var(--color-error)"
+                            : "var(--color-accent-blue)",
+                      }}
+                    >
                       {r.share.toFixed(1)}%
                     </td>
                     <td className="px-4 py-3.5 text-center">
                       <span
-                        className={`font-bold ${r.rank === 1 ? "text-amber-500" : r.rank <= 3 ? "text-violet-600" : "text-gray-400"}`}
+                        className={`font-bold ${r.rank <= 3 ? "text-[var(--color-error)]" : "text-gray-400"}`}
                       >
                         {r.rank}위
                       </span>
@@ -592,7 +616,7 @@ export default async function CompanyPage({
                     건수
                   </th>
                   <th className="px-5 py-2.5 text-center text-xs font-bold text-gray-800">
-                    매출
+                    매출 (총렌탈료)
                   </th>
                 </tr>
               </thead>
