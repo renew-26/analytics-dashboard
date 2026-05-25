@@ -13,7 +13,8 @@ const NAV_SECTIONS = ["가전&상조", "정수기", "통신"].map((group) => ({
     if (c.group !== group || seen.has(c.label)) return false;
     seen.add(c.label);
     return true;
-  }).map((c) => ({ label: c.label, href: `/company/${c.label}` })),
+  }).map((c) => ({ label: c.label, href: `/company/${c.label}` }))
+    .sort((a, b) => a.label.localeCompare(b.label, "ko")),
 }));
 
 export default function Sidebar() {
@@ -52,9 +53,6 @@ export default function Sidebar() {
 
       {/* 네비게이션 */}
       <nav className="flex-1 min-h-0 overflow-y-auto px-2 py-2">
-        {/* 홈 */}
-        <NavItem href="/" label="홈" active={pathname === "/"} />
-
         {NAV_SECTIONS.map((section, index) => {
           const hasActive = section.items.some((item) => item.href === pathname);
           const isOpen = openIndex === index || hasActive;

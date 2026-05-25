@@ -42,6 +42,7 @@ interface RedashOrderRow {
   모델명: string | null;
   파트너명: string | null;
   파트너사: string | null;
+  총렌탈료: number | null;
   매출: number | null;
   판매장려금: number | null;
   프로모션: number | null;
@@ -129,6 +130,7 @@ export async function POST(req: Request) {
           model_name: r.모델명 ?? null,
           partner_name: r.파트너명 ?? null,
           partner_company: r.파트너사 ?? null,
+          total_rental_fee: r.총렌탈료 ?? null,
           sales: r.매출 ?? null,
           sales_incentive: r.판매장려금 ?? null,
           promotion: r.프로모션 ?? null,

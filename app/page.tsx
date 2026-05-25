@@ -79,8 +79,7 @@ export default async function Home() {
   ];
 
   return (
-    <div className="px-12 py-8">
-      <h1 className="text-2xl font-bold text-gray-800 mb-1">렌트리 애널리틱스</h1>
+    <div className="px-12 pt-5 pb-8">
       <p className="text-sm text-gray-400 mb-8">렌탈사별 매출 추이 및 성과 분석</p>
 
       <h2 className="text-base font-semibold text-gray-700 mb-3">동기간 대비 비교</h2>
