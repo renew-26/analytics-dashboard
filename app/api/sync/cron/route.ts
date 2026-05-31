@@ -12,7 +12,9 @@ export async function GET(req: Request) {
   // 어제부터 오늘까지만 fetch (누적 데이터 중 신규분만)
   const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
 
-  const res = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/sync`, {
+  const port = process.env.PORT || 3000;
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+  const res = await fetch(`http://localhost:${port}${basePath}/api/sync`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
