@@ -11,6 +11,7 @@ const REDASH_API_KEY = process.env.REDASH_API_KEY!;
 
 const QUERY_ID_CONTRACT = 4445;
 const QUERY_ID_ORDER = 4441;
+const QUERY_ID_AUTO_QUOTE = 4404;
 
 interface RedashContractRow {
   PROP_ITEM_USID: number;
@@ -20,6 +21,9 @@ interface RedashContractRow {
   브랜드: string | null;
   카테고리: string | null;
   제품명: string | null;
+  모델명: string | null;
+  파트너명: string | null;
+  파트너사: string | null;
   월렌탈료: number | null;
   총렌탈료: number | null;
   공헌이익: number | null;
@@ -42,6 +46,7 @@ interface RedashOrderRow {
   모델명: string | null;
   파트너명: string | null;
   파트너사: string | null;
+  월렌탈료: number | null;
   총렌탈료: number | null;
   매출: number | null;
   판매장려금: number | null;
@@ -52,7 +57,11 @@ interface RedashOrderRow {
   공헌이익: number | null;
 }
 
-async function fetchRedashData(queryId: number, startDate: string, endDate: string): Promise<unknown[]> {
+async function fetchRedashData(
+  queryId: number,
+  startDate?: string,
+  endDate?: string,
+): Promise<unknown[]> {
   const initRes = await fetch(`${REDASH_URL}/api/queries/${queryId}`, {
     headers: { Authorization: `Key ${REDASH_API_KEY}` },
   });
@@ -68,6 +77,11 @@ async function fetchRedashData(queryId: number, startDate: string, endDate: stri
     .filter(Boolean)
     .join("; ");
 
+  const parameters: Record<string, unknown> = { row_limit: 100000 };
+  if (startDate && endDate) {
+    parameters["조회기간"] = { start: startDate, end: endDate };
+  }
+
   const jobRes = await fetch(`${REDASH_URL}/api/queries/${queryId}/results`, {
     method: "POST",
     headers: {
@@ -76,13 +90,7 @@ async function fetchRedashData(queryId: number, startDate: string, endDate: stri
       "X-CSRF-Token": csrfToken,
       Cookie: cookieHeader,
     },
-    body: JSON.stringify({
-      max_age: 0,
-      parameters: {
-        조회기간: { start: startDate, end: endDate },
-        row_limit: 100000,
-      },
-    }),
+    body: JSON.stringify({ max_age: 0, parameters }),
   });
 
   const { job } = await jobRes.json();
@@ -112,7 +120,89 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}));
     const startDate = body.startDate ?? "2026-01-01";
     const endDate = body.endDate ?? new Date().toISOString().slice(0, 10);
-    const type: "contract" | "order" = body.type ?? "contract";
+    const type: "contract" | "order" | "auto_quote" = body.type ?? "contract";
+
+    if (type === "auto_quote") {
+      const rows = (await fetchRedashData(QUERY_ID_AUTO_QUOTE)) as Record<string, unknown>[];
+
+      const records = rows
+        .filter((r) => r["prod_term_usid"])
+        .map((r) => {
+          const n = (k: string) => { const v = r[k]; return (v === null || v === undefined || v === "") ? null : Number(v); };
+          const s = (k: string) => (r[k] as string | null) ?? null;
+          return {
+            prod_term_usid: r["prod_term_usid"] as number,
+            category: s("카테고리"),
+            brand: s("브랜드"),
+            product_name: s("제품명"),
+            model_name: s("모델명"),
+            management_type: s("관리방식"),
+            contract_months: n("의무사용기간"),
+            // LG헬로비전
+            lghv_monthly_fee: n("LG헬로비전_월렌탈료"),
+            lghv_support: n("LG헬로비전_지원금"),
+            lghv_total_payment: n("LG헬로비전_실납부총액"),
+            lghv_waiver_months: n("LG헬로비전_월요금면제월"),
+            lghv_expected_margin: n("LG헬로비전_예상공헌이익"),
+            // 이니렌탈
+            ini_monthly_fee: n("이니렌탈_월렌탈료"),
+            ini_support: n("이니렌탈_지원금"),
+            ini_total_payment: n("이니렌탈_실납부총액"),
+            ini_waiver_months: n("이니렌탈_월요금면제월"),
+            ini_expected_margin: n("이니렌탈_예상공헌이익"),
+            // 현대유버스
+            hyundai_monthly_fee: n("현대유버스_월렌탈료"),
+            hyundai_support: n("현대유버스_지원금"),
+            hyundai_total_payment: n("현대유버스_실납부총액"),
+            hyundai_waiver_months: n("현대유버스_월요금면제월"),
+            hyundai_expected_margin: n("현대유버스_예상공헌이익"),
+            // BS렌탈
+            bs_monthly_fee: n("BS렌탈_월렌탈료"),
+            bs_support: n("BS렌탈_지원금"),
+            bs_total_payment: n("BS렌탈_실납부총액"),
+            bs_waiver_months: n("BS렌탈_월요금면제월"),
+            bs_expected_margin: n("BS렌탈_예상공헌이익"),
+            // 스마트렌탈
+            smart_monthly_fee: n("스마트렌탈_월렌탈료"),
+            smart_support: n("스마트렌탈_지원금"),
+            smart_total_payment: n("스마트렌탈_실납부총액"),
+            smart_waiver_months: n("스마트렌탈_월요금면제월"),
+            smart_expected_margin: n("스마트렌탈_예상공헌이익"),
+            // 캐리어
+            carrier_monthly_fee: n("캐리어_월렌탈료"),
+            carrier_support: n("캐리어_지원금"),
+            carrier_total_payment: n("캐리어_실납부총액"),
+            carrier_waiver_months: n("캐리어_월요금면제월"),
+            carrier_expected_margin: n("캐리어_예상공헌이익"),
+            // 바디프랜드
+            body_monthly_fee: n("바디프랜드_월렌탈료"),
+            body_support: n("바디프랜드_지원금"),
+            body_total_payment: n("바디프랜드_실납부총액"),
+            body_waiver_months: n("바디프랜드_월요금면제월"),
+            body_expected_margin: n("바디프랜드_예상공헌이익"),
+            // KT렌탈
+            kt_monthly_fee: n("KT렌탈_월렌탈료"),
+            kt_support: n("KT렌탈_지원금"),
+            kt_total_payment: n("KT렌탈_실납부총액"),
+            kt_waiver_months: n("KT렌탈_월요금면제월"),
+            kt_expected_margin: n("KT렌탈_예상공헌이익"),
+            synced_at: new Date().toISOString(),
+          };
+        });
+
+      // deduplicate by prod_term_usid (keep last occurrence)
+      const deduped = Object.values(
+        Object.fromEntries(records.map((r) => [r.prod_term_usid, r]))
+      );
+
+      const { error } = await supabase.from("auto_quote_typeb").upsert(deduped, {
+        onConflict: "prod_term_usid",
+        ignoreDuplicates: false,
+      });
+
+      if (error) throw new Error(JSON.stringify(error));
+      return NextResponse.json({ ok: true, fetched: rows.length, upserted: deduped.length });
+    }
 
     if (type === "order") {
       const rows = (await fetchRedashData(QUERY_ID_ORDER, startDate, endDate)) as RedashOrderRow[];
@@ -130,6 +220,7 @@ export async function POST(req: Request) {
           model_name: r.모델명 ?? null,
           partner_name: r.파트너명 ?? null,
           partner_company: r.파트너사 ?? null,
+          monthly_fee: r.월렌탈료 ?? null,
           total_rental_fee: r.총렌탈료 ?? null,
           sales: r.매출 ?? null,
           sales_incentive: r.판매장려금 ?? null,
@@ -162,6 +253,9 @@ export async function POST(req: Request) {
         brand: r.브랜드 ?? null,
         category: r.카테고리 ?? null,
         product_name: r.제품명 ?? null,
+        model_name: r.모델명 ?? null,
+        partner_name: r.파트너명 ?? null,
+        partner_company: r.파트너사 ?? null,
         monthly_fee: r.월렌탈료 ?? null,
         total_rental_fee: r.총렌탈료 ?? null,
         contribution_margin: r.공헌이익 ?? null,
