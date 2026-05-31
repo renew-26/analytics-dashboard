@@ -3,21 +3,52 @@ import { COMPANY_MAP } from "@/lib/company-map";
 import CategoryTable from "@/app/components/CategoryTable";
 import PositionChartModal from "@/app/components/PositionChartModal";
 import MonthlyRevenueChart from "@/app/components/MonthlyRevenueChart";
+import ViewToggle from "@/app/components/ViewToggle";
+import CategoryCompetitiveSection, {
+  type CompetitiveProduct,
+} from "@/app/components/CategoryCompetitiveSection";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
 );
+// auto_quote_typeb는 RLS → service role key 사용 (server component only, 클라이언트 노출 없음)
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+);
 
-interface RawRow {
-  prop_item_usid: number;
-  order_confirmed_at: string;
+// OKR 정의 카테고리 — 이 외는 모두 "그외"로 표시
+const OKR_CATEGORIES = new Set([
+  "정수기",
+  "공기청정기",
+  "비데",
+  "TV",
+  "세탁기+건조기",
+  "에어컨",
+  "냉장고",
+  "로봇청소기",
+  "무선청소기",
+  "음식물처리기",
+  "안마의자",
+  "매트리스",
+  "타이어",
+  "인터넷",
+]);
+
+function normalizeCategory(cat: string | null): string {
+  if (!cat) return "그 외";
+  return OKR_CATEGORIES.has(cat) ? cat : "그 외";
+}
+
+// 공통 정규화 행 — order/contract 모두 이 타입으로 변환
+interface DataRow {
+  dateStr: string;
   total_rental_fee: number | null;
   contribution_margin: number | null;
   category: string | null;
   product_name: string | null;
   model_name: string | null;
-  sales: number | null;
 }
 
 interface WeekStat {
@@ -68,14 +99,14 @@ function getWeekLabel(index: number): { title: string; range: string } {
   };
 }
 
-function aggregateByWeek(rows: RawRow[]): WeekStat[] {
+function aggregateByWeek(rows: DataRow[]): WeekStat[] {
   const map = new Map<
     number,
     { count: number; rental: number; margin: number }
   >();
 
   for (const row of rows) {
-    const idx = getWeekIndex(row.order_confirmed_at);
+    const idx = getWeekIndex(row.dateStr);
     const cur = map.get(idx) ?? { count: 0, rental: 0, margin: 0 };
     cur.count += 1;
     cur.rental += row.total_rental_fee ?? 0;
@@ -101,14 +132,14 @@ function aggregateByWeek(rows: RawRow[]): WeekStat[] {
 }
 
 function aggregateByCategory(
-  rows: RawRow[],
+  rows: DataRow[],
   weekIndices: number[],
 ): { category: string; counts: number[]; total: number }[] {
   const map = new Map<string, Map<number, number>>();
 
   for (const row of rows) {
     const cat = row.category ?? "기타";
-    const idx = getWeekIndex(row.order_confirmed_at);
+    const idx = getWeekIndex(row.dateStr);
     if (!map.has(cat)) map.set(cat, new Map());
     const wm = map.get(cat)!;
     wm.set(idx, (wm.get(idx) ?? 0) + 1);
@@ -130,7 +161,7 @@ interface ProductStat {
 }
 
 function aggregateByCategoryProduct(
-  rows: RawRow[],
+  rows: DataRow[],
 ): { category: string; products: ProductStat[] }[] {
   const catMap = new Map<
     string,
@@ -166,10 +197,10 @@ function aggregateByCategoryProduct(
     });
 }
 
-function aggregateByMonth(rows: RawRow[]) {
+function aggregateByMonth(rows: DataRow[]) {
   const map = new Map<string, number>();
   for (const row of rows) {
-    const d = new Date(row.order_confirmed_at);
+    const d = new Date(row.dateStr);
     const key = `${d.getMonth() + 1}월`;
     map.set(key, (map.get(key) ?? 0) + (row.total_rental_fee ?? 0));
   }
@@ -203,16 +234,123 @@ function aggregateByMonth(rows: RawRow[]) {
   }));
 }
 
+function aggregateByMonthFull(rows: DataRow[]) {
+  const MONTHS = [
+    "1월",
+    "2월",
+    "3월",
+    "4월",
+    "5월",
+    "6월",
+    "7월",
+    "8월",
+    "9월",
+    "10월",
+    "11월",
+    "12월",
+  ];
+  const map = new Map<
+    string,
+    { count: number; rental: number; margin: number }
+  >();
+  for (const row of rows) {
+    const key = `${new Date(row.dateStr).getMonth() + 1}월`;
+    const cur = map.get(key) ?? { count: 0, rental: 0, margin: 0 };
+    cur.count += 1;
+    cur.rental += row.total_rental_fee ?? 0;
+    cur.margin += row.contribution_margin ?? 0;
+    map.set(key, cur);
+  }
+  const sorted = MONTHS.filter((m) => map.has(m)).map((m) => {
+    const v = map.get(m)!;
+    return {
+      month: m,
+      count: v.count,
+      totalRentalFee: v.rental,
+      contributionMargin: v.margin,
+      marginPerContract: v.count > 0 ? Math.round(v.margin / v.count) : 0,
+    };
+  });
+  return sorted
+    .map((d, i) => ({
+      ...d,
+      mom:
+        i === 0 || sorted[i - 1].totalRentalFee === 0
+          ? null
+          : ((d.totalRentalFee - sorted[i - 1].totalRentalFee) /
+              sorted[i - 1].totalRentalFee) *
+            100,
+    }))
+    .reverse();
+}
+
 function fmt(n: number) {
   return n.toLocaleString("ko-KR");
 }
 
+function fmtShort(n: number): string {
+  const abs = Math.abs(n);
+  if (abs >= 100_000_000) return `${(n / 100_000_000).toFixed(1)}억`;
+  if (abs >= 10_000) return `${(n / 10_000).toFixed(0)}만`;
+  return n.toLocaleString("ko-KR");
+}
+
+function calcSummaryStats(rows: DataRow[]) {
+  const today = new Date();
+  const curYear = today.getFullYear();
+  const curMonth = today.getMonth(); // 0-indexed
+  const curDay = today.getDate();
+
+  const prevMonth = curMonth === 0 ? 11 : curMonth - 1;
+  const prevYear = curMonth === 0 ? curYear - 1 : curYear;
+  const daysInPrevMonth = new Date(prevYear, prevMonth + 1, 0).getDate();
+  const prevEndDay = Math.min(curDay, daysInPrevMonth);
+
+  let curRevenue = 0,
+    curMargin = 0,
+    curCount = 0;
+  let prevRevenue = 0;
+
+  for (const row of rows) {
+    const d = new Date(row.dateStr);
+    const y = d.getFullYear();
+    const m = d.getMonth();
+    const day = d.getDate();
+
+    if (y === curYear && m === curMonth && day <= curDay) {
+      curRevenue += row.total_rental_fee ?? 0;
+      curMargin += row.contribution_margin ?? 0;
+      curCount += 1;
+    }
+    if (y === prevYear && m === prevMonth && day <= prevEndDay) {
+      prevRevenue += row.total_rental_fee ?? 0;
+    }
+  }
+
+  const revenueChange =
+    prevRevenue > 0 ? ((curRevenue - prevRevenue) / prevRevenue) * 100 : null;
+  const marginPerContract = curCount > 0 ? Math.round(curMargin / curCount) : 0;
+
+  return {
+    curRevenue,
+    prevRevenue,
+    revenueChange,
+    marginPerContract,
+    curMonthLabel: `${curMonth + 1}월`,
+    prevMonthLabel: `${prevMonth + 1}월`,
+  };
+}
+
 export default async function CompanyPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ company: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }) {
   const { company } = await params;
+  const { tab } = await searchParams;
+  const view: "order" | "contract" = tab === "contract" ? "contract" : "order";
   const label = decodeURIComponent(company);
 
   const mapping = COMPANY_MAP.find((c) => c.label === label);
@@ -229,55 +367,96 @@ export default async function CompanyPage({
     );
   }
 
-  const allRows: RawRow[] = [];
   const PAGE = 1000;
-  let from = 0;
+  const normalizedRows: DataRow[] = [];
   let fetchError = null;
 
-  while (true) {
-    let q = supabase
-      .from("raw_orders")
-      .select(
-        "prop_item_usid, order_confirmed_at, total_rental_fee, contribution_margin, category, product_name, model_name, sales",
-      )
-      .eq("rental_company", dbName);
-
-    if (mapping.categoryIs) q = q.eq("category", mapping.categoryIs);
-    if (mapping.categoryNot) q = q.neq("category", mapping.categoryNot);
-
-    const { data, error } = await q
-      .gte("order_confirmed_at", "2026-01-01")
-      .order("order_confirmed_at", { ascending: false })
-      .range(from, from + PAGE - 1);
-
-    if (error) {
-      fetchError = error;
-      break;
+  if (view === "order") {
+    let from = 0;
+    while (true) {
+      let q = supabase
+        .from("raw_orders")
+        .select(
+          "order_confirmed_at, total_rental_fee, contribution_margin, category, product_name, model_name",
+        )
+        .eq("rental_company", dbName);
+      if (mapping.categoryIs) q = q.eq("category", mapping.categoryIs);
+      if (mapping.categoryNot) q = q.neq("category", mapping.categoryNot);
+      const { data, error } = await q
+        .gte("order_confirmed_at", "2026-01-01")
+        .order("order_confirmed_at", { ascending: false })
+        .range(from, from + PAGE - 1);
+      if (error) {
+        fetchError = error;
+        break;
+      }
+      if (!data || data.length === 0) break;
+      for (const r of data) {
+        normalizedRows.push({
+          dateStr: r.order_confirmed_at,
+          total_rental_fee: r.total_rental_fee,
+          contribution_margin: r.contribution_margin,
+          category: normalizeCategory(r.category),
+          product_name: r.product_name,
+          model_name: r.model_name,
+        });
+      }
+      if (data.length < PAGE) break;
+      from += PAGE;
     }
-    if (!data || data.length === 0) break;
-    allRows.push(...data);
-    if (data.length < PAGE) break;
-    from += PAGE;
+  } else {
+    let from = 0;
+    while (true) {
+      let q = supabase
+        .from("raw_contracts")
+        .select(
+          "contract_date, total_rental_fee, contribution_margin, category, product_name, model_name",
+        )
+        .eq("rental_company", dbName);
+      if (mapping.categoryIs) q = q.eq("category", mapping.categoryIs);
+      if (mapping.categoryNot) q = q.neq("category", mapping.categoryNot);
+      const { data, error } = await q
+        .gte("contract_date", "2026-01-01")
+        .order("contract_date", { ascending: false })
+        .range(from, from + PAGE - 1);
+      if (error) {
+        fetchError = error;
+        break;
+      }
+      if (!data || data.length === 0) break;
+      for (const r of data) {
+        normalizedRows.push({
+          dateStr: r.contract_date,
+          total_rental_fee: r.total_rental_fee,
+          contribution_margin: r.contribution_margin,
+          category: normalizeCategory(r.category),
+          product_name: r.product_name,
+          model_name: r.model_name,
+        });
+      }
+      if (data.length < PAGE) break;
+      from += PAGE;
+    }
   }
 
-  const rows = allRows;
-  const error = fetchError;
-
-  if (error) {
+  if (fetchError) {
     return (
       <div className="p-8">
-        <p className="text-red-500">데이터 로드 오류: {error.message}</p>
+        <p className="text-red-500">데이터 로드 오류: {fetchError.message}</p>
       </div>
     );
   }
 
-  const weeks = aggregateByWeek(rows ?? []);
+  const today = new Date();
+  const weeks = aggregateByWeek(normalizedRows);
   const totalCount = weeks.reduce((s, w) => s + w.count, 0);
-  const monthlyStats = aggregateByMonth(rows ?? []);
+  const monthlyStats = aggregateByMonth(normalizedRows);
+  const monthlyFullStats = aggregateByMonthFull(normalizedRows);
+  const summary = calcSummaryStats(normalizedRows);
 
   const weekIndices = weeks.map((w) => w.idx);
-  const categoryStats = aggregateByCategory(rows ?? [], weekIndices);
-  const categoryProductStats = aggregateByCategoryProduct(rows ?? []);
+  const categoryStats = aggregateByCategory(normalizedRows, weekIndices);
+  const categoryProductStats = aggregateByCategoryProduct(normalizedRows);
 
   // 카테고리 포지션
   const GROUP_CATEGORIES: Record<string, string[]> = {
@@ -295,6 +474,28 @@ export default async function CompanyPage({
     ],
     정수기: ["정수기", "공기청정기", "비데"],
   };
+  // auto_quote_typeb 컬럼 prefix 매핑
+  const DB_TO_PREFIX: Record<string, string> = {
+    "LG헬로비전": "lghv",
+    "유버스(현대렌탈서비스)": "hyundai",
+    스마트렌탈: "smart",
+    이니렌탈: "ini",
+    KT: "kt",
+    BS렌탈: "bs",
+    바디프랜드: "body",
+  };
+  const PRICING_COMPANIES = [
+    { name: "LG헬로비전", prefix: "lghv" },
+    { name: "이니렌탈", prefix: "ini" },
+    { name: "현대유버스", prefix: "hyundai" },
+    { name: "BS렌탈", prefix: "bs" },
+    { name: "스마트렌탈", prefix: "smart" },
+    { name: "캐리어", prefix: "carrier" },
+    { name: "바디프랜드", prefix: "body" },
+    { name: "KT렌탈", prefix: "kt" },
+  ];
+  const myPrefix = DB_TO_PREFIX[dbName] ?? null;
+
   const GROUP_COMPANIES: Record<string, string[]> = {
     정수기: ["SK인텔릭스", "코웨이", "쿠쿠", "청호", "LG"],
   };
@@ -310,13 +511,21 @@ export default async function CompanyPage({
   let categoryAllData: Record<string, { company: string; count: number }[]> =
     {};
 
+  let competitiveProductsByCategory: Record<string, CompetitiveProduct[]> = {};
+  let competitiveCategories: string[] = [];
+
   if (positionCategories.length > 0) {
-    const allGrowthRows: { rental_company: string; category: string }[] = [];
+    const allGrowthRows: {
+      rental_company: string;
+      category: string;
+      product_name: string | null;
+      model_name: string | null;
+    }[] = [];
     let gFrom = 0;
     while (true) {
       let q = supabase
         .from("raw_orders")
-        .select("rental_company, category")
+        .select("rental_company, category, product_name, model_name")
         .in("category", positionCategories)
         .gte("order_confirmed_at", "2026-01-01");
       if (positionCompanies.length > 0)
@@ -364,10 +573,160 @@ export default async function CompanyPage({
           .sort((a, b) => b.count - a.count);
       }
     }
+
+    // 카테고리별 상위 모델 × 렌탈사 분포 빌드
+    const catProductMap = new Map<
+      string,
+      Map<string, { product_name: string; model_name: string; byCompany: Map<string, number> }>
+    >();
+    for (const r of allGrowthRows) {
+      if (!r.category) continue;
+      const cat = r.category;
+      if (!catProductMap.has(cat)) catProductMap.set(cat, new Map());
+      const productMap = catProductMap.get(cat)!;
+      const key = `${r.product_name ?? ""}|${r.model_name ?? ""}`;
+      if (!productMap.has(key))
+        productMap.set(key, { product_name: r.product_name ?? "", model_name: r.model_name ?? "", byCompany: new Map() });
+      const entry = productMap.get(key)!;
+      if (r.rental_company)
+        entry.byCompany.set(r.rental_company, (entry.byCompany.get(r.rental_company) ?? 0) + 1);
+    }
+
+    const topModelNames = new Set<string>();
+    for (const cat of positionCategories) {
+      const productMap = catProductMap.get(cat);
+      if (!productMap) continue;
+      const top5 = Array.from(productMap.values())
+        .map((v) => ({
+          ...v,
+          totalCount: Array.from(v.byCompany.values()).reduce((s, c) => s + c, 0),
+        }))
+        .sort((a, b) => b.totalCount - a.totalCount)
+        .slice(0, 5);
+      if (top5.length === 0) continue;
+      competitiveProductsByCategory[cat] = top5.map((p) => ({
+        product_name: p.product_name,
+        model_name: p.model_name,
+        totalCount: p.totalCount,
+        byCompany: Array.from(p.byCompany.entries())
+          .map(([company, count]) => ({ company, count, isMe: company === dbName }))
+          .sort((a, b) => b.count - a.count),
+        pricing: [],
+      }));
+      competitiveCategories.push(cat);
+      top5.forEach((p) => { if (p.model_name) topModelNames.add(p.model_name); });
+    }
+
+    // auto_quote_typeb 가격 데이터 조회
+    if (topModelNames.size > 0) {
+      const { data: pricingRows } = await supabaseAdmin
+        .from("auto_quote_typeb")
+        .select(
+          "model_name, contract_months, lghv_monthly_fee, lghv_support, lghv_total_payment, ini_monthly_fee, ini_support, ini_total_payment, hyundai_monthly_fee, hyundai_support, hyundai_total_payment, bs_monthly_fee, bs_support, bs_total_payment, smart_monthly_fee, smart_support, smart_total_payment, carrier_monthly_fee, carrier_support, carrier_total_payment, body_monthly_fee, body_support, body_total_payment, kt_monthly_fee, kt_support, kt_total_payment"
+        )
+        .in("model_name", Array.from(topModelNames));
+
+      if (pricingRows && pricingRows.length > 0) {
+        const pricingByModel = new Map<string, typeof pricingRows>();
+        for (const row of pricingRows) {
+          if (!row.model_name) continue;
+          if (!pricingByModel.has(row.model_name)) pricingByModel.set(row.model_name, []);
+          pricingByModel.get(row.model_name)!.push(row);
+        }
+
+        for (const products of Object.values(competitiveProductsByCategory)) {
+          for (const product of products) {
+            const rows = pricingByModel.get(product.model_name) ?? [];
+            product.pricing = rows
+              .map((row) => {
+                const companies = PRICING_COMPANIES.map((c) => {
+                  const r = row as Record<string, unknown>;
+                  return {
+                    name: c.name,
+                    isMe: c.prefix === myPrefix,
+                    monthly_fee: (r[`${c.prefix}_monthly_fee`] as number | null) ?? null,
+                    support: (r[`${c.prefix}_support`] as number | null) ?? null,
+                    total_payment: (r[`${c.prefix}_total_payment`] as number | null) ?? null,
+                  };
+                }).filter((c) => c.monthly_fee !== null || c.support !== null);
+                return { contract_months: row.contract_months, companies };
+              })
+              .filter((pr) => pr.companies.length > 0);
+          }
+        }
+      }
+    }
   }
 
   return (
     <div className="px-12 pt-5 pb-8">
+      {/* 뷰 토글 */}
+      <div className="flex items-center justify-between mb-6">
+        <span className="text-m text-gray-400">
+          {view === "order" ? "주문확정일 기준" : "계약완료일 기준"}
+        </span>
+        <ViewToggle current={view} />
+      </div>
+
+      {/* 요약 카드 */}
+      <div className="mb-8 grid grid-cols-3 gap-4">
+        {/* 이번달 매출 */}
+        <div className="rounded-xl border border-gray-100 bg-white shadow-sm px-6 py-5">
+          <p className="text-xs text-gray-400 mb-2">
+            {summary.curMonthLabel} 누계 매출
+          </p>
+          <p className="text-2xl font-bold text-gray-800">
+            {fmt(summary.curRevenue)}
+          </p>
+          <p className="text-xs text-gray-400 mt-1.5">총렌탈료 기준</p>
+        </div>
+
+        {/* 전월 동기간 대비 */}
+        <div className="rounded-xl border border-gray-100 bg-white shadow-sm px-6 py-5">
+          <p className="text-xs text-gray-400 mb-2">
+            전월 동기간 대비{" "}
+            <span className="text-gray-300">
+              (~{today.getMonth() + 1}/{today.getDate()})
+            </span>
+          </p>
+          {summary.revenueChange !== null ? (
+            <>
+              <p
+                className="text-2xl font-bold"
+                style={{
+                  color:
+                    summary.revenueChange > 0
+                      ? "var(--color-error)"
+                      : "var(--color-down)",
+                }}
+              >
+                {summary.revenueChange > 0 ? "▲" : "▼"}{" "}
+                {Math.abs(summary.revenueChange).toFixed(1)}%
+              </p>
+              <p className="text-xs text-gray-400 mt-1.5">
+                {summary.prevMonthLabel} 동기간{" "}
+                <span className="text-gray-500 font-medium">
+                  {fmtShort(summary.prevRevenue)}
+                </span>
+              </p>
+            </>
+          ) : (
+            <p className="text-2xl font-bold text-gray-300">-</p>
+          )}
+        </div>
+
+        {/* 건당 공헌이익 */}
+        <div className="rounded-xl border border-gray-100 bg-white shadow-sm px-6 py-5">
+          <p className="text-xs text-gray-400 mb-2">건당 공헌이익</p>
+          <p className="text-2xl font-bold text-gray-800">
+            {fmt(summary.marginPerContract)}
+          </p>
+          <p className="text-xs text-gray-400 mt-1.5">
+            {summary.curMonthLabel} 누계 기준
+          </p>
+        </div>
+      </div>
+
       {/* 월별 총렌탈료 */}
       {monthlyStats.length > 0 && (
         <div className="mb-10">
@@ -375,24 +734,154 @@ export default async function CompanyPage({
             <h2 className="text-base font-semibold text-gray-700">
               월별 매출 현황
             </h2>
-            <span className="text-xs text-gray-400">주문확정 기준 · MOM</span>
+            <span className="text-xs text-gray-400">
+              {view === "order" ? "주문확정" : "계약완료"} 기준
+            </span>
           </div>
           <div className="rounded-xl shadow-sm border border-gray-100 bg-white px-5 pt-5 pb-4">
-            <MonthlyRevenueChart data={monthlyStats} />
+            <MonthlyRevenueChart
+              data={monthlyStats}
+              color={view === "contract" ? "#a78bfa" : undefined}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* 월별 현황 테이블 */}
+      {monthlyFullStats.length > 0 && (
+        <div className="mb-10">
+          <div className="mb-4 flex items-center gap-2">
+            <h2 className="text-base font-semibold text-gray-700">월별 현황</h2>
+            <span className="text-xs text-gray-400">
+              {view === "order" ? "주문확정" : "계약완료"} 기준
+            </span>
+          </div>
+          <div className="rounded-xl shadow-sm border border-gray-100">
+            <table className="text-sm bg-white w-full table-fixed">
+              <colgroup>
+                <col style={{ width: "14%" }} />
+                {monthlyFullStats.map((m) => (
+                  <col
+                    key={m.month}
+                    style={{ width: `${86 / monthlyFullStats.length}%` }}
+                  />
+                ))}
+              </colgroup>
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="px-5 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                    지표
+                  </th>
+                  {monthlyFullStats.map((m) => (
+                    <th key={m.month} className="px-4 py-3 text-center">
+                      <div className="font-semibold text-gray-700 text-xs">
+                        {m.month}
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-t border-gray-50">
+                  <td className="px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider sticky left-0 bg-white">
+                    주문건수
+                  </td>
+                  {monthlyFullStats.map((m) => (
+                    <td
+                      key={m.month}
+                      className="px-4 py-3.5 text-center text-gray-800"
+                    >
+                      {fmt(m.count)}
+                    </td>
+                  ))}
+                </tr>
+                <tr className="border-t border-gray-50">
+                  <td className="px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider sticky left-0 bg-white">
+                    매출 (총렌탈료)
+                  </td>
+                  {monthlyFullStats.map((m) => (
+                    <td
+                      key={m.month}
+                      className="px-4 py-3.5 text-center text-gray-800"
+                    >
+                      {fmt(m.totalRentalFee)}
+                    </td>
+                  ))}
+                </tr>
+                <tr className="border-t border-gray-50">
+                  <td className="px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider sticky left-0 bg-white">
+                    공헌이익
+                  </td>
+                  {monthlyFullStats.map((m) => (
+                    <td
+                      key={m.month}
+                      className="px-4 py-3.5 text-center font-medium"
+                      style={{
+                        color:
+                          m.contributionMargin >= 0
+                            ? "var(--color-success)"
+                            : "var(--color-error)",
+                      }}
+                    >
+                      {fmt(m.contributionMargin)}
+                    </td>
+                  ))}
+                </tr>
+                <tr className="border-t border-gray-50">
+                  <td className="px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider sticky left-0 bg-white">
+                    건당공헌이익
+                  </td>
+                  {monthlyFullStats.map((m) => (
+                    <td
+                      key={m.month}
+                      className="px-4 py-3.5 text-center text-gray-600"
+                    >
+                      {fmt(m.marginPerContract)}
+                    </td>
+                  ))}
+                </tr>
+                <tr className="border-t-2 border-gray-200">
+                  <td className="px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider sticky left-0 bg-white">
+                    전월 대비
+                  </td>
+                  {monthlyFullStats.map((m) => {
+                    if (m.mom === null) {
+                      return (
+                        <td
+                          key={m.month}
+                          className="px-4 py-3 text-center text-gray-300 text-xs"
+                        >
+                          -
+                        </td>
+                      );
+                    }
+                    const isUp = m.mom > 0;
+                    return (
+                      <td
+                        key={m.month}
+                        className="px-4 py-3 text-center text-xs font-bold"
+                        style={{
+                          color: isUp
+                            ? "var(--color-error)"
+                            : "var(--color-down)",
+                        }}
+                      >
+                        {isUp ? "▲" : "▼"} {Math.abs(m.mom).toFixed(1)}%
+                      </td>
+                    );
+                  })}
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       )}
 
       {/* 주차별 현황 */}
       <div className="mb-4 flex items-center gap-2">
-        <h2 className="text-base font-semibold text-gray-700">
-          렌탈사 주차별 현황
-        </h2>
+        <h2 className="text-base font-semibold text-gray-700">주차별 현황</h2>
         <span className="text-xs text-gray-400">
-          주문확정 [Metric Deck 기준] · 총{" "}
-          <span className="font-semibold text-gray-700">
-            {fmt(totalCount)}건
-          </span>
+          {view === "order" ? "주문확정 기준" : "계약완료 기준"}
         </span>
       </div>
 
@@ -487,7 +976,7 @@ export default async function CompanyPage({
             {/* 전주 대비 */}
             <tr className="border-t-2 border-gray-200">
               <td className="px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider sticky left-0 bg-white">
-                전주 대비
+                전주 대비 (건당공헌이익)
               </td>
               {weeks.map((w, i) => {
                 const prev = weeks[i + 1];
@@ -522,13 +1011,49 @@ export default async function CompanyPage({
           </tbody>
         </table>
       </div>
+      {/* 주차별 매출 현황 차트 */}
+      {weeks.length > 0 &&
+        (() => {
+          const weekChartData = [...weeks]
+            .slice(0, 5)
+            .reverse()
+            .map((w, i, arr) => ({
+              month: w.label,
+              totalRentalFee: w.totalRentalFee,
+              mom:
+                i === 0 || arr[i - 1].totalRentalFee === 0
+                  ? null
+                  : ((w.totalRentalFee - arr[i - 1].totalRentalFee) /
+                      arr[i - 1].totalRentalFee) *
+                    100,
+            }));
+          return (
+            <div className="mb-10">
+              <div className="mb-4 flex items-center gap-2">
+                <h2 className="text-base font-semibold text-gray-700">
+                  주차별 매출 현황
+                </h2>
+                <span className="text-xs text-gray-400">
+                  {view === "order" ? "주문확정" : "계약완료"} 기준
+                </span>
+              </div>
+              <div className="rounded-xl shadow-sm border border-gray-100 bg-white px-5 pt-5 pb-4">
+                <MonthlyRevenueChart
+                  data={weekChartData}
+                  color={view === "contract" ? "#a78bfa" : undefined}
+                />
+              </div>
+            </div>
+          );
+        })()}
+
       {/* 카테고리별 현황 */}
       <div className="mb-4 flex items-center gap-2">
         <h2 className="text-base font-semibold text-gray-700">
           카테고리별 현황
         </h2>
         <span className="text-xs text-gray-400">
-          주문확정 [Metric Deck 기준]
+          {view === "order" ? "주문확정" : "계약완료"} 기준
         </span>
       </div>
 
@@ -545,82 +1070,39 @@ export default async function CompanyPage({
             <h2 className="text-base font-semibold text-gray-700">
               {mapping.group === "정수기"
                 ? "정수기 & 크로스셀 내 포지션"
-                : "성장카테고리 내 포지션"}
+                : "가전&상조 내 포지션"}
+            </h2>
+            <span className="text-xs text-gray-400">주문확정 기준</span>
+          </div>
+          <PositionChartModal
+            ranks={growthRanks}
+            categoryAllData={categoryAllData}
+            title={
+              mapping.group === "정수기"
+                ? "정수기 & 크로스셀 내 포지션"
+                : "가전&상조 내 포지션"
+            }
+            companyLabel={label}
+            myDbName={dbName}
+          />
+        </div>
+      )}
+
+      {/* 카테고리별 경쟁 분석 */}
+      {competitiveCategories.length > 0 && (
+        <div className="mt-10">
+          <div className="mb-4 flex items-center gap-2">
+            <h2 className="text-base font-semibold text-gray-700">
+              카테고리별 경쟁 분석
             </h2>
             <span className="text-xs text-gray-400">
-              2026년 기준 · 주문확정
+              주문확정 기준 · 상위 5개 모델
             </span>
-            <PositionChartModal
-              ranks={growthRanks}
-              categoryAllData={categoryAllData}
-              title={
-                mapping.group === "정수기"
-                  ? "정수기 & 크로스셀 내 포지션"
-                  : "성장카테고리 내 포지션"
-              }
-              companyLabel={label}
-              myDbName={dbName}
-            />
           </div>
-          <div className="overflow-x-auto rounded-xl shadow-sm border border-gray-100">
-            <table className="text-sm bg-white w-full table-fixed">
-              <colgroup>
-                <col style={{ width: "25%" }} />
-                <col style={{ width: "25%" }} />
-                <col style={{ width: "25%" }} />
-                <col style={{ width: "25%" }} />
-              </colgroup>
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="px-5 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                    카테고리
-                  </th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400">
-                    건수
-                  </th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400">
-                    점유율
-                  </th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400">
-                    순위
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {growthRanks.map((r) => (
-                  <tr key={r.category} className="border-t border-gray-50">
-                    <td className="px-5 py-3.5 text-center text-gray-700">
-                      {r.category}
-                    </td>
-                    <td className="px-4 py-3.5 text-center font-semibold text-gray-700">
-                      {fmt(r.count)}
-                    </td>
-                    <td
-                      className="px-4 py-3.5 text-center font-semibold"
-                      style={{
-                        color:
-                          r.share >= 10
-                            ? "var(--color-error)"
-                            : "var(--color-accent-blue)",
-                      }}
-                    >
-                      {r.share.toFixed(1)}%
-                    </td>
-                    <td className="px-4 py-3.5 text-center">
-                      <span
-                        className={`font-bold ${r.rank <= 3 ? "text-[var(--color-error)]" : "text-gray-400"}`}
-                      >
-                        {r.rank}위
-                      </span>
-                      <span className="text-xs text-gray-300 ml-1">
-                        / {r.total}개사
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <CategoryCompetitiveSection
+            categories={competitiveCategories}
+            productsByCategory={competitiveProductsByCategory}
+          />
         </div>
       )}
 
