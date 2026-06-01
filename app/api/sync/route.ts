@@ -23,6 +23,9 @@ interface RedashContractRow {
   카테고리: string | null;
   제품명: string | null;
   모델명: string | null;
+  관리방식: string | null;
+  관리주기: string | null;
+  의무사용기간: number | null;
   파트너명: string | null;
   파트너사: string | null;
   월렌탈료: number | null;
@@ -45,6 +48,9 @@ interface RedashOrderRow {
   카테고리: string | null;
   제품명: string | null;
   모델명: string | null;
+  관리방식: string | null;
+  관리주기: string | null;
+  의무사용기간: number | null;
   파트너명: string | null;
   파트너사: string | null;
   월렌탈료: number | null;
@@ -287,6 +293,9 @@ export async function POST(req: Request) {
           category: r.카테고리 ?? null,
           product_name: r.제품명 ?? null,
           model_name: r.모델명 ?? null,
+          management_type: r.관리방식 ?? null,
+          management_cycle: r.관리주기 ?? null,
+          contract_months: r.의무사용기간 ?? null,
           partner_name: r.파트너명 ?? null,
           partner_company: r.파트너사 ?? null,
           monthly_fee: r.월렌탈료 ?? null,
@@ -323,6 +332,9 @@ export async function POST(req: Request) {
         category: r.카테고리 ?? null,
         product_name: r.제품명 ?? null,
         model_name: r.모델명 ?? null,
+        management_type: r.관리방식 ?? null,
+        management_cycle: r.관리주기 ?? null,
+        contract_months: r.의무사용기간 ?? null,
         partner_name: r.파트너명 ?? null,
         partner_company: r.파트너사 ?? null,
         monthly_fee: r.월렌탈료 ?? null,

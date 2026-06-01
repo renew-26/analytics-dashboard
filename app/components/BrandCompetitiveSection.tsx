@@ -8,8 +8,23 @@ interface CompRow {
   monthly_fee: number | null;
   support: number | null;
   total_payment: number | null;
+  orderCount: number;
   isMe: boolean;
 }
+
+type ViewMode = "price" | "hybrid" | "popular";
+
+const MODE_OPTIONS: { key: ViewMode; label: string }[] = [
+  { key: "price", label: "가격 근접" },
+  { key: "hybrid", label: "가격+수요" },
+  { key: "popular", label: "인기순" },
+];
+
+const MODE_CAPTION: Record<ViewMode, string> = {
+  price: "유사 월렌탈료 경쟁군 (저렴한 순)",
+  hybrid: "내 가격대 인기 경쟁군 (주문 많은 순)",
+  popular: "타사 인기 상품 (주문 많은 순)",
+};
 
 interface PricingTerm {
   contract_months: number | null;
@@ -19,6 +34,7 @@ interface PricingTerm {
 export interface BrandCompetitiveProduct {
   product_name: string;
   model_name: string;
+  managementType: "방문" | "셀프" | null;
   orderCount: number;
   pricing: PricingTerm[];
 }
@@ -27,7 +43,13 @@ function fmt(n: number) {
   return n.toLocaleString("ko-KR");
 }
 
-function PricingPanel({ pricing }: { pricing: PricingTerm[] }) {
+function PricingPanel({
+  pricing,
+  mode,
+}: {
+  pricing: PricingTerm[];
+  mode: ViewMode;
+}) {
   const termOptions = [
     ...new Set(
       pricing
@@ -53,24 +75,66 @@ function PricingPanel({ pricing }: { pricing: PricingTerm[] }) {
     return <p className="text-xs text-gray-300 pt-2">견적 정보 없음</p>;
   }
 
-  const fees = current.rows
+  const myRow = current.rows.find((r) => r.isMe);
+  const myFee = myRow?.monthly_fee ?? null;
+  const competitors = current.rows.filter((r) => !r.isMe);
+
+  // 모드별 경쟁군 선정 (top6)
+  let picked: CompRow[];
+  if (mode === "popular") {
+    picked = [...competitors]
+      .sort((a, b) => b.orderCount - a.orderCount)
+      .slice(0, 6);
+  } else if (mode === "hybrid" && myFee !== null) {
+    // 내 가격 ±25% 밴드 안에서 주문 많은 순, 부족하면 가격 근접으로 보충
+    const inBand = competitors.filter(
+      (c) => c.monthly_fee !== null && Math.abs(c.monthly_fee - myFee) <= myFee * 0.25,
+    );
+    const byDemand = [...inBand].sort((a, b) => b.orderCount - a.orderCount);
+    if (byDemand.length >= 6) {
+      picked = byDemand.slice(0, 6);
+    } else {
+      const rest = competitors
+        .filter((c) => !inBand.includes(c))
+        .sort(
+          (a, b) =>
+            Math.abs((a.monthly_fee ?? Infinity) - myFee) -
+            Math.abs((b.monthly_fee ?? Infinity) - myFee),
+        );
+      picked = [...byDemand, ...rest].slice(0, 6);
+    }
+  } else {
+    // price (또는 myFee 없음): 월렌탈료 근접순
+    picked = [...competitors]
+      .sort(
+        (a, b) =>
+          Math.abs((a.monthly_fee ?? Infinity) - (myFee ?? 0)) -
+          Math.abs((b.monthly_fee ?? Infinity) - (myFee ?? 0)),
+      )
+      .slice(0, 6);
+  }
+
+  const display = myRow ? [myRow, ...picked] : picked;
+
+  const fees = display
     .filter((r) => r.monthly_fee !== null)
     .map((r) => r.monthly_fee!);
   const minFee = fees.length ? Math.min(...fees) : null;
+  const maxOrder = Math.max(0, ...display.map((r) => r.orderCount));
 
-  const myRow = current.rows.find((r) => r.isMe);
-  const myFee = myRow?.monthly_fee ?? null;
-
-  // 월렌탈료 오름차순, 내 상품은 강조만 (정렬은 가격 기준)
-  const sorted = [...current.rows].sort(
-    (a, b) => (a.monthly_fee ?? Infinity) - (b.monthly_fee ?? Infinity),
-  );
+  // 인기순은 주문 내림차순, 그 외는 월렌탈료 오름차순 (내 상품은 강조만)
+  const sorted =
+    mode === "popular"
+      ? [...display].sort((a, b) => b.orderCount - a.orderCount)
+      : [...display].sort(
+          (a, b) => (a.monthly_fee ?? Infinity) - (b.monthly_fee ?? Infinity),
+        );
 
   return (
     <div>
       <div className="flex items-center justify-between mb-2.5">
         <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
-          유사 월렌탈료 경쟁군 (저렴한 순)
+          {MODE_CAPTION[mode]}
         </p>
         {termOptions.length > 1 && (
           <div className="flex gap-1">
@@ -95,19 +159,22 @@ function PricingPanel({ pricing }: { pricing: PricingTerm[] }) {
       <table className="w-full text-[11px]">
         <thead>
           <tr>
-            <th className="text-[11px] font-semibold text-gray-500 text-center pb-1.5 w-[8%]">
+            <th className="text-[11px] font-semibold text-gray-500 text-center pb-1.5 w-[7%]">
               순위
             </th>
-            <th className="text-[11px] font-semibold text-gray-500 text-left pb-1.5 w-[34%]">
+            <th className="text-[11px] font-semibold text-gray-500 text-left pb-1.5 w-[31%]">
               브랜드 · 모델
             </th>
-            <th className="text-[11px] font-semibold text-gray-500 text-center pb-1.5 w-[20%]">
-              월렌탈료
+            <th className="text-[11px] font-semibold text-gray-500 text-center pb-1.5 w-[14%]">
+              주문건수
             </th>
             <th className="text-[11px] font-semibold text-gray-500 text-center pb-1.5 w-[18%]">
+              월렌탈료
+            </th>
+            <th className="text-[11px] font-semibold text-gray-500 text-center pb-1.5 w-[14%]">
               지원금
             </th>
-            <th className="text-[11px] font-semibold text-gray-500 text-center pb-1.5 w-[20%]">
+            <th className="text-[11px] font-semibold text-gray-500 text-center pb-1.5 w-[16%]">
               실납부총액
             </th>
           </tr>
@@ -126,11 +193,11 @@ function PricingPanel({ pricing }: { pricing: PricingTerm[] }) {
                 key={k}
                 style={c.isMe ? { backgroundColor: "#f0f7ff" } : undefined}
               >
-                <td className="py-1 px-1 text-center tabular-nums text-gray-300">
+                <td className="py-1 px-1 rounded-l text-center tabular-nums text-gray-300">
                   {k + 1}
                 </td>
                 <td
-                  className="py-1 px-1 rounded-l text-left truncate"
+                  className="py-1 px-1 text-left truncate"
                   style={{
                     color: c.isMe ? "#007aff" : "#6b7280",
                     fontWeight: c.isMe ? 700 : 400,
@@ -138,6 +205,19 @@ function PricingPanel({ pricing }: { pricing: PricingTerm[] }) {
                 >
                   <span>{c.brand}</span>
                   <span className="text-gray-300 ml-1">{c.model_name}</span>
+                </td>
+                <td
+                  className="py-1 px-1 text-center tabular-nums"
+                  style={{
+                    color:
+                      c.orderCount > 0 && c.orderCount === maxOrder
+                        ? "#f97316"
+                        : "#9ca3af",
+                    fontWeight:
+                      c.orderCount > 0 && c.orderCount === maxOrder ? 600 : 400,
+                  }}
+                >
+                  {c.orderCount ? fmt(c.orderCount) : "-"}
                 </td>
                 <td
                   className="py-1 px-1 text-center tabular-nums"
@@ -182,28 +262,50 @@ export default function BrandCompetitiveSection({
   productsByCategory: Record<string, BrandCompetitiveProduct[]>;
 }) {
   const [selectedCat, setSelectedCat] = useState<string>(categories[0] ?? "");
+  const [mode, setMode] = useState<ViewMode>("price");
   const products = productsByCategory[selectedCat] ?? [];
 
   if (categories.length === 0) return null;
 
   return (
     <div className="rounded-xl shadow-sm border border-gray-100 bg-white px-6 py-5">
-      {/* 카테고리 탭 */}
-      <div className="flex gap-1.5 flex-wrap mb-5">
-        {categories.map((cat) => (
-          <button
-            key={cat}
-            onClick={() => setSelectedCat(cat)}
-            className="text-xs px-3 py-1.5 rounded-full transition focus:outline-none"
-            style={
-              selectedCat === cat
-                ? { backgroundColor: "#007aff", color: "#ffffff" }
-                : { backgroundColor: "#f3f4f6", color: "#6b7280" }
-            }
-          >
-            {cat}
-          </button>
-        ))}
+      {/* 카테고리 탭 + 비교 기준 토글 */}
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-5">
+        <div className="flex gap-1.5 flex-wrap">
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setSelectedCat(cat)}
+              className="text-xs px-3 py-1.5 rounded-full transition focus:outline-none"
+              style={
+                selectedCat === cat
+                  ? { backgroundColor: "#007aff", color: "#ffffff" }
+                  : { backgroundColor: "#f3f4f6", color: "#6b7280" }
+              }
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-gray-400">비교 기준</span>
+          <div className="flex rounded-md overflow-hidden border border-gray-200">
+            {MODE_OPTIONS.map((m) => (
+              <button
+                key={m.key}
+                onClick={() => setMode(m.key)}
+                className="text-[11px] px-2.5 py-1 transition focus:outline-none"
+                style={
+                  mode === m.key
+                    ? { backgroundColor: "#007aff", color: "#ffffff" }
+                    : { backgroundColor: "#ffffff", color: "#9ca3af" }
+                }
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {products.length === 0 ? (
@@ -227,6 +329,18 @@ export default function BrandCompetitiveSection({
                   <span className="text-xs text-gray-400 shrink-0 bg-gray-100 px-1.5 py-0.5 rounded">
                     {product.model_name || ""}
                   </span>
+                  {product.managementType && (
+                    <span
+                      className="text-[10px] font-semibold shrink-0 px-1.5 py-0.5 rounded"
+                      style={
+                        product.managementType === "방문"
+                          ? { backgroundColor: "#eff6ff", color: "#2563eb" }
+                          : { backgroundColor: "#f0fdf4", color: "#16a34a" }
+                      }
+                    >
+                      {product.managementType === "방문" ? "방문관리" : "셀프관리"}
+                    </span>
+                  )}
                 </div>
                 <span className="text-xs text-gray-400 shrink-0 ml-3">
                   내 브랜드{" "}
@@ -238,7 +352,7 @@ export default function BrandCompetitiveSection({
 
               {/* 가격 비교 */}
               <div className="px-4 py-3">
-                <PricingPanel pricing={product.pricing} />
+                <PricingPanel pricing={product.pricing} mode={mode} />
               </div>
             </div>
           ))}

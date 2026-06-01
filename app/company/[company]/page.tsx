@@ -528,14 +528,18 @@ export default async function CompanyPage({
       category: string;
       product_name: string | null;
       model_name: string | null;
+      management_type: string | null;
     }[] = [];
+    // 상단 토글(주문확정/계약완료)에 따라 소스 전환
+    const growthTable = view === "order" ? "raw_orders" : "raw_contracts";
+    const growthDateCol = view === "order" ? "order_confirmed_at" : "contract_date";
     let gFrom = 0;
     while (true) {
       let q = supabase
-        .from("raw_orders")
-        .select("rental_company, category, product_name, model_name")
+        .from(growthTable)
+        .select("rental_company, category, product_name, model_name, management_type")
         .in("category", positionCategories)
-        .gte("order_confirmed_at", "2026-01-01");
+        .gte(growthDateCol, "2026-01-01");
       if (positionCompanies.length > 0)
         q = q.in("rental_company", positionCompanies);
       const { data, error } = await q.range(gFrom, gFrom + PAGE - 1);
@@ -666,20 +670,38 @@ export default async function CompanyPage({
       }
     }
     } else {
-      // typeA(정수기): 내 브랜드 상위 주문 상품 + 유사 월렌탈료 경쟁군
-      // 1) 내 브랜드 상위 상품 (카테고리별, 주문건수 top5)
+      // typeA(정수기): 내 브랜드 상위 주문 상품 + 동일 관리방식 경쟁군
+      // 관리방식 정규화 (방문 / 셀프). 값 예: "방문관리", "셀프관리 (소모품 정기배송)"
+      const mgmtBucket = (s: string | null): "방문" | "셀프" | null =>
+        !s ? null : s.includes("방문") ? "방문" : s.includes("셀프") ? "셀프" : null;
+
+      // 1) 내 브랜드 상위 상품 (카테고리별, 모델×관리방식 단위, 주문건수 top5)
       const myProductMap = new Map<
         string,
-        Map<string, { product_name: string; model_name: string; count: number }>
+        Map<
+          string,
+          {
+            product_name: string;
+            model_name: string;
+            mgmt: "방문" | "셀프" | null;
+            count: number;
+          }
+        >
       >();
       for (const r of allGrowthRows) {
         if (r.rental_company !== dbName || !r.category || !r.model_name) continue;
         const cat = r.category;
+        const mgmt = mgmtBucket(r.management_type);
         if (!myProductMap.has(cat)) myProductMap.set(cat, new Map());
         const pm = myProductMap.get(cat)!;
-        const key = `${r.product_name ?? ""}|${r.model_name}`;
+        const key = `${r.product_name ?? ""}|${r.model_name}|${mgmt ?? ""}`;
         if (!pm.has(key))
-          pm.set(key, { product_name: r.product_name ?? "", model_name: r.model_name, count: 0 });
+          pm.set(key, {
+            product_name: r.product_name ?? "",
+            model_name: r.model_name,
+            mgmt,
+            count: 0,
+          });
         pm.get(key)!.count += 1;
       }
 
@@ -688,6 +710,7 @@ export default async function CompanyPage({
         category: string | null;
         brand: string | null;
         model_name: string | null;
+        management_type: string | null;
         contract_months: number | null;
         dc_monthly_fee: number | null;
         dc_support: number | null;
@@ -698,7 +721,7 @@ export default async function CompanyPage({
         const { data } = await supabaseAdmin
           .from("auto_quote_typea")
           .select(
-            "category, brand, model_name, contract_months, dc_monthly_fee, dc_support, dc_total_payment",
+            "category, brand, model_name, management_type, contract_months, dc_monthly_fee, dc_support, dc_total_payment",
           )
           .in("category", positionCategories)
           .not("dc_monthly_fee", "is", null)
@@ -709,12 +732,22 @@ export default async function CompanyPage({
         pf += PAGE;
       }
 
+      // 타사 포함 전 브랜드 주문건수 (category|brand|model|관리방식 → count)
+      const orderCountMap = new Map<string, number>();
+      for (const r of allGrowthRows) {
+        if (!r.category || !r.model_name || !r.rental_company) continue;
+        const mgmt = mgmtBucket(r.management_type);
+        const key = `${r.category}|${r.rental_company}|${r.model_name}|${mgmt ?? ""}`;
+        orderCountMap.set(key, (orderCountMap.get(key) ?? 0) + 1);
+      }
+
       type CompRow = {
         brand: string;
         model_name: string;
         monthly_fee: number | null;
         support: number | null;
         total_payment: number | null;
+        orderCount: number;
         isMe: boolean;
       };
 
@@ -728,7 +761,7 @@ export default async function CompanyPage({
         const catPool = poolRows.filter((r) => r.category === cat);
 
         const items: BrandCompetitiveProduct[] = top5.map((p) => {
-          // 내 상품 term별 대표 견적 (brand=내 브랜드 & 모델 일치, term별 최저 월렌탈료)
+          // 내 상품 term별 대표 견적 (brand=내 브랜드 & 모델·관리방식 일치, term별 최저 월렌탈료)
           const myByTerm = new Map<
             number,
             { monthly_fee: number; support: number | null; total_payment: number | null }
@@ -737,6 +770,7 @@ export default async function CompanyPage({
             if (
               r.brand !== dbName ||
               r.model_name !== p.model_name ||
+              mgmtBucket(r.management_type) !== p.mgmt ||
               r.contract_months === null ||
               r.dc_monthly_fee === null
             )
@@ -753,12 +787,13 @@ export default async function CompanyPage({
           const pricing = Array.from(myByTerm.entries())
             .sort((a, b) => a[0] - b[0])
             .map(([term, mine]) => {
-              // 경쟁군: 같은 카테고리·계약기간, 타 브랜드, brand|model 단위 최저가, 월렌탈료 근접순 top6
+              // 경쟁군: 같은 카테고리·계약기간·관리방식, 타 브랜드, brand|model 단위 최저가
               const compMap = new Map<string, CompRow>();
               for (const r of catPool) {
                 if (
                   r.contract_months !== term ||
                   r.brand === dbName ||
+                  mgmtBucket(r.management_type) !== p.mgmt ||
                   r.dc_monthly_fee === null ||
                   !r.brand ||
                   !r.model_name
@@ -773,16 +808,17 @@ export default async function CompanyPage({
                     monthly_fee: r.dc_monthly_fee,
                     support: r.dc_support,
                     total_payment: r.dc_total_payment,
+                    orderCount:
+                      orderCountMap.get(
+                        `${cat}|${r.brand}|${r.model_name}|${p.mgmt ?? ""}`,
+                      ) ?? 0,
                     isMe: false,
                   });
               }
-              const competitors = Array.from(compMap.values())
-                .sort(
-                  (a, b) =>
-                    Math.abs((a.monthly_fee ?? 0) - mine.monthly_fee) -
-                    Math.abs((b.monthly_fee ?? 0) - mine.monthly_fee),
-                )
-                .slice(0, 6);
+              // 전체 경쟁군을 내려보내고 정렬/노출은 클라이언트 모드에서 처리
+              const competitors = Array.from(compMap.values()).sort(
+                (a, b) => b.orderCount - a.orderCount,
+              );
               const rows: CompRow[] = [
                 {
                   brand: dbName,
@@ -790,6 +826,7 @@ export default async function CompanyPage({
                   monthly_fee: mine.monthly_fee,
                   support: mine.support,
                   total_payment: mine.total_payment,
+                  orderCount: p.count,
                   isMe: true,
                 },
                 ...competitors,
@@ -800,6 +837,7 @@ export default async function CompanyPage({
           return {
             product_name: p.product_name,
             model_name: p.model_name,
+            managementType: p.mgmt,
             orderCount: p.count,
             pricing,
           };
@@ -1225,7 +1263,9 @@ export default async function CompanyPage({
                 ? "정수기 & 크로스셀 내 포지션"
                 : "가전&상조 내 포지션"}
             </h2>
-            <span className="text-xs text-gray-400">주문확정 기준</span>
+            <span className="text-xs text-gray-400">
+              {view === "order" ? "주문확정 기준" : "계약완료 기준"}
+            </span>
           </div>
           <PositionChartModal
             ranks={growthRanks}
@@ -1251,9 +1291,11 @@ export default async function CompanyPage({
               {isTypeA ? "브랜드 경쟁 분석" : "카테고리별 경쟁 분석"}
             </h2>
             <span className="text-xs text-gray-400">
-              {isTypeA
-                ? "주문확정 기준 · 내 브랜드 상위 상품 vs 유사 월렌탈료 경쟁군"
-                : "주문확정 기준 · 상위 5개 모델"}
+              {`${view === "order" ? "주문확정" : "계약완료"} 기준 · ${
+                isTypeA
+                  ? "내 브랜드 상위 상품 · 동일 관리방식 경쟁군"
+                  : "상위 5개 모델"
+              }`}
             </span>
           </div>
           {isTypeA ? (
