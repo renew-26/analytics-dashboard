@@ -7,6 +7,9 @@ import ViewToggle from "@/app/components/ViewToggle";
 import CategoryCompetitiveSection, {
   type CompetitiveProduct,
 } from "@/app/components/CategoryCompetitiveSection";
+import BrandCompetitiveSection, {
+  type BrandCompetitiveProduct,
+} from "@/app/components/BrandCompetitiveSection";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -501,6 +504,7 @@ export default async function CompanyPage({
   };
   const positionCategories = GROUP_CATEGORIES[mapping.group] ?? [];
   const positionCompanies = GROUP_COMPANIES[mapping.group] ?? [];
+  const isTypeA = mapping.group === "정수기";
   let growthRanks: {
     category: string;
     count: number;
@@ -513,6 +517,10 @@ export default async function CompanyPage({
 
   let competitiveProductsByCategory: Record<string, CompetitiveProduct[]> = {};
   let competitiveCategories: string[] = [];
+
+  // 정수기(typeA): 내 브랜드 상위 상품 vs 유사 월렌탈료 경쟁군
+  let brandCompByCategory: Record<string, BrandCompetitiveProduct[]> = {};
+  let brandCompCategories: string[] = [];
 
   if (positionCategories.length > 0) {
     const allGrowthRows: {
@@ -574,6 +582,7 @@ export default async function CompanyPage({
       }
     }
 
+    if (!isTypeA) {
     // 카테고리별 상위 모델 × 렌탈사 분포 빌드
     const catProductMap = new Map<
       string,
@@ -654,6 +663,150 @@ export default async function CompanyPage({
               .filter((pr) => pr.companies.length > 0);
           }
         }
+      }
+    }
+    } else {
+      // typeA(정수기): 내 브랜드 상위 주문 상품 + 유사 월렌탈료 경쟁군
+      // 1) 내 브랜드 상위 상품 (카테고리별, 주문건수 top5)
+      const myProductMap = new Map<
+        string,
+        Map<string, { product_name: string; model_name: string; count: number }>
+      >();
+      for (const r of allGrowthRows) {
+        if (r.rental_company !== dbName || !r.category || !r.model_name) continue;
+        const cat = r.category;
+        if (!myProductMap.has(cat)) myProductMap.set(cat, new Map());
+        const pm = myProductMap.get(cat)!;
+        const key = `${r.product_name ?? ""}|${r.model_name}`;
+        if (!pm.has(key))
+          pm.set(key, { product_name: r.product_name ?? "", model_name: r.model_name, count: 0 });
+        pm.get(key)!.count += 1;
+      }
+
+      // 2) typeA 가격 풀 (월렌탈료 있는 행만)
+      const poolRows: {
+        category: string | null;
+        brand: string | null;
+        model_name: string | null;
+        contract_months: number | null;
+        dc_monthly_fee: number | null;
+        dc_support: number | null;
+        dc_total_payment: number | null;
+      }[] = [];
+      let pf = 0;
+      while (true) {
+        const { data } = await supabaseAdmin
+          .from("auto_quote_typea")
+          .select(
+            "category, brand, model_name, contract_months, dc_monthly_fee, dc_support, dc_total_payment",
+          )
+          .in("category", positionCategories)
+          .not("dc_monthly_fee", "is", null)
+          .range(pf, pf + PAGE - 1);
+        if (!data || data.length === 0) break;
+        poolRows.push(...data);
+        if (data.length < PAGE) break;
+        pf += PAGE;
+      }
+
+      type CompRow = {
+        brand: string;
+        model_name: string;
+        monthly_fee: number | null;
+        support: number | null;
+        total_payment: number | null;
+        isMe: boolean;
+      };
+
+      for (const cat of positionCategories) {
+        const pm = myProductMap.get(cat);
+        if (!pm) continue;
+        const top5 = Array.from(pm.values())
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 5);
+        if (top5.length === 0) continue;
+        const catPool = poolRows.filter((r) => r.category === cat);
+
+        const items: BrandCompetitiveProduct[] = top5.map((p) => {
+          // 내 상품 term별 대표 견적 (brand=내 브랜드 & 모델 일치, term별 최저 월렌탈료)
+          const myByTerm = new Map<
+            number,
+            { monthly_fee: number; support: number | null; total_payment: number | null }
+          >();
+          for (const r of catPool) {
+            if (
+              r.brand !== dbName ||
+              r.model_name !== p.model_name ||
+              r.contract_months === null ||
+              r.dc_monthly_fee === null
+            )
+              continue;
+            const prev = myByTerm.get(r.contract_months);
+            if (!prev || r.dc_monthly_fee < prev.monthly_fee)
+              myByTerm.set(r.contract_months, {
+                monthly_fee: r.dc_monthly_fee,
+                support: r.dc_support,
+                total_payment: r.dc_total_payment,
+              });
+          }
+
+          const pricing = Array.from(myByTerm.entries())
+            .sort((a, b) => a[0] - b[0])
+            .map(([term, mine]) => {
+              // 경쟁군: 같은 카테고리·계약기간, 타 브랜드, brand|model 단위 최저가, 월렌탈료 근접순 top6
+              const compMap = new Map<string, CompRow>();
+              for (const r of catPool) {
+                if (
+                  r.contract_months !== term ||
+                  r.brand === dbName ||
+                  r.dc_monthly_fee === null ||
+                  !r.brand ||
+                  !r.model_name
+                )
+                  continue;
+                const key = `${r.brand}|${r.model_name}`;
+                const prev = compMap.get(key);
+                if (!prev || r.dc_monthly_fee < (prev.monthly_fee ?? Infinity))
+                  compMap.set(key, {
+                    brand: r.brand,
+                    model_name: r.model_name,
+                    monthly_fee: r.dc_monthly_fee,
+                    support: r.dc_support,
+                    total_payment: r.dc_total_payment,
+                    isMe: false,
+                  });
+              }
+              const competitors = Array.from(compMap.values())
+                .sort(
+                  (a, b) =>
+                    Math.abs((a.monthly_fee ?? 0) - mine.monthly_fee) -
+                    Math.abs((b.monthly_fee ?? 0) - mine.monthly_fee),
+                )
+                .slice(0, 6);
+              const rows: CompRow[] = [
+                {
+                  brand: dbName,
+                  model_name: p.model_name,
+                  monthly_fee: mine.monthly_fee,
+                  support: mine.support,
+                  total_payment: mine.total_payment,
+                  isMe: true,
+                },
+                ...competitors,
+              ];
+              return { contract_months: term, rows };
+            });
+
+          return {
+            product_name: p.product_name,
+            model_name: p.model_name,
+            orderCount: p.count,
+            pricing,
+          };
+        });
+
+        brandCompByCategory[cat] = items;
+        brandCompCategories.push(cat);
       }
     }
   }
@@ -1089,20 +1242,31 @@ export default async function CompanyPage({
       )}
 
       {/* 카테고리별 경쟁 분석 */}
-      {competitiveCategories.length > 0 && (
+      {(isTypeA
+        ? brandCompCategories.length > 0
+        : competitiveCategories.length > 0) && (
         <div className="mt-10">
           <div className="mb-4 flex items-center gap-2">
             <h2 className="text-base font-semibold text-gray-700">
-              카테고리별 경쟁 분석
+              {isTypeA ? "브랜드 경쟁 분석" : "카테고리별 경쟁 분석"}
             </h2>
             <span className="text-xs text-gray-400">
-              주문확정 기준 · 상위 5개 모델
+              {isTypeA
+                ? "주문확정 기준 · 내 브랜드 상위 상품 vs 유사 월렌탈료 경쟁군"
+                : "주문확정 기준 · 상위 5개 모델"}
             </span>
           </div>
-          <CategoryCompetitiveSection
-            categories={competitiveCategories}
-            productsByCategory={competitiveProductsByCategory}
-          />
+          {isTypeA ? (
+            <BrandCompetitiveSection
+              categories={brandCompCategories}
+              productsByCategory={brandCompByCategory}
+            />
+          ) : (
+            <CategoryCompetitiveSection
+              categories={competitiveCategories}
+              productsByCategory={competitiveProductsByCategory}
+            />
+          )}
         </div>
       )}
 

@@ -12,6 +12,7 @@ const REDASH_API_KEY = process.env.REDASH_API_KEY!;
 const QUERY_ID_CONTRACT = 4445;
 const QUERY_ID_ORDER = 4441;
 const QUERY_ID_AUTO_QUOTE = 4404;
+const QUERY_ID_AUTO_QUOTE_TYPEA = 4403;
 
 interface RedashContractRow {
   PROP_ITEM_USID: number;
@@ -61,6 +62,7 @@ async function fetchRedashData(
   queryId: number,
   startDate?: string,
   endDate?: string,
+  rowLimit: string | number = 100000,
 ): Promise<unknown[]> {
   const initRes = await fetch(`${REDASH_URL}/api/queries/${queryId}`, {
     headers: { Authorization: `Key ${REDASH_API_KEY}` },
@@ -77,7 +79,7 @@ async function fetchRedashData(
     .filter(Boolean)
     .join("; ");
 
-  const parameters: Record<string, unknown> = { row_limit: 100000 };
+  const parameters: Record<string, unknown> = { row_limit: rowLimit };
   if (startDate && endDate) {
     parameters["조회기간"] = { start: startDate, end: endDate };
   }
@@ -120,7 +122,74 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}));
     const startDate = body.startDate ?? "2026-01-01";
     const endDate = body.endDate ?? new Date().toISOString().slice(0, 10);
-    const type: "contract" | "order" | "auto_quote" = body.type ?? "contract";
+    const type: "contract" | "order" | "auto_quote" | "auto_quote_typea" = body.type ?? "contract";
+
+    if (type === "auto_quote_typea") {
+      const rows = (await fetchRedashData(QUERY_ID_AUTO_QUOTE_TYPEA, undefined, undefined, "100000")) as Record<string, unknown>[];
+
+      const records = rows
+        .filter((r) => r["prod_term_usid"])
+        .map((r) => {
+          const n = (k: string) => { const v = r[k]; return (v === null || v === undefined || v === "") ? null : Number(v); };
+          const s = (k: string) => (r[k] as string | null) ?? null;
+          return {
+            prod_term_usid: r["prod_term_usid"] as number,
+            prod_usid: n("상품 USID"),
+            prod_option_usid: n("prod_option_usid"),
+            product_visibility: s("상품 노출상태"),
+            option_visibility: s("옵션 노출상태"),
+            term_visibility: s("계약조건 노출상태"),
+            category: s("카테고리"),
+            brand: s("브랜드"),
+            product_name: s("제품명"),
+            model_name: s("모델명"),
+            color_name: s("색상명"),
+            management_type: s("관리방식"),
+            management_cycle: s("관리주기"),
+            contract_months: n("의무사용기간"),
+            ownership_months: n("계약기간 (소유권 이전 기간)"),
+            admin_monthly_fee: n("예상월렌탈료(어드민)"),
+            admin_support: n("예상지원금(어드민)"),
+            half_discount: n("반값 할인 유무"),
+            half_discount_months: n("반값 할인 기간"),
+            updated_at: s("최근수정일"),
+            key_value: s("키값"),
+            // 더블체크 파트너스
+            dc_auto_quote_usid: n("더블체크 파트너스_자동견적 USID"),
+            dc_quote_status: s("더블체크 파트너스_견적 발송 상태"),
+            dc_lowest_partner: s("더블체크_최저가(지원금순)_파트너사"),
+            dc_lowest_rental_company: s("더블체크_최저가(지원금순)_렌탈사"),
+            dc_monthly_fee: n("더블체크 파트너스_월렌탈료"),
+            dc_waiver_months: n("더블체크 파트너스_월요금면제월"),
+            dc_support: n("더블체크 파트너스_지원금"),
+            dc_total_payment: n("더블체크 파트너스_실납부총액"),
+            dc_additional_benefit: s("더블체크 파트너스_추가혜택"),
+            dc_memo: s("더블체크 파트너스_메모"),
+            dc_label: s("더블체크 파트너스_라벨"),
+            dc_sales: n("더블체크 파트너스_예상매출"),
+            dc_sales_incentive: n("더블체크 파트너스_예상판매장려금"),
+            dc_promotion: n("더블체크 파트너스_예상프로모션"),
+            dc_cost_of_goods: n("더블체크 파트너스_예상매출원가"),
+            dc_financial_cost: n("더블체크 파트너스_예상금융비용"),
+            dc_bad_debt: n("더블체크 파트너스_예상대손"),
+            dc_expected_margin: n("더블체크 파트너스_예상공헌이익"),
+            synced_at: new Date().toISOString(),
+          };
+        });
+
+      // deduplicate by prod_term_usid (keep last occurrence)
+      const deduped = Object.values(
+        Object.fromEntries(records.map((r) => [r.prod_term_usid, r]))
+      );
+
+      const { error } = await supabase.from("auto_quote_typea").upsert(deduped, {
+        onConflict: "prod_term_usid",
+        ignoreDuplicates: false,
+      });
+
+      if (error) throw new Error(JSON.stringify(error));
+      return NextResponse.json({ ok: true, fetched: rows.length, upserted: deduped.length });
+    }
 
     if (type === "auto_quote") {
       const rows = (await fetchRedashData(QUERY_ID_AUTO_QUOTE)) as Record<string, unknown>[];
