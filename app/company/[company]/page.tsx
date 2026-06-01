@@ -529,6 +529,7 @@ export default async function CompanyPage({
       product_name: string | null;
       model_name: string | null;
       management_type: string | null;
+      contract_months: number | null;
     }[] = [];
     // 상단 토글(주문확정/계약완료)에 따라 소스 전환
     const growthTable = view === "order" ? "raw_orders" : "raw_contracts";
@@ -537,7 +538,7 @@ export default async function CompanyPage({
     while (true) {
       let q = supabase
         .from(growthTable)
-        .select("rental_company, category, product_name, model_name, management_type")
+        .select("rental_company, category, product_name, model_name, management_type, contract_months")
         .in("category", positionCategories)
         .gte(growthDateCol, "2026-01-01");
       if (positionCompanies.length > 0)
@@ -685,6 +686,7 @@ export default async function CompanyPage({
             model_name: string;
             mgmt: "방문" | "셀프" | null;
             count: number;
+            termCounts: Map<number, number>;
           }
         >
       >();
@@ -701,8 +703,15 @@ export default async function CompanyPage({
             model_name: r.model_name,
             mgmt,
             count: 0,
+            termCounts: new Map(),
           });
-        pm.get(key)!.count += 1;
+        const entry = pm.get(key)!;
+        entry.count += 1;
+        if (r.contract_months !== null)
+          entry.termCounts.set(
+            r.contract_months,
+            (entry.termCounts.get(r.contract_months) ?? 0) + 1,
+          );
       }
 
       // 2) typeA 가격 풀 (월렌탈료 있는 행만)
@@ -834,11 +843,21 @@ export default async function CompanyPage({
               return { contract_months: term, rows };
             });
 
+          // 실제 가장 많이 팔린 의무사용기간 (pricing에 존재하는 term 중 최빈)
+          const availableTerms = new Set(
+            pricing.map((pr) => pr.contract_months),
+          );
+          const preferredTerm =
+            Array.from(p.termCounts.entries())
+              .filter(([term]) => availableTerms.has(term))
+              .sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+
           return {
             product_name: p.product_name,
             model_name: p.model_name,
             managementType: p.mgmt,
             orderCount: p.count,
+            preferredTerm,
             pricing,
           };
         });

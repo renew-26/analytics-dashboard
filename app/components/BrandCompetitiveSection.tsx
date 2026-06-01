@@ -36,6 +36,7 @@ export interface BrandCompetitiveProduct {
   model_name: string;
   managementType: "방문" | "셀프" | null;
   orderCount: number;
+  preferredTerm: number | null;
   pricing: PricingTerm[];
 }
 
@@ -46,9 +47,11 @@ function fmt(n: number) {
 function PricingPanel({
   pricing,
   mode,
+  preferredTerm,
 }: {
   pricing: PricingTerm[];
   mode: ViewMode;
+  preferredTerm: number | null;
 }) {
   const termOptions = [
     ...new Set(
@@ -58,8 +61,11 @@ function PricingPanel({
     ),
   ].sort((a, b) => a - b);
 
-  // 기본 선택: 경쟁군(행 수)이 가장 많은 계약기간
+  // 기본 선택: 실제 가장 많이 팔린 기간(preferredTerm) → 없으면 경쟁군이 가장 많은 기간
   const defaultTerm =
+    (preferredTerm !== null && termOptions.includes(preferredTerm)
+      ? preferredTerm
+      : null) ??
     [...pricing]
       .filter((p) => p.contract_months !== null)
       .sort((a, b) => b.rows.length - a.rows.length)[0]?.contract_months ??
@@ -137,11 +143,12 @@ function PricingPanel({
           {MODE_CAPTION[mode]}
         </p>
         {termOptions.length > 1 && (
-          <div className="flex gap-1">
+          <div className="flex items-center gap-1">
             {termOptions.map((t) => (
               <button
                 key={t}
                 onClick={() => setSelectedTerm(t)}
+                title={t === preferredTerm ? "실제 가장 많이 팔린 기간" : undefined}
                 className="text-[10px] px-2 py-0.5 rounded transition focus:outline-none"
                 style={
                   selectedTerm === t
@@ -149,6 +156,11 @@ function PricingPanel({
                     : { backgroundColor: "#f3f4f6", color: "#9ca3af" }
                 }
               >
+                {t === preferredTerm && (
+                  <span style={{ color: selectedTerm === t ? "#fff" : "#f97316" }}>
+                    ●{" "}
+                  </span>
+                )}
                 {t}개월
               </button>
             ))}
@@ -352,7 +364,11 @@ export default function BrandCompetitiveSection({
 
               {/* 가격 비교 */}
               <div className="px-4 py-3">
-                <PricingPanel pricing={product.pricing} mode={mode} />
+                <PricingPanel
+                  pricing={product.pricing}
+                  mode={mode}
+                  preferredTerm={product.preferredTerm}
+                />
               </div>
             </div>
           ))}
