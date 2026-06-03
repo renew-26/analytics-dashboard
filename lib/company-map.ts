@@ -1,12 +1,10 @@
 // 사이드바 라벨 → Supabase raw_contracts.rental_company 매핑
-// dbName: DB에 저장된 실제 렌탈사명으로 채워주세요
-
 export const COMPANY_MAP: {
   label: string;
   dbName: string;
   group: string;
-  categoryIs?: string; // 이 카테고리만 포함
-  categoryNot?: string; // 이 카테고리 제외
+  categoryIs?: string;
+  categoryNot?: string;
 }[] = [
   // 가전&상조
   { label: "현대유버스", dbName: "유버스(현대렌탈서비스)", group: "가전&상조" },
@@ -14,18 +12,8 @@ export const COMPANY_MAP: {
   { label: "스마트렌탈", dbName: "스마트렌탈", group: "가전&상조" },
   { label: "이니렌탈", dbName: "이니렌탈", group: "가전&상조" },
   { label: "KT렌탈", dbName: "KT", group: "가전&상조", categoryNot: "인터넷" },
-  {
-    label: "BS렌탈",
-    dbName: "BS렌탈",
-    group: "가전&상조",
-    categoryNot: "타이어",
-  },
-  {
-    label: "금호타이어",
-    dbName: "BS렌탈",
-    group: "가전&상조",
-    categoryIs: "타이어",
-  },
+  { label: "BS렌탈", dbName: "BS렌탈", group: "가전&상조", categoryNot: "타이어" },
+  { label: "금호타이어", dbName: "BS렌탈", group: "가전&상조", categoryIs: "타이어" },
   { label: "넥센타이어", dbName: "넥센", group: "가전&상조" },
   { label: "바디프랜드", dbName: "바디프랜드", group: "가전&상조" },
 
@@ -43,3 +31,39 @@ export const COMPANY_MAP: {
   { label: "KT_I", dbName: "KT", group: "통신", categoryIs: "인터넷" },
   { label: "SK_I", dbName: "SK", group: "통신" },
 ];
+
+// 홈 2-3 테이블용 주요 렌탈사 (순서 = 표시 순서)
+export const MAIN_RENTAL_COMPANIES: { label: string; dbName: string }[] = [
+  { label: "코웨이",                 dbName: "코웨이" },
+  { label: "쿠쿠",                  dbName: "쿠쿠" },
+  { label: "LG",                    dbName: "LG" },
+  { label: "SK인텔릭스",            dbName: "SK인텔릭스" },
+  { label: "유버스(현대렌탈서비스)", dbName: "유버스(현대렌탈서비스)" },
+  { label: "이니렌탈",              dbName: "이니렌탈" },
+  { label: "BS렌탈",                dbName: "BS렌탈" },
+  { label: "LG헬로비전",            dbName: "LG헬로비전" },
+  { label: "스마트렌탈",            dbName: "스마트렌탈" },
+  { label: "KT렌탈",                dbName: "KT" },
+];
+
+// BM 분류 (partner_company 기준)
+export const BM3_COMPANIES = new Set([
+  "렌트리 안심구독(렌탈)",
+  "렌트리 안심구독(타이어)",
+]);
+
+export const BM2_COMPANIES = new Set([
+  "렌타나", "이니렌탈 공식몰", "헬로렌탈 공식몰", "㈜씨에스렌탈",
+  "포스라렌탈", "현대유버스 공식몰", "렌트리 안심구독(TPS)", "한국AM렌탈",
+  "미래비즈 코리아 공식몰", "BS렌탈 공식몰", "미래비즈 코리아 PC 공식몰",
+  "코웨이 공식몰", "스마트렌탈 공식몰", "포스라렌탈 공식몰", "세라젬 공식몰",
+  "더블체크파트너스", "금호타이어 공식몰", "기가웨이브샵", "유니통신",
+  "더파워네트웍스", "캐리어", "더블체크파트너스(타이어)", "KT렌탈 공식몰",
+]);
+
+export function getBM(partnerCompany: string | null): "BM1" | "BM2" | "BM3" {
+  if (!partnerCompany) return "BM1";
+  if (BM3_COMPANIES.has(partnerCompany)) return "BM3";
+  if (BM2_COMPANIES.has(partnerCompany)) return "BM2";
+  return "BM1";
+}
