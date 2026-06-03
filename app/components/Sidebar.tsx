@@ -67,6 +67,11 @@ export default function Sidebar() {
           label="렌탈사별 상품 현황"
           active={pathname === "/weekly-products"}
         />
+        <NavItem
+          href="/competitive-subsidy"
+          label="경쟁사 지원금 조사"
+          active={pathname === "/competitive-subsidy"}
+        />
 
         {NAV_SECTIONS.map((section, index) => {
           const hasActive = section.items.some(

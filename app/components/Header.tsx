@@ -12,6 +12,8 @@ export default function Header() {
 
   if (pathname === "/weekly-products") {
     title = "렌탈사별 상품 현황";
+  } else if (pathname === "/competitive-subsidy") {
+    title = "경쟁사 지원금 조사";
   } else if (pathname.startsWith("/company/")) {
     title = pathname.replace("/company/", "");
     group = COMPANY_MAP.find((c) => c.label === title)?.group ?? null;

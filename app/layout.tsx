@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "렌트리 애널리틱스 대시보드",
-  description: "",
+  description: "렌탈사별 매출 추이 및 분석",
 };
 
 export default function RootLayout({
