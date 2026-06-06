@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { COMPANY_MAP } from "@/lib/company-map";
 
-export default function Header() {
+export default function Header({ lastUpdated }: { lastUpdated?: string | null }) {
   const rawPathname = usePathname();
   const pathname = decodeURIComponent(rawPathname);
 
@@ -20,11 +20,16 @@ export default function Header() {
   }
 
   return (
-    <header className="px-12 py-4 border-b border-gray-200 bg-white flex-shrink-0">
+    <header className="px-12 py-4 border-b border-gray-200 bg-white flex-shrink-0 flex items-center justify-between">
       <h1 className="text-xl font-bold text-gray-800">
         {group && <span className="font-normal text-gray-400">{group} / </span>}
         {title}
       </h1>
+      {lastUpdated && (
+        <span className="text-xs text-gray-400">
+          업데이트 {lastUpdated}
+        </span>
+      )}
     </header>
   );
 }
