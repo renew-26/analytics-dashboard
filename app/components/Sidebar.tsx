@@ -43,7 +43,7 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="w-56 h-full bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
+    <aside className="w-56 h-full bg-white border-r border-[#e2e6ec] flex flex-col flex-shrink-0">
       {/* 로고 / 홈 버튼 */}
       <div className="px-5 py-4">
         <Link
@@ -56,12 +56,32 @@ export default function Sidebar() {
           >
             렌트리
           </span>
-          <span className="text-xs text-gray-400">애널리틱스</span>
+          <span className="text-xs text-[#a1a5ac]">애널리틱스</span>
         </Link>
       </div>
 
       {/* 네비게이션 */}
       <nav className="flex-1 min-h-0 overflow-y-auto px-2 py-2">
+        {/* 분석 섹션 */}
+        <SectionHeader label="분석" />
+        <NavItem
+          href="/conversion"
+          label="전환율 분석"
+          active={pathname === "/conversion"}
+        />
+        <NavItem
+          href="/trends"
+          label="카테고리 트렌드"
+          active={pathname === "/trends"}
+        />
+        <NavItem
+          href="/compare"
+          label="렌탈사 비교"
+          active={pathname === "/compare"}
+        />
+
+        {/* 시장 조사 섹션 */}
+        <SectionHeader label="시장 조사" />
         <NavItem
           href="/weekly-products"
           label="렌탈사별 상품 현황"
@@ -72,6 +92,9 @@ export default function Sidebar() {
           label="경쟁사 지원금 조사"
           active={pathname === "/competitive-subsidy"}
         />
+
+        {/* 렌탈사별 매출 추이 섹션 */}
+        <SectionHeader label="렌탈사별 매출 추이" />
 
         {NAV_SECTIONS.map((section, index) => {
           const hasActive = section.items.some(
@@ -84,18 +107,18 @@ export default function Sidebar() {
               <button
                 onClick={() => toggle(index)}
                 className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg group transition ${
-                  isOpen ? "bg-gray-100" : "hover:bg-gray-100"
+                  isOpen ? "bg-[#f3f5f9]" : "hover:bg-[#f3f5f9]"
                 }`}
               >
                 <span
-                  className={`text-[10px] font-semibold uppercase tracking-wider transition ${
-                    hasActive || isOpen ? "text-gray-600" : "text-gray-400"
-                  } group-hover:text-gray-600`}
+                  className={`text-sm font-medium transition ${
+                    hasActive || isOpen ? "text-[#222222]" : "text-[#586177]"
+                  } group-hover:text-[#222222]`}
                 >
                   {section.group}
                 </span>
                 <span
-                  className={`text-gray-400 text-[10px] transition-transform duration-200 group-hover:text-gray-600 ${
+                  className={`text-[#a1a5ac] text-xs transition-transform duration-200 group-hover:text-[#586177] ${
                     isOpen ? "rotate-180" : ""
                   }`}
                 >
@@ -123,6 +146,14 @@ export default function Sidebar() {
   );
 }
 
+function SectionHeader({ label }: { label: string }) {
+  return (
+    <p className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[#a1a5ac]">
+      {label}
+    </p>
+  );
+}
+
 function NavItem({
   href,
   label,
@@ -136,7 +167,7 @@ function NavItem({
     <Link
       href={href}
       className={`w-full text-left px-3 py-2 rounded-lg text-sm mb-0.5 flex items-center gap-2 transition ${
-        active ? "font-semibold" : "text-gray-600 hover:bg-gray-100"
+        active ? "font-semibold" : "text-[#586177] hover:bg-[#f3f5f9]"
       }`}
       style={
         active
