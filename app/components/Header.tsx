@@ -20,13 +20,13 @@ export default function Header({ lastUpdated }: { lastUpdated?: string | null })
   }
 
   return (
-    <header className="px-12 py-4 border-b border-gray-200 bg-white flex-shrink-0 flex items-center justify-between">
-      <h1 className="text-xl font-bold text-gray-800">
-        {group && <span className="font-normal text-gray-400">{group} / </span>}
+    <header className="px-12 py-4 border-b border-[#e2e6ec] bg-white flex-shrink-0 flex items-center justify-between">
+      <h1 className="text-xl font-bold text-[#222222]">
+        {group && <span className="font-normal text-[#a1a5ac]">{group} / </span>}
         {title}
       </h1>
       {lastUpdated && (
-        <span className="text-xs text-gray-400">
+        <span className="text-xs text-[#a1a5ac]">
           업데이트 {lastUpdated}
         </span>
       )}

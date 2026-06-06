@@ -18,13 +18,13 @@ export default function ViewToggle({
   }
 
   return (
-    <div className="flex gap-1 p-1 bg-gray-100 rounded-lg">
+    <div className="flex gap-1 p-1 bg-[#f3f5f9] rounded-lg">
       <Link
         href={href("order")}
         className={`px-4 py-1.5 text-sm rounded-md font-medium transition-colors ${
           current === "order"
-            ? "bg-white shadow-sm text-gray-800"
-            : "text-gray-500 hover:text-gray-700"
+            ? "bg-white shadow-sm text-[#222222]"
+            : "text-[#788093] hover:text-[#393939]"
         }`}
       >
         주문확정
@@ -33,8 +33,8 @@ export default function ViewToggle({
         href={href("contract")}
         className={`px-4 py-1.5 text-sm rounded-md font-medium transition-colors ${
           current === "contract"
-            ? "bg-white shadow-sm text-gray-800"
-            : "text-gray-500 hover:text-gray-700"
+            ? "bg-white shadow-sm text-[#222222]"
+            : "text-[#788093] hover:text-[#393939]"
         }`}
       >
         계약완료

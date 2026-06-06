@@ -37,18 +37,18 @@ function CustomTooltip({
     <div
       style={{
         background: "#fff",
-        border: "1px solid #e3e2e0",
+        border: "1px solid var(--color-gray-200)",
         borderRadius: 8,
         padding: "10px 14px",
         fontSize: 12,
       }}
     >
-      <div style={{ fontWeight: 600, color: "#1a1a1a", marginBottom: 4 }}>
+      <div style={{ fontWeight: 600, color: "var(--color-gray-900)", marginBottom: 4 }}>
         {label}
       </div>
-      <div style={{ color: "#6b7280" }}>
+      <div style={{ color: "var(--color-gray-500)" }}>
         총렌탈료{" "}
-        <span style={{ fontWeight: 600, color: "#1a1a1a" }}>
+        <span style={{ fontWeight: 600, color: "var(--color-gray-900)" }}>
           {d.totalRentalFee.toLocaleString("ko-KR")}원
         </span>
       </div>
@@ -70,7 +70,7 @@ function CustomTooltip({
 
 export default function MonthlyRevenueChart({
   data,
-  color = "var(--color-accent-blue)",
+  color = "var(--color-primary-500)",
 }: {
   data: MonthStat[];
   color?: string;
@@ -85,31 +85,31 @@ export default function MonthlyRevenueChart({
           margin={{ left: 8, right: 24, top: 8, bottom: 0 }}
         >
           <CartesianGrid
-            strokeDasharray="3 3"
+            strokeDasharray="4 4"
             vertical={false}
-            stroke="#f0f0f0"
+            stroke="var(--color-gray-150)"
           />
           <XAxis
             dataKey="month"
-            tick={{ fontSize: 12, fill: "#9ca3af" }}
+            tick={{ fontSize: 12, fill: "var(--color-gray-400)" }}
             axisLine={false}
             tickLine={false}
           />
           <YAxis
             tickFormatter={fmtAxis}
-            tick={{ fontSize: 11, fill: "#9ca3af" }}
+            tick={{ fontSize: 11, fill: "var(--color-gray-400)" }}
             axisLine={false}
             tickLine={false}
             width={52}
           />
-          <Tooltip content={<CustomTooltip />} cursor={{ stroke: "#e3e2e0" }} />
+          <Tooltip content={<CustomTooltip />} cursor={{ stroke: "var(--color-gray-200)" }} />
           <Line
             type="monotone"
             dataKey="totalRentalFee"
             stroke={color}
-            strokeWidth={2}
-            dot={{ r: 4, fill: color, strokeWidth: 0 }}
-            activeDot={{ r: 5, fill: color, strokeWidth: 0 }}
+            strokeWidth={2.5}
+            dot={{ r: 4, fill: color, strokeWidth: 2, stroke: "#fff" }}
+            activeDot={{ r: 5.5, fill: color, strokeWidth: 2, stroke: "#fff" }}
           />
         </LineChart>
       </ResponsiveContainer>
@@ -123,7 +123,7 @@ export default function MonthlyRevenueChart({
                 key={d.month}
                 className="flex items-center gap-1 text-[11px]"
               >
-                <span className="text-gray-400">{d.month}</span>
+                <span className="text-[#a1a5ac]">{d.month}</span>
                 <span
                   className="font-semibold"
                   style={{

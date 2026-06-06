@@ -51,8 +51,8 @@ export default function WeeklyProductsClient({
           className="text-xs px-3 py-1.5 rounded-full transition focus:outline-none"
           style={
             activeCat === ALL
-              ? { backgroundColor: "var(--color-accent-blue)", color: "#ffffff" }
-              : { backgroundColor: "#f3f4f6", color: "#6b7280" }
+              ? { backgroundColor: "#6366f1", color: "#ffffff" }
+              : { backgroundColor: "var(--color-gray-100)", color: "var(--color-gray-500)" }
           }
         >
           전체
@@ -65,8 +65,8 @@ export default function WeeklyProductsClient({
             className="text-xs px-3 py-1.5 rounded-full transition focus:outline-none"
             style={
               activeCat === c.cat
-                ? { backgroundColor: "var(--color-accent-blue)", color: "#ffffff" }
-                : { backgroundColor: "#f3f4f6", color: "#6b7280" }
+                ? { backgroundColor: "#6366f1", color: "#ffffff" }
+                : { backgroundColor: "var(--color-gray-100)", color: "var(--color-gray-500)" }
             }
           >
             {c.cat}
@@ -76,7 +76,7 @@ export default function WeeklyProductsClient({
         {hiddenCount > 0 && (
           <button
             onClick={() => setTabsExpanded((p) => !p)}
-            className="text-xs px-3 py-1.5 rounded-full transition focus:outline-none bg-gray-100 text-gray-400 hover:bg-gray-200"
+            className="text-xs px-3 py-1.5 rounded-full transition focus:outline-none bg-[#f3f5f9] text-[#a1a5ac] hover:bg-[#e2e6ec]"
           >
             {tabsExpanded ? "접기" : `+${hiddenCount}개`}
           </button>
@@ -88,11 +88,11 @@ export default function WeeklyProductsClient({
         {displayCategories.map((current) => {
           const weekMap = new Map(current.weeks.map((w) => [w.idx, w.products]));
           return (
-            <div key={current.cat} className="rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{current.cat}</span>
-                <span className="text-xs text-gray-400">
-                  · 총 <span className="font-semibold text-gray-600">{current.total.toLocaleString("ko-KR")}건</span>
+            <div key={current.cat} className="rounded-xl shadow-sm border border-[#ebebe9] overflow-hidden">
+              <div className="px-5 py-3 bg-[#f6f6f6] border-b border-[#ebebe9] flex items-center gap-2">
+                <span className="text-xs font-semibold text-[#788093] uppercase tracking-wider">{current.cat}</span>
+                <span className="text-xs text-[#a1a5ac]">
+                  · 총 <span className="font-semibold text-[#586177]">{current.total.toLocaleString("ko-KR")}건</span>
                 </span>
               </div>
 
@@ -102,22 +102,22 @@ export default function WeeklyProductsClient({
                   style={{ minWidth: `${160 + weekColumns.length * 190}px` }}
                 >
                   <thead>
-                    <tr className="border-b border-gray-100">
-                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 sticky left-0 bg-white z-10 min-w-[60px]">
+                    <tr className="border-b border-[#ebebe9]">
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-[#a1a5ac] sticky left-0 bg-white z-10 min-w-[60px]">
                         순위
                       </th>
                       {weekColumns.map((w, i) => (
                         <th key={w.idx} className={`px-4 py-3 text-center min-w-[180px] ${i === 0 ? "cell-highlight" : ""}`}>
-                          <div className="font-semibold text-gray-700 text-xs">{w.title}</div>
-                          <div className="text-gray-400 text-[11px] font-normal mt-0.5">{w.range}</div>
+                          <div className="font-semibold text-[#393939] text-xs">{w.title}</div>
+                          <div className="text-[#a1a5ac] text-[11px] font-normal mt-0.5">{w.range}</div>
                         </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {Array.from({ length: TOP_N }, (_, rankIdx) => (
-                      <tr key={rankIdx} className="border-t border-gray-50">
-                        <td className="px-4 py-3 text-center text-xs text-gray-400 sticky left-0 bg-white">
+                      <tr key={rankIdx} className="border-t border-[#f6f6f6]">
+                        <td className="px-4 py-3 text-center text-xs text-[#a1a5ac] sticky left-0 bg-white">
                           {rankIdx + 1}위
                         </td>
                         {weekColumns.map((w, i) => {
@@ -127,13 +127,13 @@ export default function WeeklyProductsClient({
                               {product ? (
                                 <div className="flex flex-col gap-1">
                                   <div className="leading-snug">
-                                    <div className="text-gray-700">{product.product_name}</div>
+                                    <div className="text-[#393939]">{product.product_name}</div>
                                     {product.model_name && (
-                                      <div className="text-gray-400 text-[11px] mt-0.5">{product.model_name}</div>
+                                      <div className="text-[#a1a5ac] text-[11px] mt-0.5">{product.model_name}</div>
                                     )}
                                   </div>
                                   <div className="flex items-center gap-1 flex-wrap">
-                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium" style={{ backgroundColor: "var(--color-tint-sky)", color: "var(--color-accent-blue)" }}>
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium" style={{ backgroundColor: "var(--color-primary-50)", color: "#6366f1" }}>
                                       {product.rental_company}
                                     </span>
                                     <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-semibold" style={{ backgroundColor: "#FFF0E8", color: "#C2410C" }}>
@@ -142,7 +142,7 @@ export default function WeeklyProductsClient({
                                   </div>
                                 </div>
                               ) : (
-                                <span className="text-gray-200">-</span>
+                                <span className="text-[#e2e6ec]">-</span>
                               )}
                             </td>
                           );

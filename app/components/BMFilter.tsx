@@ -28,15 +28,15 @@ export default function BMFilter({ current }: { current: BM }) {
   }
 
   return (
-    <div className="flex gap-1 p-1 bg-gray-100 rounded-lg">
+    <div className="flex gap-1 p-1 bg-[#f3f5f9] rounded-lg">
       {TABS.map(({ value, label }) => (
         <Link
           key={value}
           href={href(value)}
           className={`px-4 py-1.5 text-sm rounded-md font-medium transition-colors ${
             current === value
-              ? "bg-white shadow-sm text-gray-800"
-              : "text-gray-500 hover:text-gray-700"
+              ? "bg-white shadow-sm text-[#222222]"
+              : "text-[#788093] hover:text-[#393939]"
           }`}
         >
           {label}

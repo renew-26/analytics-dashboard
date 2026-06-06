@@ -51,7 +51,7 @@ function PricingPanel({
     pricing.find((p) => p.contract_months === selectedTerm) ?? pricing[0];
 
   if (!current) {
-    return <p className="text-xs text-gray-300 pt-2">가격 정보 없음</p>;
+    return <p className="text-xs text-[#babab7] pt-2">가격 정보 없음</p>;
   }
 
   const hasFee = current.companies.some((c) => c.monthly_fee !== null);
@@ -80,7 +80,7 @@ function PricingPanel({
     <div>
       {/* 레이블 + 개월수 탭 */}
       <div className="flex items-center justify-between mb-2.5">
-        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+        <p className="text-[10px] font-semibold text-[#a1a5ac] uppercase tracking-wider">
           자동견적 가격 비교 (월렌탈료 저렴한 순)
         </p>
         {termOptions.length > 1 && (
@@ -92,8 +92,8 @@ function PricingPanel({
                 className="text-[10px] px-2 py-0.5 rounded transition focus:outline-none"
                 style={
                   selectedTerm === t
-                    ? { backgroundColor: "#007aff", color: "#fff" }
-                    : { backgroundColor: "#f3f4f6", color: "#9ca3af" }
+                    ? { backgroundColor: "#6366f1", color: "#fff" }
+                    : { backgroundColor: "var(--color-gray-100)", color: "var(--color-gray-400)" }
                 }
               >
                 {t}개월
@@ -116,19 +116,19 @@ function PricingPanel({
           <table className="w-full text-[11px]">
             <thead>
               <tr>
-                <th className="text-[11px] font-semibold text-gray-500 text-center pb-1.5 w-[8%]">
+                <th className="text-[11px] font-semibold text-[#788093] text-center pb-1.5 w-[8%]">
                   순위
                 </th>
-                <th className="text-[11px] font-semibold text-gray-500 text-center pb-1.5 w-[24%]">
+                <th className="text-[11px] font-semibold text-[#788093] text-center pb-1.5 w-[24%]">
                   렌탈사
                 </th>
-                <th className="text-[11px] font-semibold text-gray-500 text-center pb-1.5 w-[23%]">
+                <th className="text-[11px] font-semibold text-[#788093] text-center pb-1.5 w-[23%]">
                   월렌탈료
                 </th>
-                <th className="text-[11px] font-semibold text-gray-500 text-center pb-1.5 w-[20%]">
+                <th className="text-[11px] font-semibold text-[#788093] text-center pb-1.5 w-[20%]">
                   지원금
                 </th>
-                <th className="text-[11px] font-semibold text-gray-500 text-center pb-1.5 w-[25%]">
+                <th className="text-[11px] font-semibold text-[#788093] text-center pb-1.5 w-[25%]">
                   실납부총액
                 </th>
               </tr>
@@ -146,15 +146,15 @@ function PricingPanel({
                 return (
                   <tr
                     key={k}
-                    style={c.isMe ? { backgroundColor: "#f0f7ff" } : undefined}
+                    style={c.isMe ? { backgroundColor: "var(--color-primary-50)" } : undefined}
                   >
-                    <td className="py-1 px-1 text-center tabular-nums text-gray-300">
+                    <td className="py-1 px-1 text-center tabular-nums text-[#babab7]">
                       {rank ?? "-"}
                     </td>
                     <td
                       className="py-1 px-1 rounded-l text-center truncate"
                       style={{
-                        color: c.isMe ? "#007aff" : "#9ca3af",
+                        color: c.isMe ? "#6366f1" : "var(--color-gray-400)",
                         fontWeight: c.isMe ? 700 : 400,
                       }}
                     >
@@ -165,25 +165,25 @@ function PricingPanel({
                       style={{
                         color: c.isMe
                           ? delta !== null
-                            ? "#ef4444"
-                            : "#007aff"
+                            ? "var(--color-error)"
+                            : "#6366f1"
                           : isCheapest
-                            ? "#22c55e"
-                            : "#374151",
+                            ? "var(--color-success)"
+                            : "var(--color-gray-700)",
                         fontWeight: isCheapest || c.isMe ? 600 : 400,
                       }}
                     >
                       {c.monthly_fee ? fmt(c.monthly_fee) : "-"}
                       {c.isMe && delta !== null && (
-                        <span className="text-[10px] text-red-400 ml-1">
+                        <span className="text-[10px] ml-1" style={{ color: "var(--color-error)" }}>
                           +{fmt(delta)}
                         </span>
                       )}
                     </td>
-                    <td className="py-1 px-1 text-center tabular-nums text-gray-400">
+                    <td className="py-1 px-1 text-center tabular-nums text-[#a1a5ac]">
                       {c.support ? fmt(c.support) : "-"}
                     </td>
-                    <td className="py-1 px-1 rounded-r text-center tabular-nums text-gray-300">
+                    <td className="py-1 px-1 rounded-r text-center tabular-nums text-[#babab7]">
                       {c.total_payment ? fmt(c.total_payment) : "-"}
                     </td>
                   </tr>
@@ -210,7 +210,7 @@ export default function CategoryCompetitiveSection({
   if (categories.length === 0) return null;
 
   return (
-    <div className="rounded-xl shadow-sm border border-gray-100 bg-white px-6 py-5">
+    <div className="rounded-xl shadow-sm border border-[#ebebe9] bg-white px-6 py-5">
       {/* 카테고리 탭 */}
       <div className="flex gap-1.5 flex-wrap mb-5">
         {categories.map((cat) => (
@@ -220,8 +220,8 @@ export default function CategoryCompetitiveSection({
             className="text-xs px-3 py-1.5 rounded-full transition focus:outline-none"
             style={
               selectedCat === cat
-                ? { backgroundColor: "#007aff", color: "#ffffff" }
-                : { backgroundColor: "#f3f4f6", color: "#6b7280" }
+                ? { backgroundColor: "#6366f1", color: "#ffffff" }
+                : { backgroundColor: "var(--color-gray-100)", color: "var(--color-gray-500)" }
             }
           >
             {cat}
@@ -231,7 +231,7 @@ export default function CategoryCompetitiveSection({
 
       {/* 상품 목록 */}
       {products.length === 0 ? (
-        <p className="text-xs text-gray-300 py-4 text-center">데이터 없음</p>
+        <p className="text-xs text-[#babab7] py-4 text-center">데이터 없음</p>
       ) : (
         <div className="space-y-4">
           {products.map((product, i) => {
@@ -240,24 +240,24 @@ export default function CategoryCompetitiveSection({
             return (
               <div
                 key={i}
-                className="border border-gray-100 rounded-lg overflow-hidden"
+                className="border border-[#ebebe9] rounded-lg overflow-hidden"
               >
                 {/* 헤더 */}
-                <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+                <div className="px-4 py-2.5 bg-[#f6f6f6] border-b border-[#ebebe9] flex items-center justify-between">
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-[11px] font-bold text-gray-300 shrink-0">
+                    <span className="text-[11px] font-bold text-[#babab7] shrink-0">
                       #{i + 1}
                     </span>
-                    <span className="text-sm font-semibold text-gray-800 truncate">
+                    <span className="text-sm font-semibold text-[#222222] truncate">
                       {product.product_name || "-"}
                     </span>
-                    <span className="text-xs text-gray-400 shrink-0 bg-gray-100 px-1.5 py-0.5 rounded">
+                    <span className="text-xs text-[#788093] shrink-0 bg-[#f3f5f9] px-1.5 py-0.5 rounded">
                       {product.model_name || ""}
                     </span>
                   </div>
-                  <span className="text-xs text-gray-400 shrink-0 ml-3">
+                  <span className="text-xs text-[#a1a5ac] shrink-0 ml-3">
                     전체{" "}
-                    <span className="font-semibold text-gray-600">
+                    <span className="font-semibold text-[#586177]">
                       {fmt(product.totalCount)}건
                     </span>
                   </span>
@@ -265,12 +265,12 @@ export default function CategoryCompetitiveSection({
 
                 {/* 2:3 그리드 */}
                 <div
-                  className="grid divide-x divide-gray-100"
+                  className="grid divide-x divide-[#ebebe9]"
                   style={{ gridTemplateColumns: "1fr 1fr" }}
                 >
                   {/* 렌탈사별 점유 */}
                   <div className="px-4 py-3">
-                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2.5">
+                    <p className="text-[10px] font-semibold text-[#a1a5ac] uppercase tracking-wider mb-2.5">
                       렌탈사별 주문건수
                     </p>
                     <div className="space-y-2">
@@ -282,27 +282,27 @@ export default function CategoryCompetitiveSection({
                             <span
                               className="text-[11px] w-24 text-right truncate shrink-0"
                               style={{
-                                color: c.isMe ? "#007aff" : "#9ca3af",
+                                color: c.isMe ? "#6366f1" : "var(--color-gray-400)",
                                 fontWeight: c.isMe ? 700 : 400,
                               }}
                             >
                               {c.company}
                             </span>
-                            <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="flex-1 h-1.5 bg-[#f3f5f9] rounded-full overflow-hidden">
                               <div
                                 className="h-full rounded-full"
                                 style={{
                                   width: `${pct}%`,
                                   backgroundColor: c.isMe
-                                    ? "#007aff"
-                                    : "#e5e7eb",
+                                    ? "#6366f1"
+                                    : "var(--color-gray-200)",
                                 }}
                               />
                             </div>
                             <span
                               className="text-[11px] w-8 text-right shrink-0 tabular-nums"
                               style={{
-                                color: c.isMe ? "#007aff" : "#9ca3af",
+                                color: c.isMe ? "#6366f1" : "var(--color-gray-400)",
                                 fontWeight: c.isMe ? 700 : 400,
                               }}
                             >
