@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
-import { COMPANY_MAP } from "@/lib/company-map";
+import { COMPANY_MAP, getBM } from "@/lib/company-map";
 import CategoryTable from "@/app/components/CategoryTable";
+import BMFilter from "@/app/components/BMFilter";
 import PositionChartModal from "@/app/components/PositionChartModal";
 import MonthlyRevenueChart from "@/app/components/MonthlyRevenueChart";
 import ViewToggle from "@/app/components/ViewToggle";
@@ -52,6 +53,7 @@ interface DataRow {
   category: string | null;
   product_name: string | null;
   model_name: string | null;
+  partner_company: string | null;
 }
 
 interface WeekStat {
@@ -349,11 +351,12 @@ export default async function CompanyPage({
   searchParams,
 }: {
   params: Promise<{ company: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; bm?: string }>;
 }) {
   const { company } = await params;
-  const { tab } = await searchParams;
+  const { tab, bm: bmParam } = await searchParams;
   const view: "order" | "contract" = tab === "contract" ? "contract" : "order";
+  const bm = (["bm1", "bm2", "bm3"].includes(bmParam ?? "") ? bmParam : "all") as "all" | "bm1" | "bm2" | "bm3";
   const label = decodeURIComponent(company);
 
   const mapping = COMPANY_MAP.find((c) => c.label === label);
@@ -380,7 +383,7 @@ export default async function CompanyPage({
       let q = supabase
         .from("raw_orders")
         .select(
-          "order_confirmed_at, total_rental_fee, contribution_margin, category, product_name, model_name",
+          "order_confirmed_at, total_rental_fee, contribution_margin, category, product_name, model_name, partner_company",
         )
         .eq("rental_company", dbName);
       if (mapping.categoryIs) q = q.eq("category", mapping.categoryIs);
@@ -402,6 +405,7 @@ export default async function CompanyPage({
           category: normalizeCategory(r.category),
           product_name: r.product_name,
           model_name: r.model_name,
+          partner_company: r.partner_company ?? null,
         });
       }
       if (data.length < PAGE) break;
@@ -413,7 +417,7 @@ export default async function CompanyPage({
       let q = supabase
         .from("raw_contracts")
         .select(
-          "contract_date, total_rental_fee, contribution_margin, category, product_name, model_name",
+          "contract_date, total_rental_fee, contribution_margin, category, product_name, model_name, partner_company",
         )
         .eq("rental_company", dbName);
       if (mapping.categoryIs) q = q.eq("category", mapping.categoryIs);
@@ -435,6 +439,7 @@ export default async function CompanyPage({
           category: normalizeCategory(r.category),
           product_name: r.product_name,
           model_name: r.model_name,
+          partner_company: r.partner_company ?? null,
         });
       }
       if (data.length < PAGE) break;
@@ -450,16 +455,23 @@ export default async function CompanyPage({
     );
   }
 
+  const filteredRows =
+    bm === "all"
+      ? normalizedRows
+      : normalizedRows.filter(
+          (r) => getBM(r.partner_company) === bm.toUpperCase(),
+        );
+
   const today = new Date();
-  const weeks = aggregateByWeek(normalizedRows);
+  const weeks = aggregateByWeek(filteredRows);
   const totalCount = weeks.reduce((s, w) => s + w.count, 0);
-  const monthlyStats = aggregateByMonth(normalizedRows);
-  const monthlyFullStats = aggregateByMonthFull(normalizedRows);
-  const summary = calcSummaryStats(normalizedRows);
+  const monthlyStats = aggregateByMonth(filteredRows);
+  const monthlyFullStats = aggregateByMonthFull(filteredRows);
+  const summary = calcSummaryStats(filteredRows);
 
   const weekIndices = weeks.map((w) => w.idx);
-  const categoryStats = aggregateByCategory(normalizedRows, weekIndices);
-  const categoryProductStats = aggregateByCategoryProduct(normalizedRows);
+  const categoryStats = aggregateByCategory(filteredRows, weekIndices);
+  const categoryProductStats = aggregateByCategoryProduct(filteredRows);
 
   // 카테고리 포지션
   const GROUP_CATEGORIES: Record<string, string[]> = {
@@ -870,11 +882,14 @@ export default async function CompanyPage({
 
   return (
     <div className="px-12 pt-5 pb-8">
-      {/* 뷰 토글 */}
+      {/* 뷰 토글 + BM 필터 */}
       <div className="flex items-center justify-between mb-6">
-        <span className="text-m text-gray-400">
-          {view === "order" ? "주문확정일 기준" : "계약완료일 기준"}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-m text-gray-400">
+            {view === "order" ? "주문확정일 기준" : "계약완료일 기준"}
+          </span>
+          <BMFilter current={bm} />
+        </div>
         <ViewToggle current={view} />
       </div>
 

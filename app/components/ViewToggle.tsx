@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 export default function ViewToggle({
   current,
@@ -9,11 +9,18 @@ export default function ViewToggle({
   current: "order" | "contract";
 }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  function href(tab: "order" | "contract") {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", tab);
+    return `${pathname}?${params.toString()}`;
+  }
 
   return (
     <div className="flex gap-1 p-1 bg-gray-100 rounded-lg">
       <Link
-        href={`${pathname}?tab=order`}
+        href={href("order")}
         className={`px-4 py-1.5 text-sm rounded-md font-medium transition-colors ${
           current === "order"
             ? "bg-white shadow-sm text-gray-800"
@@ -23,7 +30,7 @@ export default function ViewToggle({
         주문확정
       </Link>
       <Link
-        href={`${pathname}?tab=contract`}
+        href={href("contract")}
         className={`px-4 py-1.5 text-sm rounded-md font-medium transition-colors ${
           current === "contract"
             ? "bg-white shadow-sm text-gray-800"
