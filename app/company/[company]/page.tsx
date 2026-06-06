@@ -966,7 +966,7 @@ export default async function CompanyPage({
           <div className="rounded-xl shadow-sm border border-gray-100 bg-white px-5 pt-5 pb-4">
             <MonthlyRevenueChart
               data={monthlyStats}
-              color={view === "contract" ? "#a78bfa" : undefined}
+              color={view === "contract" ? "#6366f1" : undefined}
             />
           </div>
         </div>
@@ -1102,6 +1102,42 @@ export default async function CompanyPage({
         </div>
       )}
 
+      {/* 주차별 매출 현황 차트 */}
+      {weeks.length > 0 &&
+        (() => {
+          const weekChartData = [...weeks]
+            .slice(0, 5)
+            .reverse()
+            .map((w, i, arr) => ({
+              month: w.label,
+              totalRentalFee: w.totalRentalFee,
+              mom:
+                i === 0 || arr[i - 1].totalRentalFee === 0
+                  ? null
+                  : ((w.totalRentalFee - arr[i - 1].totalRentalFee) /
+                      arr[i - 1].totalRentalFee) *
+                    100,
+            }));
+          return (
+            <div className="mb-10">
+              <div className="mb-4 flex items-center gap-2">
+                <h2 className="text-base font-semibold text-gray-700">
+                  주차별 매출 현황
+                </h2>
+                <span className="text-xs text-gray-400">
+                  {view === "order" ? "주문확정" : "계약완료"} 기준
+                </span>
+              </div>
+              <div className="rounded-xl shadow-sm border border-gray-100 bg-white px-5 pt-5 pb-4">
+                <MonthlyRevenueChart
+                  data={weekChartData}
+                  color={view === "contract" ? "#6366f1" : undefined}
+                />
+              </div>
+            </div>
+          );
+        })()}
+
       {/* 주차별 현황 */}
       <div className="mb-4 flex items-center gap-2">
         <h2 className="text-base font-semibold text-gray-700">주차별 현황</h2>
@@ -1236,41 +1272,6 @@ export default async function CompanyPage({
           </tbody>
         </table>
       </div>
-      {/* 주차별 매출 현황 차트 */}
-      {weeks.length > 0 &&
-        (() => {
-          const weekChartData = [...weeks]
-            .slice(0, 5)
-            .reverse()
-            .map((w, i, arr) => ({
-              month: w.label,
-              totalRentalFee: w.totalRentalFee,
-              mom:
-                i === 0 || arr[i - 1].totalRentalFee === 0
-                  ? null
-                  : ((w.totalRentalFee - arr[i - 1].totalRentalFee) /
-                      arr[i - 1].totalRentalFee) *
-                    100,
-            }));
-          return (
-            <div className="mb-10">
-              <div className="mb-4 flex items-center gap-2">
-                <h2 className="text-base font-semibold text-gray-700">
-                  주차별 매출 현황
-                </h2>
-                <span className="text-xs text-gray-400">
-                  {view === "order" ? "주문확정" : "계약완료"} 기준
-                </span>
-              </div>
-              <div className="rounded-xl shadow-sm border border-gray-100 bg-white px-5 pt-5 pb-4">
-                <MonthlyRevenueChart
-                  data={weekChartData}
-                  color={view === "contract" ? "#a78bfa" : undefined}
-                />
-              </div>
-            </div>
-          );
-        })()}
 
       {/* 카테고리별 현황 */}
       <div className="mb-4 flex items-center gap-2">
