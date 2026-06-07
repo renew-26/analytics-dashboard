@@ -1107,42 +1107,6 @@ export default async function CompanyPage({
     return results;
   })();
 
-  // Section C: 크로스카테고리 패턴
-  interface CrossCategoryPattern {
-    category: string;
-    share: number;
-    tier: "강함" | "보통" | "약함";
-  }
-  const crossCategoryPatterns: CrossCategoryPattern[] = (() => {
-    // For each category, compute each company's count share, then rank this company
-    const catMap = new Map<string, Map<string, number>>();
-    for (const r of allContractRows) {
-      const cat = r.category ?? "기타";
-      const co = r.rental_company ?? "기타";
-      if (!catMap.has(cat)) catMap.set(cat, new Map());
-      const cm = catMap.get(cat)!;
-      cm.set(co, (cm.get(co) ?? 0) + 1);
-    }
-    const results: CrossCategoryPattern[] = [];
-    for (const [cat, cm] of catMap) {
-      const myCount = cm.get(dbName) ?? 0;
-      if (myCount === 0) continue;
-      const total = Array.from(cm.values()).reduce((s, v) => s + v, 0);
-      const myShare = total > 0 ? (myCount / total) * 100 : 0;
-      // Rank among all companies for this category
-      const shares = Array.from(cm.entries()).map(([, count]) =>
-        total > 0 ? (count / total) * 100 : 0,
-      );
-      shares.sort((a, b) => b - a);
-      const rank = shares.findIndex((s) => s <= myShare);
-      const percentile = shares.length > 1 ? rank / (shares.length - 1) : 0;
-      const tier: "강함" | "보통" | "약함" =
-        percentile <= 0.33 ? "강함" : percentile >= 0.67 ? "약함" : "보통";
-      results.push({ category: cat, share: myShare, tier });
-    }
-    return results.sort((a, b) => b.share - a.share);
-  })();
-
   return (
     <div className="px-12 py-6">
       {/* 뷰 토글 + BM 필터 */}
@@ -1848,67 +1812,6 @@ export default async function CompanyPage({
         </div>
       )}
 
-      {/* Section C: 크로스카테고리 패턴 */}
-      {crossCategoryPatterns.length > 0 && (
-        <div className="mt-10">
-          <div className="mb-4 flex items-center gap-2">
-            <h2 className="text-base font-semibold text-gray-700">
-              크로스카테고리 패턴
-            </h2>
-            <span className="text-xs text-gray-400">
-              건수 기반 점유율 등급
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            {crossCategoryPatterns.map((cp) => (
-              <div
-                key={cp.category}
-                className="rounded-xl border px-5 py-4 min-w-[140px]"
-                style={{
-                  borderColor:
-                    cp.tier === "강함"
-                      ? "var(--color-success)"
-                      : cp.tier === "약함"
-                        ? "var(--accent-orange, #FF7700)"
-                        : "var(--gray-200)",
-                  backgroundColor:
-                    cp.tier === "강함"
-                      ? "var(--success-100, #DFF7EA)"
-                      : cp.tier === "약함"
-                        ? "var(--warning-100, #FFE0E0)"
-                        : "var(--gray-100, #F3F5F9)",
-                }}
-              >
-                <p className="text-sm font-semibold text-gray-800 mb-1">
-                  {cp.category}
-                </p>
-                <p className="text-xs text-gray-500 mb-2">
-                  점유율 {cp.share.toFixed(1)}%
-                </p>
-                <span
-                  className="text-xs font-bold px-2 py-0.5 rounded-full"
-                  style={{
-                    color:
-                      cp.tier === "강함"
-                        ? "var(--color-success)"
-                        : cp.tier === "약함"
-                          ? "var(--accent-orange, #FF7700)"
-                          : "var(--gray-600)",
-                    backgroundColor:
-                      cp.tier === "강함"
-                        ? "var(--success-100, #DFF7EA)"
-                        : cp.tier === "약함"
-                          ? "var(--warning-100, #FFE0E0)"
-                          : "var(--gray-200, #E2E6EC)",
-                  }}
-                >
-                  {cp.tier}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
