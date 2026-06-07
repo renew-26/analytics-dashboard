@@ -21,6 +21,18 @@ export type MonthCategoryData = {
   count: number;
 };
 
+export type RentalBreakdownItem = {
+  rentalCompany: string;
+  label: string;
+  count: number;
+  pct: number;
+};
+
+export type CategoryChange = {
+  category: string;
+  type: "new" | "gone";
+};
+
 export type YoYBadge = {
   type: "yoy-up" | "yoy-stable" | "new";
   label: string;
@@ -46,7 +58,7 @@ export type WeeklyCategory = {
   weeks: { idx: number; products: ProductEntry[] }[];
 };
 
-type ContractRow = { contract_date: string; category: string | null };
+type ContractRow = { contract_date: string; category: string | null; rental_company: string | null };
 type OrderRow = {
   order_confirmed_at: string;
   category: string | null;
@@ -114,7 +126,7 @@ async function fetchContracts(start: string, end: string): Promise<ContractRow[]
   while (true) {
     const { data, error } = await supabase
       .from("raw_contracts")
-      .select("contract_date, category")
+      .select("contract_date, category, rental_company")
       .gte("contract_date", start)
       .lte("contract_date", end)
       .order("contract_date", { ascending: true })
@@ -199,22 +211,22 @@ export default async function CategoryTrendsPage() {
 
   const totalByCategory = new Map<string, number>();
   for (const row of contractRows) {
-    const cat = row.category ?? "기타";
-    totalByCategory.set(cat, (totalByCategory.get(cat) ?? 0) + 1);
+    if (!row.category) continue;
+    totalByCategory.set(row.category, (totalByCategory.get(row.category) ?? 0) + 1);
   }
-  const top8 = [...totalByCategory.entries()]
+  const top10 = [...totalByCategory.entries()]
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 8)
+    .slice(0, 10)
     .map(([cat]) => cat);
-  const top8Set = new Set(top8);
+  const top10Set = new Set(top10);
 
   const aggMap = new Map<string, number>();
   for (const row of contractRows) {
-    if (!row.contract_date) continue;
+    if (!row.contract_date || !row.category) continue;
     const month = row.contract_date.slice(0, 7);
     if (!monthSet.has(month)) continue;
-    const cat = row.category && top8Set.has(row.category) ? row.category : "기타";
-    const key = `${month}::${cat}`;
+    if (!top10Set.has(row.category)) continue;
+    const key = `${month}::${row.category}`;
     aggMap.set(key, (aggMap.get(key) ?? 0) + 1);
   }
 
@@ -224,11 +236,63 @@ export default async function CategoryTrendsPage() {
     monthlyData.push({ month, category, count });
   }
 
-  const categories = [
-    ...top8,
-    ...([...aggMap.keys()].some((k) => k.endsWith("::기타")) ? ["기타"] : []),
-  ];
-  const categoryList = [...new Set(categories)];
+  // top10 중 실제 데이터가 있는 카테고리만 표시
+  const categoryList = top10.filter((cat) =>
+    [...aggMap.keys()].some((k) => k.endsWith(`::${cat}`)),
+  );
+
+  // 렌탈사 드릴다운: month::category → top5 rental breakdown
+  const rentalAgg = new Map<string, Map<string, number>>();
+  for (const row of contractRows) {
+    if (!row.contract_date || !row.category) continue;
+    const month = row.contract_date.slice(0, 7);
+    if (!monthSet.has(month)) continue;
+    if (!top10Set.has(row.category)) continue;
+    const key = `${month}::${row.category}`;
+    const rc = row.rental_company ?? "기타";
+    if (!rentalAgg.has(key)) rentalAgg.set(key, new Map());
+    const rcMap = rentalAgg.get(key)!;
+    rcMap.set(rc, (rcMap.get(rc) ?? 0) + 1);
+  }
+  const categoryRentalMap: Record<string, RentalBreakdownItem[]> = {};
+  for (const [key, rcMap] of rentalAgg.entries()) {
+    const cat = key.split("::")[1];
+    const total = [...rcMap.values()].reduce((s, v) => s + v, 0);
+    categoryRentalMap[key] = [...rcMap.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([rc, count]) => ({
+        rentalCompany: rc,
+        label: getCompanyLabel(rc, cat),
+        count,
+        pct: total > 0 ? Math.round((count / total) * 100) : 0,
+      }));
+  }
+
+  // 신규/이탈 카테고리 감지: 최신월 vs 전월 비교
+  const latestM = monthList[monthList.length - 1];
+  const prevM = monthList[monthList.length - 2] ?? null;
+  const latestCats = new Set(
+    [...aggMap.keys()]
+      .filter((k) => k.startsWith(`${latestM}::`))
+      .map((k) => k.split("::")[1]),
+  );
+  const prevCats = prevM
+    ? new Set(
+        [...aggMap.keys()]
+          .filter((k) => k.startsWith(`${prevM}::`))
+          .map((k) => k.split("::")[1]),
+      )
+    : new Set<string>();
+  const categoryChanges: CategoryChange[] = [];
+  for (const cat of latestCats) {
+    if (prevCats.size > 0 && !prevCats.has(cat))
+      categoryChanges.push({ category: cat, type: "new" });
+  }
+  for (const cat of prevCats) {
+    if (!latestCats.has(cat))
+      categoryChanges.push({ category: cat, type: "gone" });
+  }
 
   // YoY badges for the latest displayed month
   const latestMonth = monthList[monthList.length - 1];
@@ -293,6 +357,8 @@ export default async function CategoryTrendsPage() {
         yoyBadges={yoyBadges}
         weeklyCategories={weeklyCategories}
         weekColumns={weekColumns}
+        categoryRentalMap={categoryRentalMap}
+        categoryChanges={categoryChanges}
       />
     </div>
   );

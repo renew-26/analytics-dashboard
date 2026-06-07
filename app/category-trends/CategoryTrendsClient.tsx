@@ -16,6 +16,8 @@ import type {
   YoYBadge,
   WeeklyCategory,
   WeekColumn,
+  RentalBreakdownItem,
+  CategoryChange,
 } from "./page";
 
 const COLORS = [
@@ -42,6 +44,8 @@ type Props = {
   yoyBadges: Record<string, YoYBadge>;
   weeklyCategories: WeeklyCategory[];
   weekColumns: WeekColumn[];
+  categoryRentalMap: Record<string, RentalBreakdownItem[]>;
+  categoryChanges: CategoryChange[];
 };
 
 export default function CategoryTrendsClient({
@@ -51,6 +55,8 @@ export default function CategoryTrendsClient({
   yoyBadges,
   weeklyCategories,
   weekColumns,
+  categoryRentalMap,
+  categoryChanges,
 }: Props) {
   const [activeTab, setActiveTab] = useState<"monthly" | "weekly">("monthly");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -83,6 +89,8 @@ export default function CategoryTrendsClient({
           categories={categories}
           yoyBadges={yoyBadges}
           onCategoryClick={handleCategoryDrillDown}
+          categoryRentalMap={categoryRentalMap}
+          categoryChanges={categoryChanges}
         />
       )}
       {activeTab === "weekly" && (
@@ -150,13 +158,19 @@ function MonthlyView({
   categories,
   yoyBadges,
   onCategoryClick,
+  categoryRentalMap,
+  categoryChanges,
 }: {
   monthlyData: MonthCategoryData[];
   months: string[];
   categories: string[];
   yoyBadges: Record<string, YoYBadge>;
   onCategoryClick: (cat: string) => void;
+  categoryRentalMap: Record<string, RentalBreakdownItem[]>;
+  categoryChanges: CategoryChange[];
 }) {
+  const [drillCat, setDrillCat] = useState<string | null>(null);
+
   const dataMap = useMemo(() => {
     const map = new Map<string, number>();
     for (const d of monthlyData) {
@@ -166,22 +180,30 @@ function MonthlyView({
   }, [monthlyData]);
 
   const chartData = useMemo(() => {
-    return months.map((month) => {
-      const total = categories.reduce(
-        (s, cat) => s + (dataMap.get(`${month}::${cat}`) ?? 0),
-        0,
-      );
-      const entry: Record<string, number | string> = { month };
-      for (const cat of categories) {
-        const count = dataMap.get(`${month}::${cat}`) ?? 0;
-        entry[cat] =
-          total > 0 ? parseFloat(((count / total) * 100).toFixed(1)) : 0;
-        entry[`${cat}_count`] = count;
-      }
-      entry["_total"] = total;
-      return entry;
-    });
+    return months
+      .map((month) => {
+        const total = categories.reduce(
+          (s, cat) => s + (dataMap.get(`${month}::${cat}`) ?? 0),
+          0,
+        );
+        const entry: Record<string, number | string> = { month };
+        for (const cat of categories) {
+          const count = dataMap.get(`${month}::${cat}`) ?? 0;
+          entry[cat] =
+            total > 0 ? parseFloat(((count / total) * 100).toFixed(1)) : 0;
+          entry[`${cat}_count`] = count;
+        }
+        entry["_total"] = total;
+        return entry;
+      })
+      .filter((d) => (d["_total"] as number) > 0); // 데이터 있는 월만 표시
   }, [months, categories, dataMap]);
+
+  const changeMap = useMemo(() => {
+    const m = new Map<string, "new" | "gone">();
+    for (const c of categoryChanges) m.set(c.category, c.type);
+    return m;
+  }, [categoryChanges]);
 
   const latestMonth = months[months.length - 1];
   const prevMonth = months[months.length - 2] ?? null;
@@ -311,13 +333,21 @@ function MonthlyView({
 
       {/* 최신 월 테이블 */}
       <div className="bg-white border border-[#ebebe9] rounded-xl overflow-hidden">
-        <div className="px-5 py-3 border-b border-[#ebebe9] bg-[#f6f6f6]">
-          <span className="text-sm font-semibold text-[#393939]">
-            {latestMonth} 카테고리별 현황
-          </span>
-          <span className="ml-2 text-xs text-[#a1a5ac]">
-            · 행 클릭 시 주별 상품 탭으로 이동
-          </span>
+        <div className="px-5 py-3 border-b border-[#ebebe9] bg-[#f6f6f6] flex items-center justify-between">
+          <div>
+            <span className="text-sm font-semibold text-[#393939]">
+              {latestMonth} 카테고리별 현황
+            </span>
+            <span className="ml-2 text-xs text-[#a1a5ac]">
+              · 행 클릭 시 렌탈사 현황 확인
+            </span>
+          </div>
+          <button
+            onClick={() => onCategoryClick(latestRows[0]?.cat ?? "")}
+            className="text-xs text-[#6366f1] hover:underline"
+          >
+            주별 상품 보기 →
+          </button>
         </div>
         <table className="w-full text-sm">
           <thead>
@@ -340,55 +370,118 @@ function MonthlyView({
             </tr>
           </thead>
           <tbody>
-            {latestRows.map((row, i) => (
-              <tr
-                key={row.cat}
-                onClick={() => onCategoryClick(row.cat)}
-                className={`border-b border-[#ebebe9] cursor-pointer transition hover:bg-[#f3f5f9] ${
-                  i % 2 === 0 ? "bg-white" : "bg-[#f9fafb]"
-                }`}
-              >
-                <td className="px-4 py-3 font-medium text-[#222222]">
-                  <span className="flex items-center gap-2">
-                    <span
-                      className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: COLORS[i % COLORS.length] }}
-                    />
-                    {row.cat}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-right text-[#393939]">
-                  {row.count.toLocaleString("ko-KR")}
-                </td>
-                <td className="px-4 py-3 text-right text-[#393939]">
-                  {row.pct.toFixed(1)}%
-                </td>
-                <td className="px-4 py-3 text-right text-xs font-medium">
-                  {row.diff === null ? (
-                    <span className="text-[#a1a5ac]">-</span>
-                  ) : row.diff > 0 ? (
-                    <span style={{ color: "var(--color-up)" }}>
-                      +{row.diff.toFixed(1)}%p
-                    </span>
-                  ) : row.diff < 0 ? (
-                    <span style={{ color: "var(--color-down)" }}>
-                      {row.diff.toFixed(1)}%p
-                    </span>
-                  ) : (
-                    <span className="text-[#a1a5ac]">0%p</span>
+            {latestRows.map((row, i) => {
+              const isSelected = drillCat === row.cat;
+              const changeType = changeMap.get(row.cat);
+              const drillKey = `${latestMonth}::${row.cat}`;
+              const rentalItems = categoryRentalMap[drillKey] ?? [];
+              return (
+                <>
+                  <tr
+                    key={row.cat}
+                    onClick={() => setDrillCat(isSelected ? null : row.cat)}
+                    className={`border-b border-[#ebebe9] cursor-pointer transition ${
+                      isSelected
+                        ? "bg-[#edf2ff]"
+                        : i % 2 === 0
+                          ? "bg-white hover:bg-[#f3f5f9]"
+                          : "bg-[#f9fafb] hover:bg-[#f3f5f9]"
+                    }`}
+                  >
+                    <td className="px-4 py-3 font-medium text-[#222222]">
+                      <span className="flex items-center gap-2 flex-wrap">
+                        <span
+                          className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: COLORS[i % COLORS.length] }}
+                        />
+                        {row.cat}
+                        {changeType === "new" && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#dff7ea] text-[#1ea85e]">
+                            🆕 신규
+                          </span>
+                        )}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right text-[#393939]">
+                      {row.count.toLocaleString("ko-KR")}
+                    </td>
+                    <td className="px-4 py-3 text-right text-[#393939]">
+                      {row.pct.toFixed(1)}%
+                    </td>
+                    <td className="px-4 py-3 text-right text-xs font-medium">
+                      {row.diff === null ? (
+                        <span className="text-[#a1a5ac]">-</span>
+                      ) : row.diff > 0 ? (
+                        <span style={{ color: "var(--color-up)" }}>
+                          +{row.diff.toFixed(1)}%p
+                        </span>
+                      ) : row.diff < 0 ? (
+                        <span style={{ color: "var(--color-down)" }}>
+                          {row.diff.toFixed(1)}%p
+                        </span>
+                      ) : (
+                        <span className="text-[#a1a5ac]">0%p</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {yoyBadges[row.cat] ? (
+                        <YoYBadgeChip badge={yoyBadges[row.cat]} />
+                      ) : (
+                        <span className="text-[#a1a5ac] text-xs">-</span>
+                      )}
+                    </td>
+                  </tr>
+                  {isSelected && rentalItems.length > 0 && (
+                    <tr key={`${row.cat}-drill`} className="bg-[#edf2ff]">
+                      <td colSpan={5} className="px-6 py-4">
+                        <div className="text-xs font-semibold text-[#3531FF] mb-3">
+                          {row.cat} · 렌탈사별 비중 ({latestMonth})
+                        </div>
+                        <div className="space-y-2">
+                          {rentalItems.map((item) => (
+                            <div key={item.rentalCompany} className="flex items-center gap-3">
+                              <span className="text-xs text-[#586177] w-28 truncate flex-shrink-0">
+                                {item.label || item.rentalCompany}
+                              </span>
+                              <div className="flex-1 bg-[#dbe5ff] rounded-full h-2 overflow-hidden">
+                                <div
+                                  className="h-2 rounded-full"
+                                  style={{
+                                    width: `${item.pct}%`,
+                                    backgroundColor: "var(--primary)",
+                                  }}
+                                />
+                              </div>
+                              <span className="text-xs font-medium text-[#3531FF] w-16 text-right flex-shrink-0">
+                                {item.count.toLocaleString("ko-KR")}건 ({item.pct}%)
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
                   )}
-                </td>
-                <td className="px-4 py-3 text-right">
-                  {yoyBadges[row.cat] ? (
-                    <YoYBadgeChip badge={yoyBadges[row.cat]} />
-                  ) : (
-                    <span className="text-[#a1a5ac] text-xs">-</span>
-                  )}
-                </td>
-              </tr>
-            ))}
+                </>
+              );
+            })}
           </tbody>
         </table>
+        {/* 이탈 카테고리 */}
+        {categoryChanges.filter((c) => c.type === "gone").length > 0 && (
+          <div className="px-5 py-3 border-t border-[#ebebe9] bg-[#f9fafb]">
+            <span className="text-xs text-[#a1a5ac] font-medium">이탈 카테고리 (전월 대비): </span>
+            {categoryChanges
+              .filter((c) => c.type === "gone")
+              .map((c) => (
+                <span
+                  key={c.category}
+                  className="inline-flex items-center ml-2 px-2 py-0.5 rounded text-[10px] font-bold bg-[#ffe0e0] text-[#f90000]"
+                >
+                  {c.category}
+                </span>
+              ))}
+          </div>
+        )}
       </div>
     </div>
   );
