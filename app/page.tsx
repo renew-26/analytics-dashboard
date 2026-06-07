@@ -56,7 +56,15 @@ function calcIdx(curr: number, goal: number): number | null {
   return (curr / goal) * 100;
 }
 
-function IdxCell({ curr, goal }: { curr: number; goal: number }) {
+function IdxCell({
+  curr,
+  goal,
+  borderRight,
+}: {
+  curr: number;
+  goal: number;
+  borderRight?: boolean;
+}) {
   const p = calcIdx(curr, goal);
   const color =
     p === null
@@ -67,7 +75,10 @@ function IdxCell({ curr, goal }: { curr: number; goal: number }) {
           ? "#f59e0b"
           : "var(--color-down)";
   return (
-    <td className="px-4 py-3.5 text-center text-xs font-bold" style={{ color }}>
+    <td
+      className={`px-4 py-3.5 text-center text-xs font-bold${borderRight ? " border-r border-gray-100" : ""}`}
+      style={{ color }}
+    >
       {p === null ? "-" : `${p.toFixed(1)}%`}
     </td>
   );
@@ -157,7 +168,7 @@ const GOAL_ROWS: {
 }[] = [
   { label: "정수기", orderGoal: 5657, contractGoal: 5265, cats: ["정수기"] },
   {
-    label: "정수기 연계",
+    label: "크로스셀",
     orderGoal: 650,
     contractGoal: 610,
     cats: ["비데", "공기청정기"],
@@ -365,15 +376,17 @@ export default async function Home() {
   ];
 
   // ── 섹션 2 집계
-  const monthCatMap = new Map<number, Map<string, number>>();   // month → cat → count
-  const monthBmMap  = new Map<number, Record<"BM1"|"BM2"|"BM3", number>>(); // month → BM → count
-  const monthRcMap  = new Map<number, Map<string, number>>();   // month → rental_company → count
+  const monthCatMap = new Map<number, Map<string, number>>(); // month → cat → count
+  const monthBmMap = new Map<number, Record<"BM1" | "BM2" | "BM3", number>>(); // month → BM → count
+  const monthRcMap = new Map<number, Map<string, number>>(); // month → rental_company → count
 
   for (const r of catRaw) {
-    const m   = parseInt(r.contract_date.slice(5, 7), 10);
-    const cat = KNOWN_CATS.has(r.category ?? "") ? (r.category as string) : "그 외";
-    const bm  = getBM(r.partner_company);
-    const rc  = r.rental_company ?? "";
+    const m = parseInt(r.contract_date.slice(5, 7), 10);
+    const cat = KNOWN_CATS.has(r.category ?? "")
+      ? (r.category as string)
+      : "그 외";
+    const bm = getBM(r.partner_company);
+    const rc = r.rental_company ?? "";
 
     // 카테고리
     if (!monthCatMap.has(m)) monthCatMap.set(m, new Map());
@@ -405,7 +418,7 @@ export default async function Home() {
     return Array.from(mm.values()).reduce((s, v) => s + v, 0);
   }
 
-  function getBmCount(m: number, bm: "BM1"|"BM2"|"BM3"): number {
+  function getBmCount(m: number, bm: "BM1" | "BM2" | "BM3"): number {
     return monthBmMap.get(m)?.[bm] ?? 0;
   }
 
@@ -431,7 +444,7 @@ export default async function Home() {
                   카테고리
                 </th>
                 <th
-                  colSpan={2}
+                  colSpan={3}
                   className="px-4 py-2 text-center text-xs font-semibold text-gray-500 border-r border-gray-100 border-b border-gray-100"
                 >
                   주문확정
@@ -447,17 +460,20 @@ export default async function Home() {
                 <th className="px-4 py-2 text-center text-xs font-semibold text-gray-400 min-w-[90px]">
                   목표
                 </th>
-                <th className="px-4 py-2 text-center text-xs font-semibold text-gray-400 min-w-[90px] border-r border-gray-100">
+                <th className="px-4 py-2 text-center text-xs font-semibold text-gray-400 min-w-[90px]">
                   현황
+                </th>
+                <th className="px-4 py-2 text-center text-xs font-semibold text-gray-400 min-w-[75px] border-r border-gray-100">
+                  달성률
                 </th>
                 <th className="px-4 py-2 text-center text-xs font-semibold text-gray-400 min-w-[90px]">
                   목표
                 </th>
-                <th className="px-4 py-2 text-center text-xs font-semibold text-gray-400 min-w-[75px]">
-                  지수
-                </th>
                 <th className="px-4 py-2 text-center text-xs font-semibold text-gray-400 min-w-[90px]">
                   현황
+                </th>
+                <th className="px-4 py-2 text-center text-xs font-semibold text-gray-400 min-w-[75px]">
+                  달성률
                 </th>
               </tr>
             </thead>
@@ -470,16 +486,21 @@ export default async function Home() {
                   <td className="px-4 py-3.5 text-center text-gray-500">
                     {fmt(row.orderGoal)}
                   </td>
-                  <td className="px-4 py-3.5 text-center text-gray-800 font-medium border-r border-gray-100 cell-highlight">
+                  <td className="px-4 py-3.5 text-center text-gray-800 font-medium cell-highlight">
                     {fmt(row.orderCurr)}
                   </td>
+                  <IdxCell
+                    curr={row.orderCurr}
+                    goal={row.orderGoal}
+                    borderRight
+                  />
                   <td className="px-4 py-3.5 text-center text-gray-500">
                     {fmt(row.contractGoal)}
                   </td>
-                  <IdxCell curr={row.contractCurr} goal={row.contractGoal} />
                   <td className="px-4 py-3.5 text-center text-gray-800 font-medium cell-highlight">
                     {fmt(row.contractCurr)}
                   </td>
+                  <IdxCell curr={row.contractCurr} goal={row.contractGoal} />
                 </tr>
               ))}
               <tr className="border-t-2 border-gray-200">
@@ -489,16 +510,21 @@ export default async function Home() {
                 <td className="px-4 py-3 text-center font-semibold text-gray-500">
                   {fmt(totalOrderGoal)}
                 </td>
-                <td className="px-4 py-3 text-center font-semibold text-gray-800 border-r border-gray-100 cell-highlight">
+                <td className="px-4 py-3 text-center font-semibold text-gray-800 cell-highlight">
                   {fmt(totalOrderCurr)}
                 </td>
+                <IdxCell
+                  curr={totalOrderCurr}
+                  goal={totalOrderGoal}
+                  borderRight
+                />
                 <td className="px-4 py-3 text-center font-semibold text-gray-500">
                   {fmt(totalContractGoal)}
                 </td>
-                <IdxCell curr={totalContractCurr} goal={totalContractGoal} />
                 <td className="px-4 py-3 text-center font-semibold text-gray-800 cell-highlight">
                   {fmt(totalContractCurr)}
                 </td>
+                <IdxCell curr={totalContractCurr} goal={totalContractGoal} />
               </tr>
             </tbody>
           </table>
@@ -635,38 +661,74 @@ export default async function Home() {
 
         {/* 2-1. 카테고리 거래건수 */}
         <div>
-          <h3 className="text-sm font-semibold text-gray-500 mb-2">2-1. 카테고리 거래건수</h3>
+          <h3 className="text-sm font-semibold text-gray-500 mb-2">
+            2-1. 카테고리 거래건수
+          </h3>
           <div className="rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
             <table className="text-sm bg-white border-collapse w-full">
               <thead>
                 <tr className="border-b border-gray-100">
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[120px] sticky left-0 bg-white z-10 border-r border-gray-100">대카테고리</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[130px] border-r border-gray-100">상품 카테고리</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[120px] sticky left-0 bg-white z-10 border-r border-gray-100">
+                    대카테고리
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[130px] border-r border-gray-100">
+                    상품 카테고리
+                  </th>
                   {months.map((m) => (
-                    <th key={m} className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[90px] cell-highlight">{m}월</th>
+                    <th
+                      key={m}
+                      className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[90px] cell-highlight"
+                    >
+                      {m}월
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {CAT_TABLE_ROWS.map((row) => (
-                  <tr key={row.cat ?? "그 외"} className="border-t border-gray-50">
+                  <tr
+                    key={row.cat ?? "그 외"}
+                    className="border-t border-gray-50"
+                  >
                     {row.largeSpan > 0 && (
-                      <td rowSpan={row.largeSpan} className="px-4 py-3 text-xs font-semibold text-gray-500 text-center sticky left-0 bg-white border-r border-gray-100 align-middle">
+                      <td
+                        rowSpan={row.largeSpan}
+                        className="px-4 py-3 text-xs font-semibold text-gray-500 text-center sticky left-0 bg-white border-r border-gray-100 align-middle"
+                      >
                         {row.large}
                       </td>
                     )}
-                    <td className="px-4 py-3 text-xs text-gray-600 text-center border-r border-gray-100">{row.cat ?? "그 외"}</td>
+                    <td className="px-4 py-3 text-xs text-gray-600 text-center border-r border-gray-100">
+                      {row.cat ?? "그 외"}
+                    </td>
                     {months.map((m) => (
-                      <td key={m} className="px-4 py-3 text-center text-gray-800 cell-highlight">
-                        {getCatCount(m, row.cat) > 0 ? fmt(getCatCount(m, row.cat)) : <span className="text-gray-200">-</span>}
+                      <td
+                        key={m}
+                        className="px-4 py-3 text-center text-gray-800 cell-highlight"
+                      >
+                        {getCatCount(m, row.cat) > 0 ? (
+                          fmt(getCatCount(m, row.cat))
+                        ) : (
+                          <span className="text-gray-200">-</span>
+                        )}
                       </td>
                     ))}
                   </tr>
                 ))}
                 <tr className="border-t-2 border-gray-200">
-                  <td colSpan={2} className="px-4 py-3 text-xs font-semibold text-gray-400 text-center sticky left-0 bg-white border-r border-gray-100">전체</td>
+                  <td
+                    colSpan={2}
+                    className="px-4 py-3 text-xs font-semibold text-gray-400 text-center sticky left-0 bg-white border-r border-gray-100"
+                  >
+                    전체
+                  </td>
                   {months.map((m) => (
-                    <td key={m} className="px-4 py-3 text-center font-semibold text-gray-800 cell-highlight">{fmt(getMonthTotal(m))}</td>
+                    <td
+                      key={m}
+                      className="px-4 py-3 text-center font-semibold text-gray-800 cell-highlight"
+                    >
+                      {fmt(getMonthTotal(m))}
+                    </td>
                   ))}
                 </tr>
               </tbody>
@@ -676,32 +738,57 @@ export default async function Home() {
 
         {/* 2-2. BM별 거래건수 */}
         <div>
-          <h3 className="text-sm font-semibold text-gray-500 mb-2">2-2. BM별 거래건수</h3>
+          <h3 className="text-sm font-semibold text-gray-500 mb-2">
+            2-2. BM별 거래건수
+          </h3>
           <div className="rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
             <table className="text-sm bg-white border-collapse w-full">
               <thead>
                 <tr className="border-b border-gray-100">
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[100px] sticky left-0 bg-white z-10 border-r border-gray-100">BM</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[100px] sticky left-0 bg-white z-10 border-r border-gray-100">
+                    BM
+                  </th>
                   {months.map((m) => (
-                    <th key={m} className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[90px] cell-highlight">{m}월</th>
+                    <th
+                      key={m}
+                      className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[90px] cell-highlight"
+                    >
+                      {m}월
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {(["BM1", "BM2", "BM3"] as const).map((bm) => (
                   <tr key={bm} className="border-t border-gray-50">
-                    <td className="px-4 py-3 text-xs font-semibold text-gray-600 text-center sticky left-0 bg-white border-r border-gray-100">{bm}</td>
+                    <td className="px-4 py-3 text-xs font-semibold text-gray-600 text-center sticky left-0 bg-white border-r border-gray-100">
+                      {bm}
+                    </td>
                     {months.map((m) => (
-                      <td key={m} className="px-4 py-3 text-center text-gray-800 cell-highlight">
-                        {getBmCount(m, bm) > 0 ? fmt(getBmCount(m, bm)) : <span className="text-gray-200">-</span>}
+                      <td
+                        key={m}
+                        className="px-4 py-3 text-center text-gray-800 cell-highlight"
+                      >
+                        {getBmCount(m, bm) > 0 ? (
+                          fmt(getBmCount(m, bm))
+                        ) : (
+                          <span className="text-gray-200">-</span>
+                        )}
                       </td>
                     ))}
                   </tr>
                 ))}
                 <tr className="border-t-2 border-gray-200">
-                  <td className="px-4 py-3 text-xs font-semibold text-gray-400 text-center sticky left-0 bg-white border-r border-gray-100">전체</td>
+                  <td className="px-4 py-3 text-xs font-semibold text-gray-400 text-center sticky left-0 bg-white border-r border-gray-100">
+                    전체
+                  </td>
                   {months.map((m) => (
-                    <td key={m} className="px-4 py-3 text-center font-semibold text-gray-800 cell-highlight">{fmt(getMonthTotal(m))}</td>
+                    <td
+                      key={m}
+                      className="px-4 py-3 text-center font-semibold text-gray-800 cell-highlight"
+                    >
+                      {fmt(getMonthTotal(m))}
+                    </td>
                   ))}
                 </tr>
               </tbody>
@@ -711,24 +798,42 @@ export default async function Home() {
 
         {/* 2-3. 주요 렌탈사별 거래건수 */}
         <div>
-          <h3 className="text-sm font-semibold text-gray-500 mb-2">2-3. 주요 렌탈사별 거래건수</h3>
+          <h3 className="text-sm font-semibold text-gray-500 mb-2">
+            2-3. 주요 렌탈사별 거래건수
+          </h3>
           <div className="rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
             <table className="text-sm bg-white border-collapse w-full">
               <thead>
                 <tr className="border-b border-gray-100">
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[160px] sticky left-0 bg-white z-10 border-r border-gray-100">렌탈사</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[160px] sticky left-0 bg-white z-10 border-r border-gray-100">
+                    렌탈사
+                  </th>
                   {months.map((m) => (
-                    <th key={m} className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[90px] cell-highlight">{m}월</th>
+                    <th
+                      key={m}
+                      className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[90px] cell-highlight"
+                    >
+                      {m}월
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {MAIN_RENTAL_COMPANIES.map((rc) => (
                   <tr key={rc.dbName} className="border-t border-gray-50">
-                    <td className="px-4 py-3 text-xs font-semibold text-gray-600 text-center sticky left-0 bg-white border-r border-gray-100">{rc.label}</td>
+                    <td className="px-4 py-3 text-xs font-semibold text-gray-600 text-center sticky left-0 bg-white border-r border-gray-100">
+                      {rc.label}
+                    </td>
                     {months.map((m) => (
-                      <td key={m} className="px-4 py-3 text-center text-gray-800 cell-highlight">
-                        {getRcCount(m, rc.dbName) > 0 ? fmt(getRcCount(m, rc.dbName)) : <span className="text-gray-200">-</span>}
+                      <td
+                        key={m}
+                        className="px-4 py-3 text-center text-gray-800 cell-highlight"
+                      >
+                        {getRcCount(m, rc.dbName) > 0 ? (
+                          fmt(getRcCount(m, rc.dbName))
+                        ) : (
+                          <span className="text-gray-200">-</span>
+                        )}
                       </td>
                     ))}
                   </tr>
