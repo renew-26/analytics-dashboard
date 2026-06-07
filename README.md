@@ -9,7 +9,7 @@
 - **Tailwind CSS 4**
 - **Supabase** (PostgreSQL)
 - **Recharts** (차트)
-- **Vercel** (배포 + Cron)
+- **렌트리 마켓플레이스** (배포)
 
 ## 주요 기능
 
@@ -43,7 +43,7 @@ Next.js Pages
 ```
 
 - **`/api/sync`** — Redash 쿼리에서 데이터를 fetch해 Supabase에 업서트
-- **`/api/sync/cron`** — Vercel Cron으로 정기 동기화
+- **`/api/sync/cron`** — 정기 동기화 엔드포인트 (서버 시작 시 `instrumentation.ts`가 매일 새벽 5시 KST 자동 호출)
 
 ## Supabase 테이블
 
