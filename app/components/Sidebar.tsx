@@ -70,9 +70,9 @@ export default function Sidebar() {
           active={pathname === "/conversion"}
         />
         <NavItem
-          href="/trends"
+          href="/category-trends"
           label="카테고리 트렌드"
-          active={pathname === "/trends"}
+          active={pathname === "/category-trends"}
         />
         <NavItem
           href="/compare"
@@ -82,11 +82,6 @@ export default function Sidebar() {
 
         {/* 시장 조사 섹션 */}
         <SectionHeader label="시장 조사" />
-        <NavItem
-          href="/weekly-products"
-          label="렌탈사별 상품 현황"
-          active={pathname === "/weekly-products"}
-        />
         <NavItem
           href="/competitive-subsidy"
           label="경쟁사 지원금 조사"
@@ -103,7 +98,7 @@ export default function Sidebar() {
           const isOpen = openIndex === index || hasActive;
 
           return (
-            <div key={section.group} className="mt-4">
+            <div key={section.group} className="mt-2">
               <button
                 onClick={() => toggle(index)}
                 className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg group transition ${
@@ -148,7 +143,7 @@ export default function Sidebar() {
 
 function SectionHeader({ label }: { label: string }) {
   return (
-    <p className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[#a1a5ac]">
+    <p className="px-3 py-4 text-[10px] font-semibold uppercase tracking-wider text-[#a1a5ac]">
       {label}
     </p>
   );
