@@ -194,11 +194,21 @@ export default function CompareClient({
       if (d.company !== entryA.dbName) return false;
       if (entryA.categoryIs) {
         const cis = entryA.categoryIs;
-        if (Array.isArray(cis) ? !cis.includes(d.category ?? "") : cis !== d.category) return false;
+        if (
+          Array.isArray(cis)
+            ? !cis.includes(d.category ?? "")
+            : cis !== d.category
+        )
+          return false;
       }
       if (entryA.categoryNot) {
         const cnot = entryA.categoryNot;
-        if (Array.isArray(cnot) ? cnot.includes(d.category ?? "") : cnot === d.category) return false;
+        if (
+          Array.isArray(cnot)
+            ? cnot.includes(d.category ?? "")
+            : cnot === d.category
+        )
+          return false;
       }
       return true;
     });
@@ -209,11 +219,21 @@ export default function CompareClient({
       if (d.company !== entryB.dbName) return false;
       if (entryB.categoryIs) {
         const cis = entryB.categoryIs;
-        if (Array.isArray(cis) ? !cis.includes(d.category ?? "") : cis !== d.category) return false;
+        if (
+          Array.isArray(cis)
+            ? !cis.includes(d.category ?? "")
+            : cis !== d.category
+        )
+          return false;
       }
       if (entryB.categoryNot) {
         const cnot = entryB.categoryNot;
-        if (Array.isArray(cnot) ? cnot.includes(d.category ?? "") : cnot === d.category) return false;
+        if (
+          Array.isArray(cnot)
+            ? cnot.includes(d.category ?? "")
+            : cnot === d.category
+        )
+          return false;
       }
       return true;
     });
@@ -259,7 +279,9 @@ export default function CompareClient({
     const map = new Map<string, number>();
     dataA
       .filter((d) => last3Months.includes(d.month))
-      .forEach((d) => map.set(d.category, (map.get(d.category) ?? 0) + d.count));
+      .forEach((d) =>
+        map.set(d.category, (map.get(d.category) ?? 0) + d.count),
+      );
     const total = [...map.values()].reduce((s, v) => s + v, 0);
     return [...map.entries()]
       .map(([cat, count]) => ({
@@ -274,7 +296,9 @@ export default function CompareClient({
     const map = new Map<string, number>();
     dataB
       .filter((d) => last3Months.includes(d.month))
-      .forEach((d) => map.set(d.category, (map.get(d.category) ?? 0) + d.count));
+      .forEach((d) =>
+        map.set(d.category, (map.get(d.category) ?? 0) + d.count),
+      );
     const total = [...map.values()].reduce((s, v) => s + v, 0);
     return [...map.entries()]
       .map(([cat, count]) => ({
@@ -295,11 +319,21 @@ export default function CompareClient({
         if (d.company !== entry.dbName) return false;
         if (entry.categoryIs) {
           const cis = entry.categoryIs;
-          if (Array.isArray(cis) ? !cis.includes(d.category ?? "") : cis !== d.category) return false;
+          if (
+            Array.isArray(cis)
+              ? !cis.includes(d.category ?? "")
+              : cis !== d.category
+          )
+            return false;
         }
         if (entry.categoryNot) {
           const cnot = entry.categoryNot;
-          if (Array.isArray(cnot) ? cnot.includes(d.category ?? "") : cnot === d.category) return false;
+          if (
+            Array.isArray(cnot)
+              ? cnot.includes(d.category ?? "")
+              : cnot === d.category
+          )
+            return false;
         }
         return true;
       });
@@ -310,21 +344,39 @@ export default function CompareClient({
 
     // category별 집계
     const catOrderA = new Map<string, number>();
-    for (const d of ordersA) catOrderA.set(d.category, (catOrderA.get(d.category) ?? 0) + d.orderCount);
+    for (const d of ordersA)
+      catOrderA.set(
+        d.category,
+        (catOrderA.get(d.category) ?? 0) + d.orderCount,
+      );
 
     const catOrderB = new Map<string, number>();
-    for (const d of ordersB) catOrderB.set(d.category, (catOrderB.get(d.category) ?? 0) + d.orderCount);
+    for (const d of ordersB)
+      catOrderB.set(
+        d.category,
+        (catOrderB.get(d.category) ?? 0) + d.orderCount,
+      );
 
     const catContractA = new Map<string, number>();
-    for (const d of dataA) catContractA.set(d.category, (catContractA.get(d.category) ?? 0) + d.count);
+    for (const d of dataA)
+      catContractA.set(
+        d.category,
+        (catContractA.get(d.category) ?? 0) + d.count,
+      );
 
     const catContractB = new Map<string, number>();
-    for (const d of dataB) catContractB.set(d.category, (catContractB.get(d.category) ?? 0) + d.count);
+    for (const d of dataB)
+      catContractB.set(
+        d.category,
+        (catContractB.get(d.category) ?? 0) + d.count,
+      );
 
     // 공통 카테고리
     const allCats = new Set([
-      ...catOrderA.keys(), ...catOrderB.keys(),
-      ...catContractA.keys(), ...catContractB.keys(),
+      ...catOrderA.keys(),
+      ...catOrderB.keys(),
+      ...catContractA.keys(),
+      ...catContractB.keys(),
     ]);
 
     return [...allCats]
@@ -346,9 +398,14 @@ export default function CompareClient({
       })
       .filter(Boolean)
       .sort((a, b) => b!.orderA - a!.orderA) as {
-        cat: string; orderA: number; contractA: number; rateA: number;
-        orderB: number; contractB: number; rateB: number;
-      }[];
+      cat: string;
+      orderA: number;
+      contractA: number;
+      rateA: number;
+      orderB: number;
+      contractB: number;
+      rateB: number;
+    }[];
   }, [dataA, dataB, orderData, entryA, entryB]);
 
   // 평균 렌탈료 비교 (카테고리별) — A사 주문건수 기준 정렬
@@ -358,13 +415,19 @@ export default function CompareClient({
     const catFeeA = new Map<string, { fee: number; count: number }>();
     for (const d of dataA) {
       const prev = catFeeA.get(d.category) ?? { fee: 0, count: 0 };
-      catFeeA.set(d.category, { fee: prev.fee + d.totalFee, count: prev.count + d.count });
+      catFeeA.set(d.category, {
+        fee: prev.fee + d.totalFee,
+        count: prev.count + d.count,
+      });
     }
 
     const catFeeB = new Map<string, { fee: number; count: number }>();
     for (const d of dataB) {
       const prev = catFeeB.get(d.category) ?? { fee: 0, count: 0 };
-      catFeeB.set(d.category, { fee: prev.fee + d.totalFee, count: prev.count + d.count });
+      catFeeB.set(d.category, {
+        fee: prev.fee + d.totalFee,
+        count: prev.count + d.count,
+      });
     }
 
     // A사 주문건수 (정렬용)
@@ -373,13 +436,26 @@ export default function CompareClient({
       if (d.company !== entryA.dbName) continue;
       if (entryA.categoryIs) {
         const cis = entryA.categoryIs;
-        if (Array.isArray(cis) ? !cis.includes(d.category ?? "") : cis !== d.category) continue;
+        if (
+          Array.isArray(cis)
+            ? !cis.includes(d.category ?? "")
+            : cis !== d.category
+        )
+          continue;
       }
       if (entryA.categoryNot) {
         const cnot = entryA.categoryNot;
-        if (Array.isArray(cnot) ? cnot.includes(d.category ?? "") : cnot === d.category) continue;
+        if (
+          Array.isArray(cnot)
+            ? cnot.includes(d.category ?? "")
+            : cnot === d.category
+        )
+          continue;
       }
-      catOrderA.set(d.category, (catOrderA.get(d.category) ?? 0) + d.orderCount);
+      catOrderA.set(
+        d.category,
+        (catOrderA.get(d.category) ?? 0) + d.orderCount,
+      );
     }
 
     const allCats = new Set([...catFeeA.keys(), ...catFeeB.keys()]);
@@ -653,10 +729,7 @@ export default function CompareClient({
       {/* 회사 선택 */}
       <div className="flex items-center gap-4 flex-wrap">
         <div className="flex items-center gap-2">
-          <span
-            className="text-sm font-semibold"
-            style={{ color: COLOR_A }}
-          >
+          <span className="text-sm font-semibold" style={{ color: COLOR_A }}>
             렌탈사 A
           </span>
           <select
@@ -674,10 +747,7 @@ export default function CompareClient({
         </div>
         <span className="text-[#a1a5ac] text-lg font-light">vs</span>
         <div className="flex items-center gap-2">
-          <span
-            className="text-sm font-semibold"
-            style={{ color: COLOR_B }}
-          >
+          <span className="text-sm font-semibold" style={{ color: COLOR_B }}>
             렌탈사 B
           </span>
           <select
@@ -705,16 +775,14 @@ export default function CompareClient({
         <>
           {/* 분석 기준 설명 */}
           <div className="bg-[#edf2ff] border border-[#a9b1ff] rounded-xl px-5 py-3 flex items-center gap-2">
-            <span
-              className="text-sm font-bold"
-              style={{ color: COLOR_A }}
-            >
+            <span className="text-sm font-bold" style={{ color: COLOR_A }}>
               {companyA}
             </span>
             <span className="text-sm text-[#586177]">
               {josa(companyA, "을", "를")} 기준으로{" "}
               <span className="font-semibold text-[#393939]">{companyB}</span>
-              {josa(companyB, "과", "와")} 비교합니다. 카테고리별 전환율·평균 렌탈료는{" "}
+              {josa(companyB, "과", "와")} 비교합니다. 카테고리별 전환율·평균
+              렌탈료는{" "}
               <span className="font-semibold" style={{ color: COLOR_A }}>
                 {companyA}
               </span>{" "}
@@ -873,9 +941,7 @@ export default function CompareClient({
                     className="text-2xl font-bold"
                     style={{
                       color:
-                        summaryA.count > summaryB.count
-                          ? COLOR_A
-                          : "#222222",
+                        summaryA.count > summaryB.count ? COLOR_A : "#222222",
                     }}
                   >
                     {fmt(summaryA.count)}건
@@ -893,9 +959,7 @@ export default function CompareClient({
                     className="text-2xl font-bold"
                     style={{
                       color:
-                        summaryB.count > summaryA.count
-                          ? COLOR_B
-                          : "#222222",
+                        summaryB.count > summaryA.count ? COLOR_B : "#222222",
                     }}
                   >
                     {fmt(summaryB.count)}건
@@ -960,9 +1024,13 @@ export default function CompareClient({
               <div className="mt-3 text-xs text-[#a1a5ac]">
                 차이:{" "}
                 <span className="font-medium text-[#586177]">
-                  {fmt(Math.round(Math.abs(summaryA.totalFee - summaryB.totalFee)))}원
+                  {fmt(
+                    Math.round(Math.abs(summaryA.totalFee - summaryB.totalFee)),
+                  )}
+                  원
                 </span>{" "}
-                ({summaryA.totalFee >= summaryB.totalFee ? companyA : companyB} 우세)
+                ({summaryA.totalFee >= summaryB.totalFee ? companyA : companyB}{" "}
+                우세)
               </div>
             </div>
           </div>
@@ -1322,38 +1390,70 @@ export default function CompareClient({
               카테고리별 평균 렌탈료 비교
             </h2>
             <p className="text-xs text-[#a1a5ac] mb-4">
-              계약완료 기준 · 평균 렌탈료 = 총 렌탈료 합계 ÷ 계약건수
+              계약완료 기준 · 평균 월 렌탈료 = 월 렌탈료 합계 ÷ 계약건수
             </p>
             {avgFeeData.length === 0 ? (
-              <div className="text-sm text-[#a1a5ac] text-center py-6">데이터 없음</div>
+              <div className="text-sm text-[#a1a5ac] text-center py-6">
+                데이터 없음
+              </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-[#ebebe9]">
-                      <th className="text-left py-2 pr-3 text-xs font-semibold text-[#788093] w-28">카테고리</th>
-                      <th className="text-right py-2 px-2 text-xs font-semibold" style={{ color: COLOR_A }}>{companyA} 평균</th>
-                      <th className="text-right py-2 px-2 text-xs font-semibold" style={{ color: COLOR_B }}>{companyB} 평균</th>
-                      <th className="text-right py-2 pl-2 text-xs font-semibold text-[#788093]">차이</th>
+                      <th className="text-left py-2 pr-3 text-xs font-semibold text-[#788093] w-28">
+                        카테고리
+                      </th>
+                      <th
+                        className="text-right py-2 px-2 text-xs font-semibold"
+                        style={{ color: COLOR_A }}
+                      >
+                        {companyA} 평균
+                      </th>
+                      <th
+                        className="text-right py-2 px-2 text-xs font-semibold"
+                        style={{ color: COLOR_B }}
+                      >
+                        {companyB} 평균
+                      </th>
+                      <th className="text-right py-2 pl-2 text-xs font-semibold text-[#788093]">
+                        차이
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {(showAllAvgFee ? avgFeeData : avgFeeData.slice(0, 7)).map((row) => (
-                      <tr key={row.cat} className="border-b border-[#f3f5f9] hover:bg-[#f9fafb]">
-                        <td className="py-2 pr-3 text-xs text-[#393939] font-medium">{row.cat}</td>
-                        <td className="py-2 px-2 text-right text-xs font-semibold"
-                          style={{ color: row.avgA > row.avgB ? COLOR_A : "#a1a5ac" }}>
-                          {fmt(Math.round(row.avgA))}원
-                        </td>
-                        <td className="py-2 px-2 text-right text-xs font-semibold"
-                          style={{ color: row.avgB > row.avgA ? COLOR_B : "#a1a5ac" }}>
-                          {fmt(Math.round(row.avgB))}원
-                        </td>
-                        <td className="py-2 pl-2 text-right text-xs text-[#586177]">
-                          {row.diff > 0 ? "+" : ""}{fmt(Math.round(row.diff))}원
-                        </td>
-                      </tr>
-                    ))}
+                    {(showAllAvgFee ? avgFeeData : avgFeeData.slice(0, 7)).map(
+                      (row) => (
+                        <tr
+                          key={row.cat}
+                          className="border-b border-[#f3f5f9] hover:bg-[#f9fafb]"
+                        >
+                          <td className="py-2 pr-3 text-xs text-[#393939] font-medium">
+                            {row.cat}
+                          </td>
+                          <td
+                            className="py-2 px-2 text-right text-xs font-semibold"
+                            style={{
+                              color: row.avgA > row.avgB ? COLOR_A : "#a1a5ac",
+                            }}
+                          >
+                            {fmt(Math.round(row.avgA))}원
+                          </td>
+                          <td
+                            className="py-2 px-2 text-right text-xs font-semibold"
+                            style={{
+                              color: row.avgB > row.avgA ? COLOR_B : "#a1a5ac",
+                            }}
+                          >
+                            {fmt(Math.round(row.avgB))}원
+                          </td>
+                          <td className="py-2 pl-2 text-right text-xs text-[#586177]">
+                            {row.diff > 0 ? "+" : ""}
+                            {fmt(Math.round(row.diff))}원
+                          </td>
+                        </tr>
+                      ),
+                    )}
                   </tbody>
                 </table>
                 {avgFeeData.length > 7 && (
