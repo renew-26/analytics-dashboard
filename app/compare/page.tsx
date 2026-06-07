@@ -137,6 +137,8 @@ export default async function ComparePage() {
         companyMap={COMPANY_MAP.map((c) => ({
           label: c.label,
           dbName: c.dbName,
+          categoryIs: c.categoryIs,
+          categoryNot: c.categoryNot,
         }))}
       />
     </div>

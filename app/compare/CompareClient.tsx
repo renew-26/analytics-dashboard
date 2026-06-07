@@ -15,7 +15,12 @@ import {
 } from "recharts";
 import type { CompanyMonthData } from "./page";
 
-type CompanyMapEntry = { label: string; dbName: string };
+type CompanyMapEntry = {
+  label: string;
+  dbName: string;
+  categoryIs?: string;
+  categoryNot?: string;
+};
 
 type Props = {
   data: CompanyMonthData[];
@@ -24,9 +29,11 @@ type Props = {
   companyMap: CompanyMapEntry[];
 };
 
-function getDbName(label: string, companyMap: CompanyMapEntry[]): string | null {
-  const entry = companyMap.find((c) => c.label === label);
-  return entry ? entry.dbName : null;
+function getEntry(
+  label: string,
+  companyMap: CompanyMapEntry[],
+): CompanyMapEntry | null {
+  return companyMap.find((c) => c.label === label) ?? null;
 }
 
 function fmt(n: number) {
@@ -45,18 +52,28 @@ export default function CompareClient({
   const [companyA, setCompanyA] = useState<string>("");
   const [companyB, setCompanyB] = useState<string>("");
 
-  const dbNameA = companyA ? getDbName(companyA, companyMap) : null;
-  const dbNameB = companyB ? getDbName(companyB, companyMap) : null;
+  const entryA = companyA ? getEntry(companyA, companyMap) : null;
+  const entryB = companyB ? getEntry(companyB, companyMap) : null;
 
-  // 선택된 회사의 데이터 필터
-  const dataA = useMemo(
-    () => (dbNameA ? data.filter((d) => d.company === dbNameA) : []),
-    [data, dbNameA],
-  );
-  const dataB = useMemo(
-    () => (dbNameB ? data.filter((d) => d.company === dbNameB) : []),
-    [data, dbNameB],
-  );
+  // 선택된 회사의 데이터 필터 (categoryIs/categoryNot 적용)
+  const dataA = useMemo(() => {
+    if (!entryA) return [];
+    return data.filter((d) => {
+      if (d.company !== entryA.dbName) return false;
+      if (entryA.categoryIs && d.category !== entryA.categoryIs) return false;
+      if (entryA.categoryNot && d.category === entryA.categoryNot) return false;
+      return true;
+    });
+  }, [data, entryA]);
+  const dataB = useMemo(() => {
+    if (!entryB) return [];
+    return data.filter((d) => {
+      if (d.company !== entryB.dbName) return false;
+      if (entryB.categoryIs && d.category !== entryB.categoryIs) return false;
+      if (entryB.categoryNot && d.category === entryB.categoryNot) return false;
+      return true;
+    });
+  }, [data, entryB]);
 
   // 최근 3개월
   const last3Months = months.slice(-3);
