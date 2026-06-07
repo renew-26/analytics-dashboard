@@ -27,7 +27,7 @@ export const COMPANY_MAP: {
   { label: "넥센타이어", dbName: "넥센", group: "가전&상조" },
   { label: "바디프랜드", dbName: "바디프랜드", group: "가전&상조" },
   {
-    label: "LG전자",
+    label: "LG 헬스케어",
     dbName: "LG",
     group: "가전&상조",
     categoryNot: ["정수기", "공기청정기", "비데"],
