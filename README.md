@@ -4,7 +4,7 @@
 
 ## 기술 스택
 
-- **Next.js 15** (App Router, React Server Components)
+- **Next.js 16** (App Router, React Server Components)
 - **TypeScript**
 - **Tailwind CSS 4**
 - **Supabase** (PostgreSQL)
@@ -16,7 +16,10 @@
 | 페이지 | 설명 |
 |--------|------|
 | `/` | 홈 — 월별 카테고리 목표·현황, 동기간 비교(주문확정·설치인증·BM별), 거래건수(카테고리/BM/렌탈사별) |
-| `/weekly-products` | 주차별 상품 현황 — 카테고리별 주차별 상위 5개 상품 |
+| `/category-trends` | 카테고리 트렌드 — 월별 카테고리 비중 추이, 렌탈사 드릴다운, 신규/이탈 감지, 주별 상품 현황 |
+| `/compare` | 비교 분석 — 렌탈사별 카테고리 거래건수 추이 비교 |
+| `/conversion` | 전환율 분석 |
+| `/competitive-subsidy` | 경쟁사 지원금 조사 |
 | `/company/[label]` | 렌탈사 상세 — 월별 총렌탈료(MOM), 주차별 지표, 카테고리·포지션·상위상품 분석 |
 
 ## 홈 화면 섹션
@@ -42,20 +45,39 @@ Next.js Pages
 - **`/api/sync`** — Redash 쿼리에서 데이터를 fetch해 Supabase에 업서트
 - **`/api/sync/cron`** — Vercel Cron으로 정기 동기화
 
+## Supabase 테이블
+
+| 테이블 | 설명 |
+|--------|------|
+| `raw_orders` | 주문확정 데이터 (Redash Query 4441) |
+| `raw_contracts` | 계약완료 데이터 (Redash Query 4445) |
+| `auto_quote_typeb` | 가전&상조 렌탈사별 자동견적 (Redash Query 4404) |
+| `auto_quote_typea` | 정수기 자동견적 — 더블체크파트너스 기준 (Redash Query 4403) |
+| `competitive_subsidy` | 경쟁사 지원금 조사 데이터 |
+
 ## 프로젝트 구조
 
 ```
 app/
 ├── page.tsx                      # 홈 (카테고리 목표·동기간 비교·거래건수)
-├── weekly-products/              # 주차별 상품 현황
+├── category-trends/              # 카테고리 트렌드 (월별 비중·드릴다운·주별 상품)
+├── compare/                      # 렌탈사별 비교 분석
+├── conversion/                   # 전환율 분석
+├── competitive-subsidy/          # 경쟁사 지원금 조사
 ├── company/[company]/            # 렌탈사 상세
-├── api/sync/                     # 데이터 동기화 API
+├── api/
+│   ├── sync/                     # 데이터 동기화 API (Redash → Supabase)
+│   └── subsidy/                  # 경쟁사 지원금 데이터 API
 └── components/
     ├── Sidebar.tsx
     ├── Header.tsx
+    ├── BMFilter.tsx
+    ├── ViewToggle.tsx
     ├── CategoryTable.tsx
     ├── MonthlyRevenueChart.tsx
-    └── PositionChartModal.tsx
+    ├── PositionChartModal.tsx
+    ├── BrandCompetitiveSection.tsx
+    └── CategoryCompetitiveSection.tsx
 lib/
 ├── company-map.ts                # 렌탈사 매핑 + BM 분류 + 주요 렌탈사 목록
 └── supabase.ts
@@ -72,6 +94,8 @@ npm install
 ```
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
+REDASH_URL=...
 REDASH_API_KEY=...
 CRON_SECRET=...
 ```
