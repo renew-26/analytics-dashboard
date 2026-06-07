@@ -551,7 +551,7 @@ function WeeklyView({
                                         color: "#6366f1",
                                       }}
                                     >
-                                      {product.rental_company}
+                                      {product.label}
                                     </span>
                                     <span
                                       className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-semibold"

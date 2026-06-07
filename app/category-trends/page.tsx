@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { getCompanyLabel } from "@/lib/company-map";
 import CategoryTrendsClient from "./CategoryTrendsClient";
 
 const supabase = createClient(
@@ -35,6 +36,7 @@ export type ProductEntry = {
   product_name: string;
   model_name: string;
   rental_company: string;
+  label: string;
   count: number;
 };
 
@@ -249,6 +251,7 @@ export default async function CategoryTrendsPage() {
       product_name: row.product_name ?? "",
       model_name: row.model_name ?? "",
       rental_company: row.rental_company ?? "",
+      label: getCompanyLabel(row.rental_company ?? "", cat),
       count: 0,
     };
     cur.count += 1;
