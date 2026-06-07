@@ -646,6 +646,8 @@ export default async function CompanyPage({
       const topModelNames = new Set<string>();
       for (const cat of positionCategories) {
         if (!myCatSet.has(cat)) continue;
+        if (mapping.categoryIs && mapping.categoryIs !== cat) continue;
+        if (mapping.categoryNot && mapping.categoryNot === cat) continue;
         const productMap = catProductMap.get(cat);
         if (!productMap) continue;
         const top5 = Array.from(productMap.values())
@@ -932,6 +934,184 @@ export default async function CompanyPage({
       }
     }
   }
+
+  // ── Section A/B/C: 카테고리 점유율 · 성과 원인 · 크로스카테고리 패턴 ──
+  const now = new Date();
+  const curMonthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+  const nextMonth = now.getMonth() + 2 > 12
+    ? `${now.getFullYear() + 1}-01-01`
+    : `${now.getFullYear()}-${String(now.getMonth() + 2).padStart(2, "0")}-01`;
+
+  // Fetch all raw_contracts in current month (no rental_company filter) for share calculation
+  interface ShareRow {
+    rental_company: string | null;
+    category: string | null;
+    total_rental_fee: number | null;
+    monthly_fee: number | null;
+    product_name: string | null;
+    model_name: string | null;
+  }
+  const allContractRows: ShareRow[] = [];
+  {
+    let from = 0;
+    while (true) {
+      const { data, error } = await supabase
+        .from("raw_contracts")
+        .select("rental_company, category, total_rental_fee, monthly_fee, product_name, model_name")
+        .gte("contract_date", curMonthStart)
+        .lt("contract_date", nextMonth)
+        .range(from, from + PAGE - 1);
+      if (error || !data || data.length === 0) break;
+      allContractRows.push(...data);
+      if (data.length < PAGE) break;
+      from += PAGE;
+    }
+  }
+
+  // Section A: 카테고리 × 렌탈사 점유율
+  interface CategoryShare {
+    category: string;
+    myCount: number;
+    totalCount: number;
+    countShare: number;
+    myRevenue: number;
+    totalRevenue: number;
+    revenueShare: number;
+    countRank: number;
+    totalCompanies: number;
+  }
+  const categoryShareData: CategoryShare[] = (() => {
+    const catMap = new Map<string, Map<string, { count: number; revenue: number }>>();
+    for (const r of allContractRows) {
+      const cat = r.category ?? "기타";
+      const co = r.rental_company ?? "기타";
+      if (!catMap.has(cat)) catMap.set(cat, new Map());
+      const cm = catMap.get(cat)!;
+      const cur = cm.get(co) ?? { count: 0, revenue: 0 };
+      cur.count += 1;
+      cur.revenue += r.total_rental_fee ?? 0;
+      cm.set(co, cur);
+    }
+    const results: CategoryShare[] = [];
+    for (const [cat, cm] of catMap) {
+      if (mapping.categoryIs && cat !== mapping.categoryIs) continue;
+      if (mapping.categoryNot && cat === mapping.categoryNot) continue;
+      const my = cm.get(dbName);
+      if (!my || my.count === 0) continue;
+      let totalCount = 0;
+      let totalRevenue = 0;
+      const countsByCompany: number[] = [];
+      for (const v of cm.values()) {
+        totalCount += v.count;
+        totalRevenue += v.revenue;
+        countsByCompany.push(v.count);
+      }
+      countsByCompany.sort((a, b) => b - a);
+      const countRank = countsByCompany.findIndex((v) => v <= my.count) + 1;
+      results.push({
+        category: cat,
+        myCount: my.count,
+        totalCount,
+        countShare: totalCount > 0 ? (my.count / totalCount) * 100 : 0,
+        myRevenue: my.revenue,
+        totalRevenue,
+        revenueShare: totalRevenue > 0 ? (my.revenue / totalRevenue) * 100 : 0,
+        countRank,
+        totalCompanies: cm.size,
+      });
+    }
+    return results.sort((a, b) => b.myCount - a.myCount);
+  })();
+
+  // Section B: 성과 원인 분석 (top 3 categories by count)
+  interface PerformanceDriver {
+    category: string;
+    myAvgFee: number;
+    othersAvgFee: number;
+    feeDiff: number;
+    myModelCount: number;
+    othersAvgModelCount: number;
+    modelDiff: number;
+  }
+  const performanceDrivers: PerformanceDriver[] = (() => {
+    const top3Cats = categoryShareData.slice(0, 3).map((c) => c.category);
+    const results: PerformanceDriver[] = [];
+    for (const cat of top3Cats) {
+      const catRows = allContractRows.filter((r) => (r.category ?? "기타") === cat);
+      // monthly_fee averages
+      let myFeeSum = 0, myFeeCount = 0, othersFeeSum = 0, othersFeeCount = 0;
+      // model counts per company
+      const myModels = new Set<string>();
+      const otherModelsByCompany = new Map<string, Set<string>>();
+      for (const r of catRows) {
+        const co = r.rental_company ?? "기타";
+        const fee = r.monthly_fee ?? 0;
+        const modelKey = `${r.product_name ?? ""}|${r.model_name ?? ""}`;
+        if (co === dbName) {
+          myFeeSum += fee;
+          myFeeCount += 1;
+          myModels.add(modelKey);
+        } else {
+          othersFeeSum += fee;
+          othersFeeCount += 1;
+          if (!otherModelsByCompany.has(co)) otherModelsByCompany.set(co, new Set());
+          otherModelsByCompany.get(co)!.add(modelKey);
+        }
+      }
+      const myAvgFee = myFeeCount > 0 ? Math.round(myFeeSum / myFeeCount) : 0;
+      const othersAvgFee = othersFeeCount > 0 ? Math.round(othersFeeSum / othersFeeCount) : 0;
+      const otherCompanyCount = otherModelsByCompany.size;
+      const othersAvgModelCount = otherCompanyCount > 0
+        ? Math.round(Array.from(otherModelsByCompany.values()).reduce((s, set) => s + set.size, 0) / otherCompanyCount)
+        : 0;
+      results.push({
+        category: cat,
+        myAvgFee,
+        othersAvgFee,
+        feeDiff: myAvgFee - othersAvgFee,
+        myModelCount: myModels.size,
+        othersAvgModelCount,
+        modelDiff: myModels.size - othersAvgModelCount,
+      });
+    }
+    return results;
+  })();
+
+  // Section C: 크로스카테고리 패턴
+  interface CrossCategoryPattern {
+    category: string;
+    share: number;
+    tier: "강함" | "보통" | "약함";
+  }
+  const crossCategoryPatterns: CrossCategoryPattern[] = (() => {
+    // For each category, compute each company's count share, then rank this company
+    const catMap = new Map<string, Map<string, number>>();
+    for (const r of allContractRows) {
+      const cat = r.category ?? "기타";
+      const co = r.rental_company ?? "기타";
+      if (!catMap.has(cat)) catMap.set(cat, new Map());
+      const cm = catMap.get(cat)!;
+      cm.set(co, (cm.get(co) ?? 0) + 1);
+    }
+    const results: CrossCategoryPattern[] = [];
+    for (const [cat, cm] of catMap) {
+      const myCount = cm.get(dbName) ?? 0;
+      if (myCount === 0) continue;
+      const total = Array.from(cm.values()).reduce((s, v) => s + v, 0);
+      const myShare = total > 0 ? (myCount / total) * 100 : 0;
+      // Rank among all companies for this category
+      const shares = Array.from(cm.entries()).map(([, count]) =>
+        total > 0 ? (count / total) * 100 : 0,
+      );
+      shares.sort((a, b) => b - a);
+      const rank = shares.findIndex((s) => s <= myShare);
+      const percentile = shares.length > 1 ? rank / (shares.length - 1) : 0;
+      const tier: "강함" | "보통" | "약함" =
+        percentile <= 0.33 ? "강함" : percentile >= 0.67 ? "약함" : "보통";
+      results.push({ category: cat, share: myShare, tier });
+    }
+    return results.sort((a, b) => b.share - a.share);
+  })();
 
   return (
     <div className="px-12 py-6">
@@ -1472,6 +1652,233 @@ export default async function CompanyPage({
           </div>
         ))}
       </div>
+
+      {/* Section A: 카테고리 × 렌탈사 점유율 */}
+      {categoryShareData.length > 0 && (
+        <div className="mt-10">
+          <div className="mb-4 flex items-center gap-2">
+            <h2 className="text-base font-semibold text-gray-700">
+              카테고리 × 렌탈사 점유율
+            </h2>
+            <span className="text-xs text-gray-400">
+              {now.getMonth() + 1}월 계약완료 기준
+            </span>
+          </div>
+          <div className="rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <table className="text-sm bg-white w-full table-fixed">
+              <colgroup>
+                <col style={{ width: "30%" }} />
+                <col style={{ width: "23%" }} />
+                <col style={{ width: "23%" }} />
+                <col style={{ width: "24%" }} />
+              </colgroup>
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="px-5 py-3 text-center text-xs font-bold text-gray-800">
+                    카테고리
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-bold text-gray-800">
+                    건수 점유율
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-bold text-gray-800">
+                    매출 점유율
+                  </th>
+                  <th className="px-5 py-3 text-center text-xs font-bold text-gray-800">
+                    건수 순위
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {categoryShareData.map((cs) => (
+                  <tr key={cs.category} className="border-t border-gray-50">
+                    <td className="px-5 py-3 text-center font-medium text-gray-700">
+                      {cs.category}
+                    </td>
+                    <td className="px-4 py-3 text-center text-gray-800">
+                      {cs.countShare.toFixed(1)}%
+                      <span className="text-xs text-gray-400 ml-1">
+                        ({fmt(cs.myCount)}/{fmt(cs.totalCount)})
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-center text-gray-800">
+                      {cs.revenueShare.toFixed(1)}%
+                    </td>
+                    <td className="px-5 py-3 text-center font-semibold text-gray-700">
+                      {cs.countRank}/{cs.totalCompanies}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Section B: 성과 원인 분석 */}
+      {performanceDrivers.length > 0 && (
+        <div className="mt-10">
+          <div className="mb-4 flex items-center gap-2">
+            <h2 className="text-base font-semibold text-gray-700">
+              성과 원인 분석
+            </h2>
+            <span className="text-xs text-gray-400">
+              상위 3개 카테고리 · 월렌탈료 & 취급모델 비교
+            </span>
+          </div>
+          <div className="grid grid-cols-1 gap-6">
+            {performanceDrivers.map((pd) => (
+              <div
+                key={pd.category}
+                className="rounded-xl shadow-sm border border-gray-100 overflow-hidden"
+              >
+                <div className="px-5 py-3 bg-gray-50 border-b border-gray-100">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    {pd.category}
+                  </span>
+                </div>
+                <table className="text-sm bg-white w-full table-fixed">
+                  <colgroup>
+                    <col style={{ width: "28%" }} />
+                    <col style={{ width: "24%" }} />
+                    <col style={{ width: "24%" }} />
+                    <col style={{ width: "24%" }} />
+                  </colgroup>
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="px-5 py-2.5 text-center text-xs font-bold text-gray-800">
+                        지표
+                      </th>
+                      <th className="px-4 py-2.5 text-center text-xs font-bold text-gray-800">
+                        {label}
+                      </th>
+                      <th className="px-4 py-2.5 text-center text-xs font-bold text-gray-800">
+                        타사 평균
+                      </th>
+                      <th className="px-5 py-2.5 text-center text-xs font-bold text-gray-800">
+                        차이
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-t border-gray-50">
+                      <td className="px-5 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                        월렌탈료 평균
+                      </td>
+                      <td className="px-4 py-3 text-center text-gray-800">
+                        {fmt(pd.myAvgFee)}
+                      </td>
+                      <td className="px-4 py-3 text-center text-gray-800">
+                        {fmt(pd.othersAvgFee)}
+                      </td>
+                      <td
+                        className="px-5 py-3 text-center font-semibold"
+                        style={{
+                          color:
+                            pd.feeDiff > 0
+                              ? "var(--color-error)"
+                              : pd.feeDiff < 0
+                                ? "var(--color-success)"
+                                : "var(--gray-600)",
+                        }}
+                      >
+                        {pd.feeDiff > 0 ? "+" : ""}
+                        {fmt(pd.feeDiff)}
+                      </td>
+                    </tr>
+                    <tr className="border-t border-gray-50">
+                      <td className="px-5 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                        취급 모델 수
+                      </td>
+                      <td className="px-4 py-3 text-center text-gray-800">
+                        {pd.myModelCount}개
+                      </td>
+                      <td className="px-4 py-3 text-center text-gray-800">
+                        {pd.othersAvgModelCount}개
+                      </td>
+                      <td
+                        className="px-5 py-3 text-center font-semibold"
+                        style={{
+                          color:
+                            pd.modelDiff > 0
+                              ? "var(--color-success)"
+                              : pd.modelDiff < 0
+                                ? "var(--color-error)"
+                                : "var(--gray-600)",
+                        }}
+                      >
+                        {pd.modelDiff > 0 ? "+" : ""}
+                        {pd.modelDiff}개
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Section C: 크로스카테고리 패턴 */}
+      {crossCategoryPatterns.length > 0 && (
+        <div className="mt-10">
+          <div className="mb-4 flex items-center gap-2">
+            <h2 className="text-base font-semibold text-gray-700">
+              크로스카테고리 패턴
+            </h2>
+            <span className="text-xs text-gray-400">
+              건수 기반 점유율 등급
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            {crossCategoryPatterns.map((cp) => (
+              <div
+                key={cp.category}
+                className="rounded-xl border px-5 py-4 min-w-[140px]"
+                style={{
+                  borderColor:
+                    cp.tier === "강함"
+                      ? "var(--color-success)"
+                      : cp.tier === "약함"
+                        ? "var(--accent-orange, #FF7700)"
+                        : "var(--gray-200)",
+                  backgroundColor:
+                    cp.tier === "강함"
+                      ? "var(--success-100, #DFF7EA)"
+                      : cp.tier === "약함"
+                        ? "var(--warning-100, #FFE0E0)"
+                        : "var(--gray-100, #F3F5F9)",
+                }}
+              >
+                <p className="text-sm font-semibold text-gray-800 mb-1">
+                  {cp.category}
+                </p>
+                <p className="text-xs text-gray-500 mb-2">
+                  점유율 {cp.share.toFixed(1)}%
+                </p>
+                <span
+                  className="text-xs font-bold px-2 py-0.5 rounded-full"
+                  style={{
+                    color:
+                      cp.tier === "강함"
+                        ? "var(--color-success)"
+                        : cp.tier === "약함"
+                          ? "var(--accent-orange, #FF7700)"
+                          : "var(--gray-600)",
+                    backgroundColor:
+                      cp.tier === "강함"
+                        ? "var(--success-100, #DFF7EA)"
+                        : cp.tier === "약함"
+                          ? "var(--warning-100, #FFE0E0)"
+                          : "var(--gray-200, #E2E6EC)",
+                  }}
+                >
+                  {cp.tier}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
