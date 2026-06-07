@@ -16,6 +16,12 @@ type ContractRow = {
   total_rental_fee: number | null;
 };
 
+type OrderRow = {
+  order_confirmed_at: string;
+  rental_company: string | null;
+  category: string | null;
+};
+
 async function fetchContracts(
   start: string,
   end: string,
@@ -29,6 +35,25 @@ async function fetchContracts(
       .gte("contract_date", start)
       .lte("contract_date", end)
       .order("contract_date", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error || !data || data.length === 0) break;
+    all.push(...data);
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  return all;
+}
+
+async function fetchOrders(start: string, end: string): Promise<OrderRow[]> {
+  const all: OrderRow[] = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from("raw_orders")
+      .select("order_confirmed_at, rental_company, category")
+      .gte("order_confirmed_at", start)
+      .lte("order_confirmed_at", end)
+      .order("order_confirmed_at", { ascending: true })
       .range(from, from + PAGE - 1);
     if (error || !data || data.length === 0) break;
     all.push(...data);
@@ -64,12 +89,23 @@ export type CompanyMonthData = {
   totalFee: number;
 };
 
+export type CompanyOrderData = {
+  company: string;
+  month: string;
+  category: string;
+  orderCount: number;
+};
+
+
 export default async function ComparePage() {
   const months = getLast6Months();
   const startDate = months[0].start;
   const endDate = months[months.length - 1].end;
 
-  const rows = await fetchContracts(startDate, endDate);
+  const [rows, orderRows] = await Promise.all([
+    fetchContracts(startDate, endDate),
+    fetchOrders(startDate, endDate),
+  ]);
 
   // company + month + category 집계
   const aggMap = new Map<string, { count: number; totalFee: number }>();
@@ -95,6 +131,22 @@ export default async function ComparePage() {
       count: val.count,
       totalFee: val.totalFee,
     });
+  }
+
+  // 주문 집계 (company + month + category)
+  const orderAggMap = new Map<string, number>();
+  for (const row of orderRows) {
+    if (!row.rental_company || !row.order_confirmed_at) continue;
+    const month = row.order_confirmed_at.slice(0, 7);
+    const cat = row.category ?? "기타";
+    const key = `${row.rental_company}::${month}::${cat}`;
+    orderAggMap.set(key, (orderAggMap.get(key) ?? 0) + 1);
+  }
+
+  const orderData: CompanyOrderData[] = [];
+  for (const [key, orderCount] of orderAggMap.entries()) {
+    const [company, month, category] = key.split("::");
+    orderData.push({ company, month, category, orderCount });
   }
 
   // 렌탈사 목록 (label 기준 중복 제거)
@@ -132,6 +184,7 @@ export default async function ComparePage() {
       </div>
       <CompareClient
         data={data}
+        orderData={orderData}
         companies={allCompanies}
         months={monthList}
         companyMap={COMPANY_MAP.map((c) => ({
