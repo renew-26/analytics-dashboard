@@ -356,7 +356,9 @@ export default async function CompanyPage({
   const { company } = await params;
   const { tab, bm: bmParam } = await searchParams;
   const view: "order" | "contract" = tab === "contract" ? "contract" : "order";
-  const bm = (["bm1", "bm2", "bm3"].includes(bmParam ?? "") ? bmParam : "all") as "all" | "bm1" | "bm2" | "bm3";
+  const bm = (
+    ["bm1", "bm2", "bm3"].includes(bmParam ?? "") ? bmParam : "all"
+  ) as "all" | "bm1" | "bm2" | "bm3";
   const label = decodeURIComponent(company);
 
   const mapping = COMPANY_MAP.find((c) => c.label === label);
@@ -491,7 +493,7 @@ export default async function CompanyPage({
   };
   // auto_quote_typeb 컬럼 prefix 매핑
   const DB_TO_PREFIX: Record<string, string> = {
-    "LG헬로비전": "lghv",
+    LG헬로비전: "lghv",
     "유버스(현대렌탈서비스)": "hyundai",
     스마트렌탈: "smart",
     이니렌탈: "ini",
@@ -545,12 +547,15 @@ export default async function CompanyPage({
     }[] = [];
     // 상단 토글(주문확정/계약완료)에 따라 소스 전환
     const growthTable = view === "order" ? "raw_orders" : "raw_contracts";
-    const growthDateCol = view === "order" ? "order_confirmed_at" : "contract_date";
+    const growthDateCol =
+      view === "order" ? "order_confirmed_at" : "contract_date";
     let gFrom = 0;
     while (true) {
       let q = supabase
         .from(growthTable)
-        .select("rental_company, category, product_name, model_name, management_type, contract_months")
+        .select(
+          "rental_company, category, product_name, model_name, management_type, contract_months",
+        )
         .in("category", positionCategories)
         .gte(growthDateCol, "2026-01-01");
       if (positionCompanies.length > 0)
@@ -600,93 +605,129 @@ export default async function CompanyPage({
     }
 
     if (!isTypeA) {
-    // 카테고리별 상위 모델 × 렌탈사 분포 빌드
-    const catProductMap = new Map<
-      string,
-      Map<string, { product_name: string; model_name: string; byCompany: Map<string, number> }>
-    >();
-    for (const r of allGrowthRows) {
-      if (!r.category) continue;
-      const cat = r.category;
-      if (!catProductMap.has(cat)) catProductMap.set(cat, new Map());
-      const productMap = catProductMap.get(cat)!;
-      const key = `${r.product_name ?? ""}|${r.model_name ?? ""}`;
-      if (!productMap.has(key))
-        productMap.set(key, { product_name: r.product_name ?? "", model_name: r.model_name ?? "", byCompany: new Map() });
-      const entry = productMap.get(key)!;
-      if (r.rental_company)
-        entry.byCompany.set(r.rental_company, (entry.byCompany.get(r.rental_company) ?? 0) + 1);
-    }
+      // 카테고리별 상위 모델 × 렌탈사 분포 빌드
+      const catProductMap = new Map<
+        string,
+        Map<
+          string,
+          {
+            product_name: string;
+            model_name: string;
+            byCompany: Map<string, number>;
+          }
+        >
+      >();
+      for (const r of allGrowthRows) {
+        if (!r.category) continue;
+        const cat = r.category;
+        if (!catProductMap.has(cat)) catProductMap.set(cat, new Map());
+        const productMap = catProductMap.get(cat)!;
+        const key = `${r.product_name ?? ""}|${r.model_name ?? ""}`;
+        if (!productMap.has(key))
+          productMap.set(key, {
+            product_name: r.product_name ?? "",
+            model_name: r.model_name ?? "",
+            byCompany: new Map(),
+          });
+        const entry = productMap.get(key)!;
+        if (r.rental_company)
+          entry.byCompany.set(
+            r.rental_company,
+            (entry.byCompany.get(r.rental_company) ?? 0) + 1,
+          );
+      }
 
-    const topModelNames = new Set<string>();
-    for (const cat of positionCategories) {
-      const productMap = catProductMap.get(cat);
-      if (!productMap) continue;
-      const top5 = Array.from(productMap.values())
-        .map((v) => ({
-          ...v,
-          totalCount: Array.from(v.byCompany.values()).reduce((s, c) => s + c, 0),
-        }))
-        .sort((a, b) => b.totalCount - a.totalCount)
-        .slice(0, 5);
-      if (top5.length === 0) continue;
-      competitiveProductsByCategory[cat] = top5.map((p) => ({
-        product_name: p.product_name,
-        model_name: p.model_name,
-        totalCount: p.totalCount,
-        byCompany: Array.from(p.byCompany.entries())
-          .map(([company, count]) => ({ company, count, isMe: company === dbName }))
-          .sort((a, b) => b.count - a.count),
-        pricing: [],
-      }));
-      competitiveCategories.push(cat);
-      top5.forEach((p) => { if (p.model_name) topModelNames.add(p.model_name); });
-    }
+      const topModelNames = new Set<string>();
+      for (const cat of positionCategories) {
+        const productMap = catProductMap.get(cat);
+        if (!productMap) continue;
+        const top5 = Array.from(productMap.values())
+          .map((v) => ({
+            ...v,
+            totalCount: Array.from(v.byCompany.values()).reduce(
+              (s, c) => s + c,
+              0,
+            ),
+          }))
+          .sort((a, b) => b.totalCount - a.totalCount)
+          .slice(0, 5);
+        if (top5.length === 0) continue;
+        competitiveProductsByCategory[cat] = top5.map((p) => ({
+          product_name: p.product_name,
+          model_name: p.model_name,
+          totalCount: p.totalCount,
+          byCompany: Array.from(p.byCompany.entries())
+            .map(([company, count]) => ({
+              company,
+              count,
+              isMe: company === dbName,
+            }))
+            .sort((a, b) => b.count - a.count),
+          pricing: [],
+        }));
+        competitiveCategories.push(cat);
+        top5.forEach((p) => {
+          if (p.model_name) topModelNames.add(p.model_name);
+        });
+      }
 
-    // auto_quote_typeb 가격 데이터 조회
-    if (topModelNames.size > 0) {
-      const { data: pricingRows } = await supabaseAdmin
-        .from("auto_quote_typeb")
-        .select(
-          "model_name, contract_months, lghv_monthly_fee, lghv_support, lghv_total_payment, ini_monthly_fee, ini_support, ini_total_payment, hyundai_monthly_fee, hyundai_support, hyundai_total_payment, bs_monthly_fee, bs_support, bs_total_payment, smart_monthly_fee, smart_support, smart_total_payment, carrier_monthly_fee, carrier_support, carrier_total_payment, body_monthly_fee, body_support, body_total_payment, kt_monthly_fee, kt_support, kt_total_payment"
-        )
-        .in("model_name", Array.from(topModelNames));
+      // auto_quote_typeb 가격 데이터 조회
+      if (topModelNames.size > 0) {
+        const { data: pricingRows } = await supabaseAdmin
+          .from("auto_quote_typeb")
+          .select(
+            "model_name, contract_months, lghv_monthly_fee, lghv_support, lghv_total_payment, ini_monthly_fee, ini_support, ini_total_payment, hyundai_monthly_fee, hyundai_support, hyundai_total_payment, bs_monthly_fee, bs_support, bs_total_payment, smart_monthly_fee, smart_support, smart_total_payment, carrier_monthly_fee, carrier_support, carrier_total_payment, body_monthly_fee, body_support, body_total_payment, kt_monthly_fee, kt_support, kt_total_payment",
+          )
+          .in("model_name", Array.from(topModelNames));
 
-      if (pricingRows && pricingRows.length > 0) {
-        const pricingByModel = new Map<string, typeof pricingRows>();
-        for (const row of pricingRows) {
-          if (!row.model_name) continue;
-          if (!pricingByModel.has(row.model_name)) pricingByModel.set(row.model_name, []);
-          pricingByModel.get(row.model_name)!.push(row);
-        }
+        if (pricingRows && pricingRows.length > 0) {
+          const pricingByModel = new Map<string, typeof pricingRows>();
+          for (const row of pricingRows) {
+            if (!row.model_name) continue;
+            if (!pricingByModel.has(row.model_name))
+              pricingByModel.set(row.model_name, []);
+            pricingByModel.get(row.model_name)!.push(row);
+          }
 
-        for (const products of Object.values(competitiveProductsByCategory)) {
-          for (const product of products) {
-            const rows = pricingByModel.get(product.model_name) ?? [];
-            product.pricing = rows
-              .map((row) => {
-                const companies = PRICING_COMPANIES.map((c) => {
-                  const r = row as Record<string, unknown>;
-                  return {
-                    name: c.name,
-                    isMe: c.prefix === myPrefix,
-                    monthly_fee: (r[`${c.prefix}_monthly_fee`] as number | null) ?? null,
-                    support: (r[`${c.prefix}_support`] as number | null) ?? null,
-                    total_payment: (r[`${c.prefix}_total_payment`] as number | null) ?? null,
-                  };
-                }).filter((c) => c.monthly_fee !== null || c.support !== null);
-                return { contract_months: row.contract_months, companies };
-              })
-              .filter((pr) => pr.companies.length > 0);
+          for (const products of Object.values(competitiveProductsByCategory)) {
+            for (const product of products) {
+              const rows = pricingByModel.get(product.model_name) ?? [];
+              product.pricing = rows
+                .map((row) => {
+                  const companies = PRICING_COMPANIES.map((c) => {
+                    const r = row as Record<string, unknown>;
+                    return {
+                      name: c.name,
+                      isMe: c.prefix === myPrefix,
+                      monthly_fee:
+                        (r[`${c.prefix}_monthly_fee`] as number | null) ?? null,
+                      support:
+                        (r[`${c.prefix}_support`] as number | null) ?? null,
+                      total_payment:
+                        (r[`${c.prefix}_total_payment`] as number | null) ??
+                        null,
+                    };
+                  }).filter(
+                    (c) => c.monthly_fee !== null || c.support !== null,
+                  );
+                  return { contract_months: row.contract_months, companies };
+                })
+                .filter((pr) => pr.companies.length > 0);
+            }
           }
         }
       }
-    }
     } else {
       // typeA(정수기): 내 브랜드 상위 주문 상품 + 동일 관리방식 경쟁군
       // 관리방식 정규화 (방문 / 셀프). 값 예: "방문관리", "셀프관리 (소모품 정기배송)"
       const mgmtBucket = (s: string | null): "방문" | "셀프" | null =>
-        !s ? null : s.includes("방문") ? "방문" : s.includes("셀프") ? "셀프" : null;
+        !s
+          ? null
+          : s.includes("방문")
+            ? "방문"
+            : s.includes("셀프")
+              ? "셀프"
+              : null;
 
       // 1) 내 브랜드 상위 상품 (카테고리별, 모델×관리방식 단위, 주문건수 top5)
       const myProductMap = new Map<
@@ -703,7 +744,8 @@ export default async function CompanyPage({
         >
       >();
       for (const r of allGrowthRows) {
-        if (r.rental_company !== dbName || !r.category || !r.model_name) continue;
+        if (r.rental_company !== dbName || !r.category || !r.model_name)
+          continue;
         const cat = r.category;
         const mgmt = mgmtBucket(r.management_type);
         if (!myProductMap.has(cat)) myProductMap.set(cat, new Map());
@@ -785,7 +827,11 @@ export default async function CompanyPage({
           // 내 상품 term별 대표 견적 (brand=내 브랜드 & 모델·관리방식 일치, term별 최저 월렌탈료)
           const myByTerm = new Map<
             number,
-            { monthly_fee: number; support: number | null; total_payment: number | null }
+            {
+              monthly_fee: number;
+              support: number | null;
+              total_payment: number | null;
+            }
           >();
           for (const r of catPool) {
             if (
@@ -881,7 +927,7 @@ export default async function CompanyPage({
   }
 
   return (
-    <div className="px-12 pt-5 pb-8">
+    <div className="px-12 py-6">
       {/* 뷰 토글 + BM 필터 */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">

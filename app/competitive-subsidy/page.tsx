@@ -17,7 +17,7 @@ export default async function CompetitiveSubsidyPage() {
   ];
 
   return (
-    <div className="p-6">
+    <div className="px-12 py-6 mx-auto">
       <SubsidyClient months={months} />
     </div>
   );

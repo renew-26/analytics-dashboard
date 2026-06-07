@@ -88,7 +88,13 @@ export default async function ComparePage() {
   const data: CompanyMonthData[] = [];
   for (const [key, val] of aggMap.entries()) {
     const [company, month, category] = key.split("::");
-    data.push({ company, month, category, count: val.count, totalFee: val.totalFee });
+    data.push({
+      company,
+      month,
+      category,
+      count: val.count,
+      totalFee: val.totalFee,
+    });
   }
 
   // 렌탈사 목록 (label 기준 중복 제거)
@@ -102,18 +108,22 @@ export default async function ComparePage() {
   }
 
   // dbName 기준으로 실제 데이터에 있는 rental_company 목록도 포함
-  const dbNames = new Set(rows.map((r) => r.rental_company).filter(Boolean) as string[]);
-  const allCompanies = [...new Set([
-    ...companyList.filter((label) => {
-      const entry = COMPANY_MAP.find((c) => c.label === label);
-      return entry ? dbNames.has(entry.dbName) : false;
-    }),
-  ])];
+  const dbNames = new Set(
+    rows.map((r) => r.rental_company).filter(Boolean) as string[],
+  );
+  const allCompanies = [
+    ...new Set([
+      ...companyList.filter((label) => {
+        const entry = COMPANY_MAP.find((c) => c.label === label);
+        return entry ? dbNames.has(entry.dbName) : false;
+      }),
+    ]),
+  ];
 
   const monthList = months.map((m) => m.month);
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="px-12 py-6 mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-[#222222]">렌탈사 비교</h1>
         <p className="text-sm text-[#788093] mt-1">
@@ -124,7 +134,10 @@ export default async function ComparePage() {
         data={data}
         companies={allCompanies}
         months={monthList}
-        companyMap={COMPANY_MAP.map((c) => ({ label: c.label, dbName: c.dbName }))}
+        companyMap={COMPANY_MAP.map((c) => ({
+          label: c.label,
+          dbName: c.dbName,
+        }))}
       />
     </div>
   );
