@@ -18,8 +18,8 @@ import type { CompanyMonthData } from "./page";
 type CompanyMapEntry = {
   label: string;
   dbName: string;
-  categoryIs?: string;
-  categoryNot?: string;
+  categoryIs?: string | string[];
+  categoryNot?: string | string[];
 };
 
 type Props = {
@@ -60,8 +60,14 @@ export default function CompareClient({
     if (!entryA) return [];
     return data.filter((d) => {
       if (d.company !== entryA.dbName) return false;
-      if (entryA.categoryIs && d.category !== entryA.categoryIs) return false;
-      if (entryA.categoryNot && d.category === entryA.categoryNot) return false;
+      if (entryA.categoryIs) {
+        const cis = entryA.categoryIs;
+        if (Array.isArray(cis) ? !cis.includes(d.category ?? "") : cis !== d.category) return false;
+      }
+      if (entryA.categoryNot) {
+        const cnot = entryA.categoryNot;
+        if (Array.isArray(cnot) ? cnot.includes(d.category ?? "") : cnot === d.category) return false;
+      }
       return true;
     });
   }, [data, entryA]);
@@ -69,8 +75,14 @@ export default function CompareClient({
     if (!entryB) return [];
     return data.filter((d) => {
       if (d.company !== entryB.dbName) return false;
-      if (entryB.categoryIs && d.category !== entryB.categoryIs) return false;
-      if (entryB.categoryNot && d.category === entryB.categoryNot) return false;
+      if (entryB.categoryIs) {
+        const cis = entryB.categoryIs;
+        if (Array.isArray(cis) ? !cis.includes(d.category ?? "") : cis !== d.category) return false;
+      }
+      if (entryB.categoryNot) {
+        const cnot = entryB.categoryNot;
+        if (Array.isArray(cnot) ? cnot.includes(d.category ?? "") : cnot === d.category) return false;
+      }
       return true;
     });
   }, [data, entryB]);

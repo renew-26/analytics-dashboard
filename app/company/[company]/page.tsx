@@ -388,8 +388,14 @@ export default async function CompanyPage({
           "order_confirmed_at, total_rental_fee, contribution_margin, category, product_name, model_name, partner_company",
         )
         .eq("rental_company", dbName);
-      if (mapping.categoryIs) q = q.eq("category", mapping.categoryIs);
-      if (mapping.categoryNot) q = q.neq("category", mapping.categoryNot);
+      if (mapping.categoryIs) {
+        const cis = mapping.categoryIs;
+        q = Array.isArray(cis) ? q.in("category", cis) : q.eq("category", cis);
+      }
+      if (mapping.categoryNot) {
+        const cnot = Array.isArray(mapping.categoryNot) ? mapping.categoryNot : [mapping.categoryNot];
+        for (const c of cnot) q = q.neq("category", c);
+      }
       const { data, error } = await q
         .gte("order_confirmed_at", "2026-01-01")
         .order("order_confirmed_at", { ascending: false })
@@ -422,8 +428,14 @@ export default async function CompanyPage({
           "contract_date, total_rental_fee, contribution_margin, category, product_name, model_name, partner_company",
         )
         .eq("rental_company", dbName);
-      if (mapping.categoryIs) q = q.eq("category", mapping.categoryIs);
-      if (mapping.categoryNot) q = q.neq("category", mapping.categoryNot);
+      if (mapping.categoryIs) {
+        const cis = mapping.categoryIs;
+        q = Array.isArray(cis) ? q.in("category", cis) : q.eq("category", cis);
+      }
+      if (mapping.categoryNot) {
+        const cnot = Array.isArray(mapping.categoryNot) ? mapping.categoryNot : [mapping.categoryNot];
+        for (const c of cnot) q = q.neq("category", c);
+      }
       const { data, error } = await q
         .gte("contract_date", "2026-01-01")
         .order("contract_date", { ascending: false })
@@ -580,8 +592,14 @@ export default async function CompanyPage({
         .flatMap((cat) => {
           const cm = catMap.get(cat);
           if (!cm) return [];
-          if (mapping.categoryIs && mapping.categoryIs !== cat) return [];
-          if (mapping.categoryNot && mapping.categoryNot === cat) return [];
+          if (mapping.categoryIs) {
+            const cis = mapping.categoryIs;
+            if (Array.isArray(cis) ? !cis.includes(cat) : cis !== cat) return [];
+          }
+          if (mapping.categoryNot) {
+            const cnot = mapping.categoryNot;
+            if (Array.isArray(cnot) ? cnot.includes(cat) : cnot === cat) return [];
+          }
           const myCount = cm.get(dbName) ?? 0;
           if (myCount === 0) return [];
           const sorted = Array.from(cm.values()).sort((a, b) => b - a);
@@ -646,8 +664,14 @@ export default async function CompanyPage({
       const topModelNames = new Set<string>();
       for (const cat of positionCategories) {
         if (!myCatSet.has(cat)) continue;
-        if (mapping.categoryIs && mapping.categoryIs !== cat) continue;
-        if (mapping.categoryNot && mapping.categoryNot === cat) continue;
+        if (mapping.categoryIs) {
+          const cis = mapping.categoryIs;
+          if (Array.isArray(cis) ? !cis.includes(cat) : cis !== cat) continue;
+        }
+        if (mapping.categoryNot) {
+          const cnot = mapping.categoryNot;
+          if (Array.isArray(cnot) ? cnot.includes(cat) : cnot === cat) continue;
+        }
         const productMap = catProductMap.get(cat);
         if (!productMap) continue;
         const top5 = Array.from(productMap.values())
@@ -994,8 +1018,14 @@ export default async function CompanyPage({
     }
     const results: CategoryShare[] = [];
     for (const [cat, cm] of catMap) {
-      if (mapping.categoryIs && cat !== mapping.categoryIs) continue;
-      if (mapping.categoryNot && cat === mapping.categoryNot) continue;
+      if (mapping.categoryIs) {
+        const cis = mapping.categoryIs;
+        if (Array.isArray(cis) ? !cis.includes(cat) : cis !== cat) continue;
+      }
+      if (mapping.categoryNot) {
+        const cnot = mapping.categoryNot;
+        if (Array.isArray(cnot) ? cnot.includes(cat) : cnot === cat) continue;
+      }
       const my = cm.get(dbName);
       if (!my || my.count === 0) continue;
       let totalCount = 0;

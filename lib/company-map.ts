@@ -3,8 +3,8 @@ export const COMPANY_MAP: {
   label: string;
   dbName: string;
   group: string;
-  categoryIs?: string;
-  categoryNot?: string;
+  categoryIs?: string | string[];
+  categoryNot?: string | string[];
 }[] = [
   // 가전&상조
   { label: "현대유버스", dbName: "유버스(현대렌탈서비스)", group: "가전&상조" },
@@ -26,13 +26,24 @@ export const COMPANY_MAP: {
   },
   { label: "넥센타이어", dbName: "넥센", group: "가전&상조" },
   { label: "바디프랜드", dbName: "바디프랜드", group: "가전&상조" },
+  {
+    label: "LG전자",
+    dbName: "LG",
+    group: "가전&상조",
+    categoryNot: ["정수기", "공기청정기", "비데"],
+  },
 
   // 정수기
   { label: "SK인텔릭스", dbName: "SK인텔릭스", group: "정수기" },
   { label: "코웨이", dbName: "코웨이", group: "정수기" },
   { label: "쿠쿠", dbName: "쿠쿠", group: "정수기" },
   { label: "청호", dbName: "청호", group: "정수기" },
-  { label: "LG", dbName: "LG", group: "정수기" },
+  {
+    label: "LG 헬스케어",
+    dbName: "LG",
+    group: "정수기",
+    categoryIs: ["정수기", "공기청정기", "비데"],
+  },
 
   // 통신
   { label: "LGU+", dbName: "LG유플러스", group: "통신" },
@@ -46,12 +57,12 @@ export const COMPANY_MAP: {
 export const MAIN_RENTAL_COMPANIES: { label: string; dbName: string }[] = [
   { label: "코웨이", dbName: "코웨이" },
   { label: "쿠쿠", dbName: "쿠쿠" },
-  { label: "LG", dbName: "LG" },
+  { label: "LG 헬스케어", dbName: "LG" },
   { label: "SK인텔릭스", dbName: "SK인텔릭스" },
   { label: "현대유버스", dbName: "유버스(현대렌탈서비스)" },
   { label: "이니렌탈", dbName: "이니렌탈" },
   { label: "BS렌탈", dbName: "BS렌탈" },
-  { label: "LG헬로비전", dbName: "LG헬로비전" },
+  { label: "헬로비전", dbName: "LG헬로비전" },
   { label: "스마트렌탈", dbName: "스마트렌탈" },
   { label: "KT렌탈", dbName: "KT" },
 ];
@@ -87,6 +98,39 @@ export const BM2_COMPANIES = new Set([
   "더블체크파트너스(타이어)",
   "KT렌탈 공식몰",
 ]);
+
+// categoryIs/categoryNot 매칭 헬퍼 (string | string[] 지원)
+export function matchesEntry(
+  entry: { categoryIs?: string | string[]; categoryNot?: string | string[] },
+  category?: string | null,
+): boolean {
+  if (entry.categoryIs) {
+    if (!category) return false;
+    const is = entry.categoryIs;
+    if (Array.isArray(is) ? !is.includes(category) : is !== category)
+      return false;
+  }
+  if (entry.categoryNot && category) {
+    const not = entry.categoryNot;
+    if (Array.isArray(not) ? not.includes(category) : not === category)
+      return false;
+  }
+  return true;
+}
+
+// dbName + (선택적) 카테고리로 COMPANY_MAP label 조회
+// KT/BS렌탈/LG처럼 categoryIs/categoryNot으로 분리된 경우 category 인자로 정확한 label 선택
+export function getCompanyLabel(
+  dbName: string,
+  category?: string | null,
+): string {
+  for (const entry of COMPANY_MAP) {
+    if (entry.dbName !== dbName) continue;
+    if (!matchesEntry(entry, category)) continue;
+    return entry.label;
+  }
+  return COMPANY_MAP.find((e) => e.dbName === dbName)?.label ?? dbName;
+}
 
 export function getBM(partnerCompany: string | null): "BM1" | "BM2" | "BM3" {
   if (!partnerCompany) return "BM1";
