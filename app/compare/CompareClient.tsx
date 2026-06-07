@@ -54,6 +54,121 @@ function fmt(n: number) {
 const COLOR_A = "#6366f1";
 const COLOR_B = "#f59e0b";
 
+function InsightSentence({
+  companyName,
+  color,
+  rivalName,
+  rivalColor,
+  cat,
+  share,
+  avgFee,
+  rivalAvgFee,
+  avgIncentive,
+  rivalAvgIncentive,
+  rate,
+  rivalRate,
+}: {
+  companyName: string;
+  color: string;
+  rivalName: string;
+  rivalColor: string;
+  cat: string;
+  share: number;
+  avgFee: number;
+  rivalAvgFee: number | null;
+  avgIncentive: number;
+  rivalAvgIncentive: number | null;
+  rate: number | null;
+  rivalRate: number | null;
+}) {
+  const feeDiff = rivalAvgFee !== null ? avgFee - rivalAvgFee : null;
+  const incDiff = rivalAvgIncentive !== null ? avgIncentive - rivalAvgIncentive : null;
+  const rateDiff = rate !== null && rivalRate !== null ? rate - rivalRate : null;
+
+  type Part = {
+    key: string;
+    label: string;
+    valueNode: React.ReactNode;
+    diff: number | null;
+    diffLabel: string; // "Y원" or "Q%p"
+    myColor: string;
+    rivalColor: string;
+  };
+
+  const parts: Part[] = [];
+
+  // 평균 렌탈료 파트
+  parts.push({
+    key: "fee",
+    label: "평균 렌탈료",
+    valueNode: <><span className="font-semibold">{fmt(avgFee)}원</span>으로 <span className="font-semibold" style={{ color: rivalColor }}>{rivalName}</span> 대비</>,
+    diff: rivalAvgFee !== null ? feeDiff : null,
+    diffLabel: rivalAvgFee !== null && feeDiff !== null ? `${fmt(Math.abs(feeDiff))}원` : "",
+    myColor: color,
+    rivalColor,
+  });
+
+  // 지원금 파트
+  if (avgIncentive > 0) {
+    parts.push({
+      key: "inc",
+      label: "지원금",
+      valueNode: <><span className="font-semibold">{fmt(avgIncentive)}원</span>으로 <span className="font-semibold" style={{ color: rivalColor }}>{rivalName}</span> 대비</>,
+      diff: rivalAvgIncentive !== null ? incDiff : null,
+      diffLabel: rivalAvgIncentive !== null && incDiff !== null ? `${fmt(Math.abs(incDiff))}원` : "",
+      myColor: color,
+      rivalColor,
+    });
+  }
+
+  // 전환율 파트
+  if (rate !== null) {
+    parts.push({
+      key: "rate",
+      label: "전환율",
+      valueNode: <><span className="font-semibold">{rate.toFixed(1)}%</span>로 <span className="font-semibold" style={{ color: rivalColor }}>{rivalName}</span> 대비</>,
+      diff: rateDiff,
+      diffLabel: rateDiff !== null ? `${Math.abs(rateDiff).toFixed(1)}%p` : "",
+      myColor: color,
+      rivalColor,
+    });
+  }
+
+  function dirWord(diff: number | null, position: "mid" | "secondToLast" | "last"): string {
+    if (diff === null) return position === "last" ? "입니다." : ",";
+    const high = diff >= 0;
+    if (position === "last") return high ? "높습니다." : "낮습니다.";
+    if (position === "secondToLast") return high ? "높으며" : "낮으며";
+    return high ? "높고" : "낮고";
+  }
+
+  return (
+    <div className="text-sm text-[#393939] leading-relaxed">
+      <span className="font-bold" style={{ color }}>{companyName}</span>
+      {josa(companyName, "의", "의")} 1순위 카테고리{" "}
+      <span className="font-semibold">{cat}</span>({share}%)에서{" "}
+      {parts.map((p, i) => {
+        const isLast = i === parts.length - 1;
+        const isSecondToLast = i === parts.length - 2;
+        const pos = isLast ? "last" : isSecondToLast ? "secondToLast" : "mid";
+        const word = dirWord(p.diff, pos);
+        return (
+          <span key={p.key}>
+            {p.label} {p.valueNode}{" "}
+            {p.diff !== null && p.diffLabel ? (
+              <span className="font-semibold" style={{ color: p.diff >= 0 ? p.myColor : p.rivalColor }}>
+                {p.diffLabel}
+              </span>
+            ) : null}{" "}
+            <span className={isLast ? "" : "text-[#586177]"}>{word}</span>
+            {!isLast ? " " : ""}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function CompareClient({
   data,
   orderData,
@@ -402,6 +517,7 @@ export default function CompareClient({
         count: v.count,
         share: totalA > 0 ? Math.round((v.count / totalA) * 100) : 0,
         avgFee: v.count > 0 ? Math.round(v.totalFee / v.count) : 0,
+        avgIncentive: v.count > 0 ? Math.round(v.totalIncentive / v.count) : 0,
       }));
     const topB = [...catStatsB.entries()]
       .sort((a, b) => b[1].count - a[1].count)
@@ -411,6 +527,7 @@ export default function CompareClient({
         count: v.count,
         share: totalB > 0 ? Math.round((v.count / totalB) * 100) : 0,
         avgFee: v.count > 0 ? Math.round(v.totalFee / v.count) : 0,
+        avgIncentive: v.count > 0 ? Math.round(v.totalIncentive / v.count) : 0,
       }));
 
     const top1A = topA[0];
@@ -418,16 +535,59 @@ export default function CompareClient({
 
     // A 1순위 카테고리에서 B의 현황
     const bInTopA = top1A ? catStatsB.get(top1A.cat) : undefined;
-    const bAvgInTopA = bInTopA && bInTopA.count > 0 ? Math.round(bInTopA.totalFee / bInTopA.count) : null;
-    const bShareInTopA = bInTopA && totalB > 0 ? Math.round((bInTopA.count / totalB) * 100) : 0;
+    const bAvgInTopA =
+      bInTopA && bInTopA.count > 0
+        ? Math.round(bInTopA.totalFee / bInTopA.count)
+        : null;
+    const bAvgIncInTopA =
+      bInTopA && bInTopA.count > 0
+        ? Math.round(bInTopA.totalIncentive / bInTopA.count)
+        : null;
+    const bShareInTopA =
+      bInTopA && totalB > 0 ? Math.round((bInTopA.count / totalB) * 100) : 0;
 
     // B 1순위 카테고리에서 A의 현황
     const aInTopB = top1B ? catStatsA.get(top1B.cat) : undefined;
-    const aAvgInTopB = aInTopB && aInTopB.count > 0 ? Math.round(aInTopB.totalFee / aInTopB.count) : null;
-    const aShareInTopB = aInTopB && totalA > 0 ? Math.round((aInTopB.count / totalA) * 100) : 0;
+    const aAvgInTopB =
+      aInTopB && aInTopB.count > 0
+        ? Math.round(aInTopB.totalFee / aInTopB.count)
+        : null;
+    const aAvgIncInTopB =
+      aInTopB && aInTopB.count > 0
+        ? Math.round(aInTopB.totalIncentive / aInTopB.count)
+        : null;
+    const aShareInTopB =
+      aInTopB && totalA > 0 ? Math.round((aInTopB.count / totalA) * 100) : 0;
 
-    return { topA, topB, top1A, top1B, bAvgInTopA, bShareInTopA, aAvgInTopB, aShareInTopB };
-  }, [dataA, dataB, last3Months, entryA, entryB]);
+    // 전환율: A 1순위 카테고리
+    const convTop1A = top1A ? conversionData.find((r) => r.cat === top1A.cat) : undefined;
+    const rateA_inTop1A = convTop1A ? convTop1A.rateA : null;
+    const rateB_inTop1A = convTop1A ? convTop1A.rateB : null;
+
+    // 전환율: B 1순위 카테고리 (A와 다를 때)
+    const convTop1B = top1B && top1B.cat !== top1A?.cat
+      ? conversionData.find((r) => r.cat === top1B.cat)
+      : undefined;
+    const rateA_inTop1B = convTop1B ? convTop1B.rateA : null;
+    const rateB_inTop1B = convTop1B ? convTop1B.rateB : null;
+
+    return {
+      topA,
+      topB,
+      top1A,
+      top1B,
+      bAvgInTopA,
+      bAvgIncInTopA,
+      bShareInTopA,
+      aAvgInTopB,
+      aAvgIncInTopB,
+      aShareInTopB,
+      rateA_inTop1A,
+      rateB_inTop1A,
+      rateA_inTop1B,
+      rateB_inTop1B,
+    };
+  }, [dataA, dataB, last3Months, entryA, entryB, conversionData]);
 
   // 카테고리별 거래건수 추이 (Section 4)
   const categoryTrendData = useMemo(() => {
@@ -561,6 +721,138 @@ export default function CompareClient({
               주문건수 기준으로 정렬됩니다.
             </span>
           </div>
+
+          {/* 카테고리 비중 비교 */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-white border border-[#ebebe9] rounded-xl p-5">
+              <h2 className="text-sm font-semibold text-[#222222] mb-4">
+                <span style={{ color: COLOR_A }}>{companyA}</span> 카테고리 비중
+                <span className="text-xs font-normal text-[#a1a5ac] ml-1">
+                  (최근 3개월)
+                </span>
+              </h2>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart
+                  data={catDataA}
+                  layout="vertical"
+                  margin={{ top: 0, right: 32, left: 8, bottom: 0 }}
+                >
+                  <XAxis
+                    type="number"
+                    tick={{ fontSize: 11, fill: "#788093" }}
+                    axisLine={false}
+                    tickLine={false}
+                    unit="%"
+                    domain={[0, 100]}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="cat"
+                    tick={{ fontSize: 11, fill: "#393939" }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={70}
+                  />
+                  <Tooltip
+                    formatter={(v) => [`${v}%`, "비중"]}
+                    contentStyle={{
+                      borderRadius: 8,
+                      border: "1px solid #ebebe9",
+                      fontSize: 12,
+                    }}
+                  />
+                  <Bar dataKey="pct" fill={COLOR_A} radius={[0, 3, 3, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="bg-white border border-[#ebebe9] rounded-xl p-5">
+              <h2 className="text-sm font-semibold text-[#222222] mb-4">
+                <span style={{ color: COLOR_B }}>{companyB}</span> 카테고리 비중
+                <span className="text-xs font-normal text-[#a1a5ac] ml-1">
+                  (최근 3개월)
+                </span>
+              </h2>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart
+                  data={catDataB}
+                  layout="vertical"
+                  margin={{ top: 0, right: 32, left: 8, bottom: 0 }}
+                >
+                  <XAxis
+                    type="number"
+                    tick={{ fontSize: 11, fill: "#788093" }}
+                    axisLine={false}
+                    tickLine={false}
+                    unit="%"
+                    domain={[0, 100]}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="cat"
+                    tick={{ fontSize: 11, fill: "#393939" }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={70}
+                  />
+                  <Tooltip
+                    formatter={(v) => [`${v}%`, "비중"]}
+                    contentStyle={{
+                      borderRadius: 8,
+                      border: "1px solid #ebebe9",
+                      fontSize: 12,
+                    }}
+                  />
+                  <Bar dataKey="pct" fill={COLOR_B} radius={[0, 3, 3, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* 카테고리 인사이트 요약 */}
+          {categoryInsight &&
+            categoryInsight.top1A &&
+            categoryInsight.top1B && (
+              <div className="bg-[#f9fafb] border border-[#ebebe9] rounded-xl p-5 space-y-4">
+                <h2 className="text-sm font-semibold text-[#393939]">
+                  렌탈사 인사이트
+                </h2>
+
+                {/* A사 1순위 카테고리 한 문장 인사이트 */}
+                <InsightSentence
+                  companyName={companyA}
+                  color={COLOR_A}
+                  rivalName={companyB}
+                  rivalColor={COLOR_B}
+                  cat={categoryInsight.top1A.cat}
+                  share={categoryInsight.top1A.share}
+                  avgFee={categoryInsight.top1A.avgFee}
+                  rivalAvgFee={categoryInsight.bAvgInTopA}
+                  avgIncentive={categoryInsight.top1A.avgIncentive}
+                  rivalAvgIncentive={categoryInsight.bAvgIncInTopA}
+                  rate={categoryInsight.rateA_inTop1A}
+                  rivalRate={categoryInsight.rateB_inTop1A}
+                />
+
+                {/* B사 1순위가 A와 다를 때 B사 기준 인사이트 */}
+                {categoryInsight.top1A.cat !== categoryInsight.top1B.cat && (
+                  <InsightSentence
+                    companyName={companyB}
+                    color={COLOR_B}
+                    rivalName={companyA}
+                    rivalColor={COLOR_A}
+                    cat={categoryInsight.top1B.cat}
+                    share={categoryInsight.top1B.share}
+                    avgFee={categoryInsight.top1B.avgFee}
+                    rivalAvgFee={categoryInsight.aAvgInTopB}
+                    avgIncentive={categoryInsight.top1B.avgIncentive}
+                    rivalAvgIncentive={categoryInsight.aAvgIncInTopB}
+                    rate={categoryInsight.rateB_inTop1B}
+                    rivalRate={categoryInsight.rateA_inTop1B}
+                  />
+                )}
+              </div>
+            )}
 
           {/* 지표 카드 */}
           <div className="grid grid-cols-2 gap-4">
