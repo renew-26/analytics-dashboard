@@ -637,8 +637,15 @@ export default async function CompanyPage({
           );
       }
 
+      const myCatSet = new Set<string>(
+        allGrowthRows
+          .filter((r) => r.rental_company === dbName && r.category)
+          .map((r) => r.category!),
+      );
+
       const topModelNames = new Set<string>();
       for (const cat of positionCategories) {
+        if (!myCatSet.has(cat)) continue;
         const productMap = catProductMap.get(cat);
         if (!productMap) continue;
         const top5 = Array.from(productMap.values())
