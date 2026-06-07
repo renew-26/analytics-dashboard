@@ -65,6 +65,9 @@ export default function CompareClient({
   const [companyB, setCompanyB] = useState<string>("");
   const [showAllConversion, setShowAllConversion] = useState(false);
   const [showAllAvgFee, setShowAllAvgFee] = useState(false);
+  const [showAllAvgIncentive, setShowAllAvgIncentive] = useState(false);
+  const [trendFilter, setTrendFilter] = useState<"all" | "up" | "down">("all");
+  const [showAllTrend, setShowAllTrend] = useState(false);
 
   const entryA = companyA ? getEntry(companyA, companyMap) : null;
   const entryB = companyB ? getEntry(companyB, companyMap) : null;
@@ -343,24 +346,36 @@ export default function CompareClient({
     const totalCatPrev = new Map<string, number>();
     const totalCatLast = new Map<string, number>();
     for (const d of data) {
-      if (d.month === prevMonth) totalCatPrev.set(d.category, (totalCatPrev.get(d.category) ?? 0) + d.count);
-      if (d.month === lastMonth) totalCatLast.set(d.category, (totalCatLast.get(d.category) ?? 0) + d.count);
+      if (d.month === prevMonth)
+        totalCatPrev.set(
+          d.category,
+          (totalCatPrev.get(d.category) ?? 0) + d.count,
+        );
+      if (d.month === lastMonth)
+        totalCatLast.set(
+          d.category,
+          (totalCatLast.get(d.category) ?? 0) + d.count,
+        );
     }
 
     // A사
     const catPrevA = new Map<string, number>();
     const catLastA = new Map<string, number>();
     for (const d of dataA) {
-      if (d.month === prevMonth) catPrevA.set(d.category, (catPrevA.get(d.category) ?? 0) + d.count);
-      if (d.month === lastMonth) catLastA.set(d.category, (catLastA.get(d.category) ?? 0) + d.count);
+      if (d.month === prevMonth)
+        catPrevA.set(d.category, (catPrevA.get(d.category) ?? 0) + d.count);
+      if (d.month === lastMonth)
+        catLastA.set(d.category, (catLastA.get(d.category) ?? 0) + d.count);
     }
 
     // B사
     const catPrevB = new Map<string, number>();
     const catLastB = new Map<string, number>();
     for (const d of dataB) {
-      if (d.month === prevMonth) catPrevB.set(d.category, (catPrevB.get(d.category) ?? 0) + d.count);
-      if (d.month === lastMonth) catLastB.set(d.category, (catLastB.get(d.category) ?? 0) + d.count);
+      if (d.month === prevMonth)
+        catPrevB.set(d.category, (catPrevB.get(d.category) ?? 0) + d.count);
+      if (d.month === lastMonth)
+        catLastB.set(d.category, (catLastB.get(d.category) ?? 0) + d.count);
     }
 
     const allCats = new Set([...totalCatLast.keys(), ...totalCatPrev.keys()]);
@@ -622,44 +637,280 @@ export default function CompareClient({
             </ResponsiveContainer>
           </div>
 
+          {/* Section 4: 카테고리별 거래건수 추이 */}
+          <div className="bg-white border border-[#ebebe9] rounded-xl p-5">
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="text-base font-semibold text-[#222222]">
+                카테고리별 거래건수 추이
+              </h2>
+              <div className="flex gap-1">
+                {(["all", "up", "down"] as const).map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setTrendFilter(f)}
+                    className="px-2.5 py-1 rounded-full text-xs font-medium transition-colors"
+                    style={
+                      trendFilter === f
+                        ? {
+                            background:
+                              f === "up"
+                                ? COLOR_A
+                                : f === "down"
+                                  ? "#FF5252"
+                                  : "#3531FF",
+                            color: "#fff",
+                          }
+                        : { background: "#f3f5f9", color: "#788093" }
+                    }
+                  >
+                    {f === "all"
+                      ? "전체"
+                      : f === "up"
+                        ? `${companyA} ▲ 증가`
+                        : `${companyA} ▼ 감소`}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p className="text-xs text-[#a1a5ac] mb-4">
+              계약완료 기준 ·{" "}
+              {months.length >= 2
+                ? `${months[months.length - 2]} → ${months[months.length - 1]}`
+                : ""}
+            </p>
+            {categoryTrendData.filter((r) =>
+              trendFilter === "up"
+                ? r.deltaA > 0
+                : trendFilter === "down"
+                  ? r.deltaA < 0
+                  : true,
+            ).length === 0 ? (
+              <div className="text-sm text-[#a1a5ac] text-center py-6">
+                데이터 없음
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-[#ebebe9]">
+                      <th className="text-left py-2 pr-3 text-xs font-semibold text-[#788093] w-24">
+                        카테고리
+                      </th>
+                      <th className="text-right py-2 px-2 text-xs font-semibold text-[#788093]">
+                        전체 전월
+                      </th>
+                      <th className="text-right py-2 px-2 text-xs font-semibold text-[#788093]">
+                        전체 이번달
+                      </th>
+                      <th
+                        className="text-right py-2 px-2 text-xs font-semibold"
+                        style={{ color: COLOR_A }}
+                      >
+                        {companyA}
+                      </th>
+                      <th
+                        className="text-right py-2 px-2 text-xs font-semibold"
+                        style={{ color: COLOR_A }}
+                      >
+                        전월대비
+                      </th>
+                      <th
+                        className="text-right py-2 px-2 text-xs font-semibold"
+                        style={{ color: COLOR_B }}
+                      >
+                        {companyB}
+                      </th>
+                      <th
+                        className="text-right py-2 pl-2 text-xs font-semibold"
+                        style={{ color: COLOR_B }}
+                      >
+                        전월대비
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {categoryTrendData
+                      .filter((r) =>
+                        trendFilter === "up"
+                          ? r.deltaA > 0
+                          : trendFilter === "down"
+                            ? r.deltaA < 0
+                            : true,
+                      )
+                      .slice(0, showAllTrend ? undefined : 7)
+                      .map((row) => (
+                        <tr
+                          key={row.cat}
+                          className="border-b border-[#f3f5f9] hover:bg-[#f9fafb]"
+                        >
+                          <td className="py-2 pr-3 text-xs text-[#393939] font-medium">
+                            {row.cat}
+                          </td>
+                          <td className="py-2 px-2 text-right text-xs text-[#a1a5ac]">
+                            {row.totalPrev.toLocaleString("ko-KR")}
+                          </td>
+                          <td className="py-2 px-2 text-right text-xs text-[#586177] font-medium">
+                            {row.totalLast.toLocaleString("ko-KR")}
+                          </td>
+                          <td className="py-2 px-2 text-right text-xs text-[#586177]">
+                            {row.countLastA.toLocaleString("ko-KR")}
+                          </td>
+                          <td
+                            className="py-2 px-2 text-right text-xs font-semibold"
+                            style={{
+                              color:
+                                row.deltaA > 0
+                                  ? COLOR_A
+                                  : row.deltaA < 0
+                                    ? "#FF5252"
+                                    : "#a1a5ac",
+                            }}
+                          >
+                            {row.deltaA > 0 ? "+" : ""}
+                            {row.deltaA.toLocaleString("ko-KR")}
+                          </td>
+                          <td className="py-2 px-2 text-right text-xs text-[#586177]">
+                            {row.countLastB.toLocaleString("ko-KR")}
+                          </td>
+                          <td
+                            className="py-2 pl-2 text-right text-xs font-semibold"
+                            style={{
+                              color:
+                                row.deltaB > 0
+                                  ? COLOR_B
+                                  : row.deltaB < 0
+                                    ? "#FF5252"
+                                    : "#a1a5ac",
+                            }}
+                          >
+                            {row.deltaB > 0 ? "+" : ""}
+                            {row.deltaB.toLocaleString("ko-KR")}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+                {(() => {
+                  const filtered = categoryTrendData.filter((r) =>
+                    trendFilter === "up"
+                      ? r.deltaA > 0
+                      : trendFilter === "down"
+                        ? r.deltaA < 0
+                        : true,
+                  );
+                  if (filtered.length <= 7) return null;
+                  return (
+                    <button
+                      onClick={() => setShowAllTrend((v) => !v)}
+                      className="mt-3 w-full text-xs text-[#788093] hover:text-[#393939] transition-colors"
+                    >
+                      {showAllTrend
+                        ? "▲ 접기"
+                        : `▼ 더 보기 (${filtered.length - 7}개 더)`}
+                    </button>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+
           {/* 카테고리별 전환율 비교 */}
           <div className="bg-white border border-[#ebebe9] rounded-xl p-5">
             <h2 className="text-base font-semibold text-[#222222] mb-1">
               카테고리별 전환율 비교
             </h2>
             <p className="text-xs text-[#a1a5ac] mb-4">
-              주문확정 → 계약완료 · 전환율이 낮을수록 심사 기준이 높거나 처리 속도가 느린 경향
+              주문확정 → 계약완료 · 전환율이 낮을수록 심사 기준이 높거나 처리
+              속도가 느린 경향
             </p>
             {conversionData.length === 0 ? (
-              <div className="text-sm text-[#a1a5ac] text-center py-6">데이터 없음</div>
+              <div className="text-sm text-[#a1a5ac] text-center py-6">
+                데이터 없음
+              </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-[#ebebe9]">
-                      <th className="text-left py-2 pr-3 text-xs font-semibold text-[#788093] w-28">카테고리</th>
-                      <th className="text-right py-2 px-2 text-xs font-semibold" style={{ color: COLOR_A }}>{companyA} 주문</th>
-                      <th className="text-right py-2 px-2 text-xs font-semibold" style={{ color: COLOR_A }}>{companyA} 계약</th>
-                      <th className="text-right py-2 px-2 text-xs font-semibold" style={{ color: COLOR_A }}>{companyA} 전환율</th>
-                      <th className="text-right py-2 px-2 text-xs font-semibold" style={{ color: COLOR_B }}>{companyB} 주문</th>
-                      <th className="text-right py-2 px-2 text-xs font-semibold" style={{ color: COLOR_B }}>{companyB} 계약</th>
-                      <th className="text-right py-2 pl-2 text-xs font-semibold" style={{ color: COLOR_B }}>{companyB} 전환율</th>
+                      <th className="text-left py-2 pr-3 text-xs font-semibold text-[#788093] w-28">
+                        카테고리
+                      </th>
+                      <th
+                        className="text-right py-2 px-2 text-xs font-semibold"
+                        style={{ color: COLOR_A }}
+                      >
+                        {companyA} 주문확정
+                      </th>
+                      <th
+                        className="text-right py-2 px-2 text-xs font-semibold"
+                        style={{ color: COLOR_A }}
+                      >
+                        {companyA} 계약완료
+                      </th>
+                      <th
+                        className="text-right py-2 px-2 text-xs font-semibold"
+                        style={{ color: COLOR_A }}
+                      >
+                        {companyA} 전환율
+                      </th>
+                      <th
+                        className="text-right py-2 px-2 text-xs font-semibold"
+                        style={{ color: COLOR_B }}
+                      >
+                        {companyB} 주문확정
+                      </th>
+                      <th
+                        className="text-right py-2 px-2 text-xs font-semibold"
+                        style={{ color: COLOR_B }}
+                      >
+                        {companyB} 계약완료
+                      </th>
+                      <th
+                        className="text-right py-2 pl-2 text-xs font-semibold"
+                        style={{ color: COLOR_B }}
+                      >
+                        {companyB} 전환율
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {(showAllConversion ? conversionData : conversionData.slice(0, 7)).map((row) => (
-                      <tr key={row.cat} className="border-b border-[#f3f5f9] hover:bg-[#f9fafb]">
-                        <td className="py-2 pr-3 text-xs text-[#393939] font-medium">{row.cat}</td>
-                        <td className="py-2 px-2 text-right text-xs text-[#586177]">{fmt(row.orderA)}</td>
-                        <td className="py-2 px-2 text-right text-xs text-[#586177]">{fmt(row.contractA)}</td>
-                        <td className="py-2 px-2 text-right text-xs font-semibold"
-                          style={{ color: row.rateA > row.rateB ? COLOR_A : "#a1a5ac" }}>
+                    {(showAllConversion
+                      ? conversionData
+                      : conversionData.slice(0, 7)
+                    ).map((row) => (
+                      <tr
+                        key={row.cat}
+                        className="border-b border-[#f3f5f9] hover:bg-[#f9fafb]"
+                      >
+                        <td className="py-2 pr-3 text-xs text-[#393939] font-medium">
+                          {row.cat}
+                        </td>
+                        <td className="py-2 px-2 text-right text-xs text-[#586177]">
+                          {fmt(row.orderA)}
+                        </td>
+                        <td className="py-2 px-2 text-right text-xs text-[#586177]">
+                          {fmt(row.contractA)}
+                        </td>
+                        <td
+                          className="py-2 px-2 text-right text-xs font-semibold"
+                          style={{
+                            color: row.rateA > row.rateB ? COLOR_A : "#a1a5ac",
+                          }}
+                        >
                           {row.rateA.toFixed(1)}%
                         </td>
-                        <td className="py-2 px-2 text-right text-xs text-[#586177]">{fmt(row.orderB)}</td>
-                        <td className="py-2 px-2 text-right text-xs text-[#586177]">{fmt(row.contractB)}</td>
-                        <td className="py-2 pl-2 text-right text-xs font-semibold"
-                          style={{ color: row.rateB > row.rateA ? COLOR_B : "#a1a5ac" }}>
+                        <td className="py-2 px-2 text-right text-xs text-[#586177]">
+                          {fmt(row.orderB)}
+                        </td>
+                        <td className="py-2 px-2 text-right text-xs text-[#586177]">
+                          {fmt(row.contractB)}
+                        </td>
+                        <td
+                          className="py-2 pl-2 text-right text-xs font-semibold"
+                          style={{
+                            color: row.rateB > row.rateA ? COLOR_B : "#a1a5ac",
+                          }}
+                        >
                           {row.rateB.toFixed(1)}%
                         </td>
                       </tr>
