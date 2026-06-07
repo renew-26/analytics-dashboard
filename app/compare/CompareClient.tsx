@@ -275,27 +275,120 @@ export default function CompareClient({
         if (!a && !b) return null;
         const avgA = a && a.count > 0 ? a.fee / a.count : 0;
         const avgB = b && b.count > 0 ? b.fee / b.count : 0;
-        return { cat, avgA, avgB, diff: avgA - avgB, orderA: catOrderA.get(cat) ?? 0 };
+        return {
+          cat,
+          avgA,
+          avgB,
+          diff: avgA - avgB,
+          orderA: catOrderA.get(cat) ?? 0,
+        };
       })
       .filter(Boolean)
       .sort((a, b) => b!.orderA - a!.orderA) as {
-        cat: string; avgA: number; avgB: number; diff: number; orderA: number;
-      }[];
+      cat: string;
+      avgA: number;
+      avgB: number;
+      diff: number;
+      orderA: number;
+    }[];
+  }, [dataA, dataB, orderData, entryA, entryB]);
+
+  // 평균 판매장려금 비교 (카테고리별) — A사 주문건수 기준 정렬
+  const avgIncentiveData = useMemo(() => {
+    if (!entryA || !entryB) return [];
+
+    const catIncA = new Map<string, { fee: number; count: number }>();
+    for (const d of dataA) {
+      const prev = catIncA.get(d.category) ?? { fee: 0, count: 0 };
+      catIncA.set(d.category, {
+        fee: prev.fee + d.totalIncentive,
+        count: prev.count + d.count,
+      });
+    }
+
+    const catIncB = new Map<string, { fee: number; count: number }>();
+    for (const d of dataB) {
+      const prev = catIncB.get(d.category) ?? { fee: 0, count: 0 };
+      catIncB.set(d.category, {
+        fee: prev.fee + d.totalIncentive,
+        count: prev.count + d.count,
+      });
+    }
+
+    const catOrderA = new Map<string, number>();
+    for (const d of orderData) {
+      if (d.company !== entryA.dbName) continue;
+      if (entryA.categoryIs) {
+        const cis = entryA.categoryIs;
+        if (
+          Array.isArray(cis)
+            ? !cis.includes(d.category ?? "")
+            : cis !== d.category
+        )
+          continue;
+      }
+      if (entryA.categoryNot) {
+        const cnot = entryA.categoryNot;
+        if (
+          Array.isArray(cnot)
+            ? cnot.includes(d.category ?? "")
+            : cnot === d.category
+        )
+          continue;
+      }
+      catOrderA.set(
+        d.category,
+        (catOrderA.get(d.category) ?? 0) + d.orderCount,
+      );
+    }
+
+    const allCats = new Set([...catIncA.keys(), ...catIncB.keys()]);
+    return [...allCats]
+      .map((cat) => {
+        const a = catIncA.get(cat);
+        const b = catIncB.get(cat);
+        if (!a && !b) return null;
+        const avgA = a && a.count > 0 ? a.fee / a.count : 0;
+        const avgB = b && b.count > 0 ? b.fee / b.count : 0;
+        return {
+          cat,
+          avgA,
+          avgB,
+          diff: avgA - avgB,
+          orderA: catOrderA.get(cat) ?? 0,
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b!.orderA - a!.orderA) as {
+      cat: string;
+      avgA: number;
+      avgB: number;
+      diff: number;
+      orderA: number;
+    }[];
   }, [dataA, dataB, orderData, entryA, entryB]);
 
   // 카테고리 인사이트 (최근 3개월 기준 상위 카테고리 + 상호 비교)
   const categoryInsight = useMemo(() => {
     if (!entryA || !entryB) return null;
 
-    const catStatsA = new Map<string, { count: number; totalFee: number }>();
+    const catStatsA = new Map<string, { count: number; totalFee: number; totalIncentive: number }>();
     for (const d of dataA.filter((r) => last3Months.includes(r.month))) {
-      const s = catStatsA.get(d.category) ?? { count: 0, totalFee: 0 };
-      catStatsA.set(d.category, { count: s.count + d.count, totalFee: s.totalFee + d.totalFee });
+      const s = catStatsA.get(d.category) ?? { count: 0, totalFee: 0, totalIncentive: 0 };
+      catStatsA.set(d.category, {
+        count: s.count + d.count,
+        totalFee: s.totalFee + d.totalFee,
+        totalIncentive: s.totalIncentive + d.totalIncentive,
+      });
     }
-    const catStatsB = new Map<string, { count: number; totalFee: number }>();
+    const catStatsB = new Map<string, { count: number; totalFee: number; totalIncentive: number }>();
     for (const d of dataB.filter((r) => last3Months.includes(r.month))) {
-      const s = catStatsB.get(d.category) ?? { count: 0, totalFee: 0 };
-      catStatsB.set(d.category, { count: s.count + d.count, totalFee: s.totalFee + d.totalFee });
+      const s = catStatsB.get(d.category) ?? { count: 0, totalFee: 0, totalIncentive: 0 };
+      catStatsB.set(d.category, {
+        count: s.count + d.count,
+        totalFee: s.totalFee + d.totalFee,
+        totalIncentive: s.totalIncentive + d.totalIncentive,
+      });
     }
 
     const totalA = [...catStatsA.values()].reduce((s, v) => s + v.count, 0);
@@ -985,234 +1078,103 @@ export default function CompareClient({
             )}
           </div>
 
-          {/* Section 4: 카테고리별 거래건수 추이 */}
+          {/* Section: 카테고리별 평균 판매장려금 비교 */}
           <div className="bg-white border border-[#ebebe9] rounded-xl p-5">
-            <h2 className="text-base font-semibold text-[#222222] mb-1">카테고리별 거래건수 추이</h2>
+            <h2 className="text-base font-semibold text-[#222222] mb-1">
+              카테고리별 평균 지원금 비교
+            </h2>
             <p className="text-xs text-[#a1a5ac] mb-4">
-              계약완료 기준 · {months.length >= 2 ? `${months[months.length - 2]} → ${months[months.length - 1]}` : ""}
+              계약완료 기준 · 평균 지원금 = 지원금 합계 ÷ 계약건수
             </p>
-            {categoryTrendData.length === 0 ? (
-              <div className="text-sm text-[#a1a5ac] text-center py-6">데이터 없음</div>
+            {avgIncentiveData.length === 0 ? (
+              <div className="text-sm text-[#a1a5ac] text-center py-6">
+                데이터 없음
+              </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-[#ebebe9]">
-                      <th className="text-left py-2 pr-3 text-xs font-semibold text-[#788093] w-24">카테고리</th>
-                      <th className="text-right py-2 px-2 text-xs font-semibold text-[#788093]">전체 전월</th>
-                      <th className="text-right py-2 px-2 text-xs font-semibold text-[#788093]">전체 이번달</th>
-                      <th className="text-right py-2 px-2 text-xs font-semibold" style={{ color: COLOR_A }}>{companyA}</th>
-                      <th className="text-right py-2 px-2 text-xs font-semibold" style={{ color: COLOR_A }}>전월대비</th>
-                      <th className="text-right py-2 px-2 text-xs font-semibold" style={{ color: COLOR_B }}>{companyB}</th>
-                      <th className="text-right py-2 pl-2 text-xs font-semibold" style={{ color: COLOR_B }}>전월대비</th>
+                      <th className="text-left py-2 pr-3 text-xs font-semibold text-[#788093] w-28">
+                        카테고리
+                      </th>
+                      <th
+                        className="text-right py-2 px-2 text-xs font-semibold"
+                        style={{ color: COLOR_A }}
+                      >
+                        {companyA}
+                      </th>
+                      <th
+                        className="text-right py-2 px-2 text-xs font-semibold"
+                        style={{ color: COLOR_B }}
+                      >
+                        {companyB}
+                      </th>
+                      <th className="text-right py-2 pl-2 text-xs font-semibold text-[#788093]">
+                        차이
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {categoryTrendData.map((row) => (
-                      <tr key={row.cat} className="border-b border-[#f3f5f9] hover:bg-[#f9fafb]">
-                        <td className="py-2 pr-3 text-xs text-[#393939] font-medium">{row.cat}</td>
-                        <td className="py-2 px-2 text-right text-xs text-[#a1a5ac]">{row.totalPrev.toLocaleString("ko-KR")}</td>
-                        <td className="py-2 px-2 text-right text-xs text-[#586177] font-medium">{row.totalLast.toLocaleString("ko-KR")}</td>
-                        <td className="py-2 px-2 text-right text-xs text-[#586177]">{row.countLastA.toLocaleString("ko-KR")}</td>
-                        <td className="py-2 px-2 text-right text-xs font-semibold"
-                          style={{ color: row.deltaA > 0 ? COLOR_A : row.deltaA < 0 ? "#FF5252" : "#a1a5ac" }}>
-                          {row.deltaA > 0 ? "+" : ""}{row.deltaA.toLocaleString("ko-KR")}
+                    {(showAllAvgIncentive
+                      ? avgIncentiveData
+                      : avgIncentiveData.slice(0, 7)
+                    ).map((row) => (
+                      <tr
+                        key={row.cat}
+                        className="border-b border-[#f3f5f9] hover:bg-[#f9fafb]"
+                      >
+                        <td className="py-2 pr-3 text-xs text-[#393939] font-medium">
+                          {row.cat}
                         </td>
-                        <td className="py-2 px-2 text-right text-xs text-[#586177]">{row.countLastB.toLocaleString("ko-KR")}</td>
-                        <td className="py-2 pl-2 text-right text-xs font-semibold"
-                          style={{ color: row.deltaB > 0 ? COLOR_B : row.deltaB < 0 ? "#FF5252" : "#a1a5ac" }}>
-                          {row.deltaB > 0 ? "+" : ""}{row.deltaB.toLocaleString("ko-KR")}
+                        <td
+                          className="py-2 px-2 text-right text-xs font-semibold"
+                          style={{
+                            color:
+                              row.avgA >= row.avgB && row.avgA > 0
+                                ? COLOR_A
+                                : "#586177",
+                          }}
+                        >
+                          {row.avgA > 0
+                            ? `${Math.round(row.avgA).toLocaleString("ko-KR")}원`
+                            : "-"}
+                        </td>
+                        <td
+                          className="py-2 px-2 text-right text-xs font-semibold"
+                          style={{
+                            color:
+                              row.avgB > row.avgA && row.avgB > 0
+                                ? COLOR_B
+                                : "#586177",
+                          }}
+                        >
+                          {row.avgB > 0
+                            ? `${Math.round(row.avgB).toLocaleString("ko-KR")}원`
+                            : "-"}
+                        </td>
+                        <td className="py-2 pl-2 text-right text-xs text-[#788093]">
+                          {row.avgA > 0 && row.avgB > 0
+                            ? `${row.diff >= 0 ? "+" : ""}${Math.round(row.diff).toLocaleString("ko-KR")}원`
+                            : "-"}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+                {avgIncentiveData.length > 7 && (
+                  <button
+                    onClick={() => setShowAllAvgIncentive((v) => !v)}
+                    className="mt-3 w-full text-xs text-[#788093] hover:text-[#393939] py-2 border-t border-[#f3f5f9] transition-colors"
+                  >
+                    {showAllAvgIncentive
+                      ? `▲ 접기`
+                      : `▼ 더 보기 (${avgIncentiveData.length - 7}개 더)`}
+                  </button>
+                )}
               </div>
             )}
           </div>
-
-          {/* 카테고리 비중 비교 */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-white border border-[#ebebe9] rounded-xl p-5">
-              <h2 className="text-sm font-semibold text-[#222222] mb-4">
-                <span style={{ color: COLOR_A }}>{companyA}</span> 카테고리 비중
-                <span className="text-xs font-normal text-[#a1a5ac] ml-1">
-                  (최근 3개월)
-                </span>
-              </h2>
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart
-                  data={catDataA}
-                  layout="vertical"
-                  margin={{ top: 0, right: 32, left: 8, bottom: 0 }}
-                >
-                  <XAxis
-                    type="number"
-                    tick={{ fontSize: 11, fill: "#788093" }}
-                    axisLine={false}
-                    tickLine={false}
-                    unit="%"
-                    domain={[0, 100]}
-                  />
-                  <YAxis
-                    type="category"
-                    dataKey="cat"
-                    tick={{ fontSize: 11, fill: "#393939" }}
-                    axisLine={false}
-                    tickLine={false}
-                    width={70}
-                  />
-                  <Tooltip
-                    formatter={(v) => [`${v}%`, "비중"]}
-                    contentStyle={{
-                      borderRadius: 8,
-                      border: "1px solid #ebebe9",
-                      fontSize: 12,
-                    }}
-                  />
-                  <Bar dataKey="pct" fill={COLOR_A} radius={[0, 3, 3, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className="bg-white border border-[#ebebe9] rounded-xl p-5">
-              <h2 className="text-sm font-semibold text-[#222222] mb-4">
-                <span style={{ color: COLOR_B }}>{companyB}</span> 카테고리 비중
-                <span className="text-xs font-normal text-[#a1a5ac] ml-1">
-                  (최근 3개월)
-                </span>
-              </h2>
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart
-                  data={catDataB}
-                  layout="vertical"
-                  margin={{ top: 0, right: 32, left: 8, bottom: 0 }}
-                >
-                  <XAxis
-                    type="number"
-                    tick={{ fontSize: 11, fill: "#788093" }}
-                    axisLine={false}
-                    tickLine={false}
-                    unit="%"
-                    domain={[0, 100]}
-                  />
-                  <YAxis
-                    type="category"
-                    dataKey="cat"
-                    tick={{ fontSize: 11, fill: "#393939" }}
-                    axisLine={false}
-                    tickLine={false}
-                    width={70}
-                  />
-                  <Tooltip
-                    formatter={(v) => [`${v}%`, "비중"]}
-                    contentStyle={{
-                      borderRadius: 8,
-                      border: "1px solid #ebebe9",
-                      fontSize: 12,
-                    }}
-                  />
-                  <Bar dataKey="pct" fill={COLOR_B} radius={[0, 3, 3, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* 카테고리 인사이트 요약 */}
-          {categoryInsight && categoryInsight.top1A && categoryInsight.top1B && (
-            <div className="bg-[#f9fafb] border border-[#ebebe9] rounded-xl p-5 space-y-3">
-              <h2 className="text-sm font-semibold text-[#393939]">카테고리 인사이트</h2>
-              {/* A사 1순위 */}
-              <div className="text-sm text-[#393939] leading-relaxed">
-                <span className="font-bold" style={{ color: COLOR_A }}>{companyA}</span>
-                {josa(companyA, "은", "는")} 1순위 카테고리가{" "}
-                <span className="font-semibold">
-                  {categoryInsight.top1A.cat}
-                </span>
-                {josa(categoryInsight.top1A.cat, "으로", "로")} 전체 계약의{" "}
-                <span className="font-semibold">{categoryInsight.top1A.share}%</span>를 차지하며,
-                평균 렌탈료는{" "}
-                <span className="font-semibold">{fmt(categoryInsight.top1A.avgFee)}원</span>입니다.{" "}
-                {categoryInsight.top1A.cat === categoryInsight.top1B.cat ? (
-                  // 같은 1순위 카테고리
-                  categoryInsight.bAvgInTopA !== null ? (
-                    <>
-                      <span className="font-bold" style={{ color: COLOR_B }}>{companyB}</span>
-                      도 동일 카테고리{" "}
-                      <span className="font-semibold">{categoryInsight.top1B.cat}</span>이 1순위
-                      ({categoryInsight.top1B.share}%, 평균{" "}
-                      <span className="font-semibold">{fmt(categoryInsight.bAvgInTopA)}원</span>)로,{" "}
-                      {companyA} 대비 평균 렌탈료가{" "}
-                      <span className="font-semibold" style={{
-                        color: categoryInsight.top1A.avgFee > categoryInsight.bAvgInTopA
-                          ? COLOR_A : COLOR_B,
-                      }}>
-                        {fmt(Math.abs(categoryInsight.top1A.avgFee - categoryInsight.bAvgInTopA))}원{" "}
-                        {categoryInsight.top1A.avgFee > categoryInsight.bAvgInTopA ? "낮습니다" : "높습니다"}.
-                      </span>
-                    </>
-                  ) : null
-                ) : (
-                  // 다른 1순위
-                  categoryInsight.bAvgInTopA !== null ? (
-                    <>
-                      <span className="font-bold" style={{ color: COLOR_B }}>{companyB}</span>
-                      {josa(companyB, "은", "는")} 같은{" "}
-                      <span className="font-semibold">{categoryInsight.top1A.cat}</span> 항목 비중이{" "}
-                      <span className="font-semibold">{categoryInsight.bShareInTopA}%</span>로,
-                      평균 렌탈료 <span className="font-semibold">{fmt(categoryInsight.bAvgInTopA)}원</span>이며{" "}
-                      {companyA} 대비{" "}
-                      <span className="font-semibold" style={{
-                        color: categoryInsight.top1A.avgFee > categoryInsight.bAvgInTopA
-                          ? COLOR_A : COLOR_B,
-                      }}>
-                        {fmt(Math.abs(categoryInsight.top1A.avgFee - categoryInsight.bAvgInTopA))}원{" "}
-                        {categoryInsight.top1A.avgFee > categoryInsight.bAvgInTopA ? "낮습니다" : "높습니다"}.
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="font-bold" style={{ color: COLOR_B }}>{companyB}</span>
-                      {josa(companyB, "은", "는")} 해당 카테고리 데이터가 없습니다.
-                    </>
-                  )
-                )}
-              </div>
-
-              {/* B사 1순위가 A사와 다를 때만 추가 문장 */}
-              {categoryInsight.top1A.cat !== categoryInsight.top1B.cat && (
-                <div className="text-sm text-[#393939] leading-relaxed">
-                  <span className="font-bold" style={{ color: COLOR_B }}>{companyB}</span>
-                  {josa(companyB, "은", "는")} 1순위가{" "}
-                  <span className="font-semibold">{categoryInsight.top1B.cat}</span>
-                  {josa(categoryInsight.top1B.cat, "으로", "로")} 전체의{" "}
-                  <span className="font-semibold">{categoryInsight.top1B.share}%</span>,
-                  평균 <span className="font-semibold">{fmt(categoryInsight.top1B.avgFee)}원</span>입니다.{" "}
-                  {categoryInsight.aAvgInTopB !== null ? (
-                    <>
-                      <span className="font-bold" style={{ color: COLOR_A }}>{companyA}</span>
-                      {josa(companyA, "은", "는")} 동일 항목 비중{" "}
-                      <span className="font-semibold">{categoryInsight.aShareInTopB}%</span>,
-                      평균 <span className="font-semibold">{fmt(categoryInsight.aAvgInTopB)}원</span>으로{" "}
-                      {companyB} 대비{" "}
-                      <span className="font-semibold" style={{
-                        color: categoryInsight.aAvgInTopB > categoryInsight.top1B.avgFee
-                          ? COLOR_A : COLOR_B,
-                      }}>
-                        {fmt(Math.abs(categoryInsight.aAvgInTopB - categoryInsight.top1B.avgFee))}원{" "}
-                        {categoryInsight.aAvgInTopB > categoryInsight.top1B.avgFee ? "높습니다" : "낮습니다"}.
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="font-bold" style={{ color: COLOR_A }}>{companyA}</span>
-                      {josa(companyA, "은", "는")} 해당 카테고리 데이터가 없습니다.
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
         </>
       )}
     </div>
