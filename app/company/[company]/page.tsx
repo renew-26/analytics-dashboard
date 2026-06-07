@@ -42,7 +42,7 @@ const OKR_CATEGORIES = new Set([
 
 function normalizeCategory(cat: string | null): string {
   if (!cat) return "그 외";
-  return OKR_CATEGORIES.has(cat) ? cat : "그 외";
+  return cat;
 }
 
 // 공통 정규화 행 — order/contract 모두 이 타입으로 변환
