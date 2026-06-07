@@ -110,12 +110,18 @@ export default function CompareClient({
       : rows;
     return {
       count: filtered.reduce((s, r) => s + r.count, 0),
-      totalFee: filtered.reduce((s, r) => s + r.totalFee, 0),
+      totalFee: filtered.reduce((s, r) => s + r.totalRentalFee, 0),
     };
   }
 
-  const summaryA = useMemo(() => sumMetrics(dataA, last3Months), [dataA, last3Months]);
-  const summaryB = useMemo(() => sumMetrics(dataB, last3Months), [dataB, last3Months]);
+  const summaryA = useMemo(
+    () => sumMetrics(dataA, last3Months),
+    [dataA, last3Months],
+  );
+  const summaryB = useMemo(
+    () => sumMetrics(dataB, last3Months),
+    [dataB, last3Months],
+  );
 
   // 월별 매출 추이 차트 데이터
   const trendData = useMemo(() => {
@@ -124,8 +130,8 @@ export default function CompareClient({
       const rowsB = dataB.filter((d) => d.month === month);
       return {
         month,
-        [companyA || "A"]: rowsA.reduce((s, r) => s + r.totalFee, 0),
-        [companyB || "B"]: rowsB.reduce((s, r) => s + r.totalFee, 0),
+        [companyA || "A"]: rowsA.reduce((s, r) => s + r.totalRentalFee, 0),
+        [companyB || "B"]: rowsB.reduce((s, r) => s + r.totalRentalFee, 0),
       };
     });
   }, [dataA, dataB, months, companyA, companyB]);

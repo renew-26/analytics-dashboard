@@ -13,7 +13,9 @@ type ContractRow = {
   contract_date: string;
   rental_company: string | null;
   category: string | null;
+  monthly_fee: number | null;
   total_rental_fee: number | null;
+  sales_incentive: number | null;
 };
 
 type OrderRow = {
@@ -31,7 +33,7 @@ async function fetchContracts(
   while (true) {
     const { data, error } = await supabase
       .from("raw_contracts")
-      .select("contract_date, rental_company, category, total_rental_fee")
+      .select("contract_date, rental_company, category, monthly_fee, total_rental_fee, sales_incentive")
       .gte("contract_date", start)
       .lte("contract_date", end)
       .order("contract_date", { ascending: true })
@@ -86,7 +88,9 @@ export type CompanyMonthData = {
   month: string;
   category: string;
   count: number;
-  totalFee: number;
+  totalFee: number;       // monthly_fee 합산 (평균 렌탈료 계산용)
+  totalRentalFee: number; // total_rental_fee 합산 (매출 규모 표시용)
+  totalIncentive: number;
 };
 
 export type CompanyOrderData = {
@@ -108,16 +112,18 @@ export default async function ComparePage() {
   ]);
 
   // company + month + category 집계
-  const aggMap = new Map<string, { count: number; totalFee: number }>();
+  const aggMap = new Map<string, { count: number; totalFee: number; totalRentalFee: number; totalIncentive: number }>();
   for (const row of rows) {
     if (!row.rental_company || !row.contract_date) continue;
     const month = row.contract_date.slice(0, 7);
     const cat = row.category ?? "기타";
     const key = `${row.rental_company}::${month}::${cat}`;
-    const prev = aggMap.get(key) ?? { count: 0, totalFee: 0 };
+    const prev = aggMap.get(key) ?? { count: 0, totalFee: 0, totalRentalFee: 0, totalIncentive: 0 };
     aggMap.set(key, {
       count: prev.count + 1,
-      totalFee: prev.totalFee + (row.total_rental_fee ?? 0),
+      totalFee: prev.totalFee + (row.monthly_fee ?? 0),
+      totalRentalFee: prev.totalRentalFee + (row.total_rental_fee ?? 0),
+      totalIncentive: prev.totalIncentive + (row.sales_incentive ?? 0),
     });
   }
 
@@ -130,6 +136,8 @@ export default async function ComparePage() {
       category,
       count: val.count,
       totalFee: val.totalFee,
+      totalRentalFee: val.totalRentalFee,
+      totalIncentive: val.totalIncentive,
     });
   }
 
