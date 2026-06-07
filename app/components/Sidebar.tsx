@@ -62,32 +62,6 @@ export default function Sidebar() {
 
       {/* 네비게이션 */}
       <nav className="flex-1 min-h-0 overflow-y-auto px-2 py-2">
-        {/* 분석 섹션 */}
-        <SectionHeader label="분석" />
-        <NavItem
-          href="/conversion"
-          label="전환율 분석"
-          active={pathname === "/conversion"}
-        />
-        <NavItem
-          href="/category-trends"
-          label="카테고리 트렌드"
-          active={pathname === "/category-trends"}
-        />
-        <NavItem
-          href="/compare"
-          label="렌탈사 비교"
-          active={pathname === "/compare"}
-        />
-
-        {/* 시장 조사 섹션 */}
-        <SectionHeader label="시장 조사" />
-        <NavItem
-          href="/competitive-subsidy"
-          label="경쟁사 지원금 조사"
-          active={pathname === "/competitive-subsidy"}
-        />
-
         {/* 렌탈사별 매출 추이 섹션 */}
         <SectionHeader label="렌탈사별 매출 추이" />
 
@@ -136,6 +110,32 @@ export default function Sidebar() {
             </div>
           );
         })}
+
+        {/* 분석 섹션 */}
+        <SectionHeader label="분석" />
+        <NavItem
+          href="/conversion"
+          label="전환율 분석"
+          active={pathname === "/conversion"}
+        />
+        <NavItem
+          href="/category-trends"
+          label="카테고리 트렌드"
+          active={pathname === "/category-trends"}
+        />
+        <NavItem
+          href="/compare"
+          label="렌탈사 비교"
+          active={pathname === "/compare"}
+        />
+
+        {/* 시장 조사 섹션 */}
+        <SectionHeader label="시장 조사" />
+        <NavItem
+          href="/competitive-subsidy"
+          label="경쟁사 지원금 조사"
+          active={pathname === "/competitive-subsidy"}
+        />
       </nav>
     </aside>
   );
