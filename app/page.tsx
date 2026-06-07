@@ -6,14 +6,19 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
 );
 
+function toLocalDateStr(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function getMonthRange() {
   const today = new Date();
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
-  const start = new Date(yesterday.getFullYear(), yesterday.getMonth(), 1)
-    .toISOString()
-    .slice(0, 10);
-  const end = yesterday.toISOString().slice(0, 10);
+  const start = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}-01`;
+  const end = toLocalDateStr(yesterday);
   const month = yesterday.getMonth() + 1;
   return { start, end, month };
 }
@@ -30,7 +35,7 @@ function getComparisonDates() {
   prevEnd.setMonth(prevEnd.getMonth() - 1);
   const prevStart = new Date(prevEnd.getFullYear(), prevEnd.getMonth(), 1);
 
-  const fmtDate = (d: Date) => d.toISOString().slice(0, 10);
+  const fmtDate = toLocalDateStr;
   const label = (d: Date) =>
     `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}`;
 
@@ -255,7 +260,9 @@ export default async function Home() {
           .lte("contract_date", end);
         if (row.excludeOthers)
           return [
-            oQ.not("category", "in", excludedList),
+            oQ.or(
+              `category.not.in.(${EXCLUDED_CATS.join(",")}),category.is.null`,
+            ),
             cQ.not("category", "in", excludedList),
           ];
         return [oQ.in("category", row.cats!), cQ.in("category", row.cats!)];
