@@ -29,8 +29,8 @@ export default function ConversionClient({ data, months }: Props) {
         d.orders > 0 ? (d.contracts / d.orders) * 100 : 0;
       return { ...d, rate };
     });
-    // 전환율 높은 순
-    rows.sort((a, b) => b.rate - a.rate);
+    // 주문확정 수 높은 순
+    rows.sort((a, b) => b.orders - a.orders);
     return rows;
   }, [data, selectedMonth]);
 
@@ -116,7 +116,7 @@ export default function ConversionClient({ data, months }: Props) {
                   className={`border-b border-[#ebebe9] ${i % 2 === 0 ? "bg-white" : "bg-[#f9fafb]"}`}
                 >
                   <td className="px-4 py-3 font-medium text-[#222222]">
-                    {row.company}
+                    {row.label ?? row.company}
                   </td>
                   <td className="px-4 py-3 text-right text-[#393939]">
                     {row.orders.toLocaleString("ko-KR")}
