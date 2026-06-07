@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import {
   LineChart,
   Line,
@@ -21,6 +21,8 @@ type Props = {
 export default function ConversionClient({ data, months }: Props) {
   const [selectedMonth, setSelectedMonth] = useState(months[months.length - 1]);
 
+  const GROUP_ORDER = ["가전&상조", "정수기", "통신"];
+
   // 선택 월 렌탈사별 데이터
   const tableRows = useMemo(() => {
     const monthData = data.filter((d) => d.month === selectedMonth);
@@ -29,8 +31,14 @@ export default function ConversionClient({ data, months }: Props) {
         d.orders > 0 ? (d.contracts / d.orders) * 100 : 0;
       return { ...d, rate };
     });
-    // 주문확정 수 높은 순
-    rows.sort((a, b) => b.orders - a.orders);
+    // 그룹 순서 → 주문확정 수 높은 순
+    rows.sort((a, b) => {
+      const gi = GROUP_ORDER.indexOf(a.group);
+      const gj = GROUP_ORDER.indexOf(b.group);
+      const groupDiff = (gi === -1 ? 99 : gi) - (gj === -1 ? 99 : gj);
+      if (groupDiff !== 0) return groupDiff;
+      return b.orders - a.orders;
+    });
     return rows;
   }, [data, selectedMonth]);
 
@@ -85,6 +93,9 @@ export default function ConversionClient({ data, months }: Props) {
           <thead>
             <tr className="bg-[#f6f6f6] border-b border-[#ebebe9]">
               <th className="px-4 py-3 text-left font-semibold text-[#586177]">
+                분류
+              </th>
+              <th className="px-4 py-3 text-left font-semibold text-[#586177]">
                 렌탈사
               </th>
               <th className="px-4 py-3 text-right font-semibold text-[#586177]">
@@ -102,19 +113,37 @@ export default function ConversionClient({ data, months }: Props) {
             </tr>
           </thead>
           <tbody>
-            {tableRows.map((row, i) => {
-              const isOver100 = row.rate >= 100;
-              const displayRate = isOver100 ? "-" : `${row.rate.toFixed(1)}%`;
-              const prevRate = prevRateMap.get(row.company);
-              const diff =
-                prevRate !== undefined && !isOver100
-                  ? row.rate - prevRate
-                  : null;
+            {(() => {
+              // Compute rowspan per group
+              const groupSpans = new Map<string, number>();
+              for (const row of tableRows) {
+                groupSpans.set(row.group, (groupSpans.get(row.group) ?? 0) + 1);
+              }
+              const groupSeen = new Set<string>();
+              return tableRows.map((row, i) => {
+                const isOver100 = row.rate >= 100;
+                const displayRate = isOver100 ? "-" : `${row.rate.toFixed(1)}%`;
+                const prevRate = prevRateMap.get(row.company);
+                const diff =
+                  prevRate !== undefined && !isOver100
+                    ? row.rate - prevRate
+                    : null;
+                const isFirstInGroup = !groupSeen.has(row.group);
+                if (isFirstInGroup) groupSeen.add(row.group);
+                const rowSpan = groupSpans.get(row.group) ?? 1;
               return (
                 <tr
-                  key={row.company}
+                  key={`${row.month}-${row.company}`}
                   className={`border-b border-[#ebebe9] ${i % 2 === 0 ? "bg-white" : "bg-[#f9fafb]"}`}
                 >
+                  {isFirstInGroup && (
+                    <td
+                      rowSpan={rowSpan}
+                      className="px-3 py-3 text-xs font-semibold text-[#586177] text-center align-middle border-r border-[#ebebe9] bg-[#f6f6f6] whitespace-nowrap"
+                    >
+                      {row.group}
+                    </td>
+                  )}
                   <td className="px-4 py-3 font-medium text-[#222222]">
                     {row.label ?? row.company}
                   </td>
@@ -159,11 +188,12 @@ export default function ConversionClient({ data, months }: Props) {
                   </td>
                 </tr>
               );
-            })}
+            });
+            })()}
             {tableRows.length === 0 && (
               <tr>
                 <td
-                  colSpan={5}
+                  colSpan={6}
                   className="px-4 py-8 text-center text-[#a1a5ac]"
                 >
                   데이터가 없습니다.

@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { getCompanyLabel, COMPANY_MAP } from "@/lib/company-map";
 import ConversionClient from "./ConversionClient";
 
 const supabase = createClient(
@@ -80,6 +81,8 @@ function getLast6Months(): { month: string; start: string; end: string }[] {
 export type MonthCompanyData = {
   month: string;
   company: string;
+  label: string;
+  group: string;
   orders: number;
   contracts: number;
 };
@@ -116,9 +119,12 @@ export default async function ConversionPage() {
   const data: MonthCompanyData[] = [];
   for (const key of allKeys) {
     const [month, company] = key.split("::");
+    const group = COMPANY_MAP.find((c) => c.dbName === company)?.group ?? "기타";
     data.push({
       month,
       company,
+      label: getCompanyLabel(company),
+      group,
       orders: orderMap.get(key) ?? 0,
       contracts: contractMap.get(key) ?? 0,
     });
