@@ -243,7 +243,7 @@ export default function SubsidyClient({ months }: { months: string[] }) {
     if (!selectedMonth) return;
     setLoading(true);
     setSelectedPartner(null);
-    fetch(`/api/subsidy/data?year_month=${selectedMonth}`)
+    fetch(`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/api/subsidy/data?year_month=${selectedMonth}`)
       .then((r) => r.json())
       .then((j) => setRows(j.data ?? []))
       .finally(() => setLoading(false));
@@ -268,7 +268,7 @@ export default function SubsidyClient({ months }: { months: string[] }) {
     const fd = new FormData();
     fd.append("file", fileRef.current.files[0]);
     fd.append("year_month", uploadMonth);
-    const res = await fetch("/api/subsidy/upload", {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/api/subsidy/upload`, {
       method: "POST",
       body: fd,
     });

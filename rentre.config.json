@@ -9,6 +9,7 @@
     "dir": ".",
     "install": "npm ci",
     "build": "npm run build",
-    "start": "node .next/standalone/server.js"
+    "start": "node .next/standalone/server.js",
+    "devCommand": "npm run dev -- -p $PORT"
   }
 }
