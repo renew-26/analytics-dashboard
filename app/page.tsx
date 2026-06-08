@@ -1,6 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { getBM, MAIN_RENTAL_COMPANIES } from "@/lib/company-map";
 
+export const dynamic = "force-dynamic";
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,

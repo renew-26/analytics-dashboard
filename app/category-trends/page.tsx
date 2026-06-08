@@ -2,6 +2,8 @@ import { createClient } from "@supabase/supabase-js";
 import { getCompanyLabel } from "@/lib/company-map";
 import CategoryTrendsClient from "./CategoryTrendsClient";
 
+export const dynamic = "force-dynamic";
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
