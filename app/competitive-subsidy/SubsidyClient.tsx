@@ -303,7 +303,7 @@ export default function SubsidyClient({ months }: { months: string[] }) {
         </div>
         <div className="flex items-center gap-2">
           <a
-            href="/api/subsidy/template"
+            href={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/subsidy/template`}
             download
             className="px-3 py-2 text-sm rounded-lg border border-[#e2e6ec] text-[#586177] hover:bg-[#f6f6f6] transition font-medium"
           >
