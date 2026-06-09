@@ -5,18 +5,21 @@ import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import { COMPANY_MAP } from "@/lib/company-map";
 
-// COMPANY_MAP에서 중복 라벨 제거 후 그룹별로 묶기
-const seen = new Set<string>();
-const NAV_SECTIONS = ["가전&상조", "정수기", "통신"].map((group) => ({
-  group,
-  items: COMPANY_MAP.filter((c) => {
-    if (c.group !== group || seen.has(c.label)) return false;
-    seen.add(c.label);
-    return true;
-  })
-    .map((c) => ({ label: c.label, href: `/company/${c.label}` }))
-    .sort((a, b) => a.label.localeCompare(b.label, "ko")),
-}));
+// COMPANY_MAP에서 그룹 내 중복 라벨 제거 후 그룹별로 묶기
+// (seen은 그룹별로 분리 — LG 헬스케어처럼 여러 그룹에 속하는 라벨이 누락되지 않도록)
+const NAV_SECTIONS = ["가전&상조", "정수기", "통신"].map((group) => {
+  const seen = new Set<string>();
+  return {
+    group,
+    items: COMPANY_MAP.filter((c) => {
+      if (c.group !== group || seen.has(c.label)) return false;
+      seen.add(c.label);
+      return true;
+    })
+      .map((c) => ({ label: c.label, href: `/company/${c.label}` }))
+      .sort((a, b) => a.label.localeCompare(b.label, "ko")),
+  };
+});
 
 export default function Sidebar() {
   const rawPathname = usePathname();
