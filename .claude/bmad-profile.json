@@ -1,0 +1,10 @@
+{
+  "installed_at": "2026-06-08",
+  "rentre_agents_version": "0.8.4",
+  "platform": "darwin",
+  "link_mode": "symlink",
+  "mcp": {"notion":false,"slack":false,"google_calendar":false,"gmail":false,"linear":false,"figma":false,"github":false},
+  "frameworks": ["bmad-core","gds","wds","fsd"],
+  "bmad_subcategories": ["agents","planning","development","testing","architecture","business","documentation","quality","build_tools","utilities"],
+  "skill_count": 120
+}
