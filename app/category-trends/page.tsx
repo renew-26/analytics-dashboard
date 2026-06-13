@@ -10,7 +10,7 @@ const supabase = createClient(
 );
 
 const PAGE_CONTRACTS = 50000;
-const PAGE_ORDERS = 1000;
+const PAGE_ORDERS = 50000;
 const TOP_N = 5;
 const YOY_THRESHOLD = 0.2;
 const WEEK_REF = new Date("2026-01-02T00:00:00");
@@ -200,10 +200,9 @@ function calcYoYBadges(
 export default async function CategoryTrendsPage() {
   const months24 = getLast24Months();
 
-  // Parallel fetch — two different tables
   const [contractRows, orderRows] = await Promise.all([
     fetchContracts(months24[0].start, months24[months24.length - 1].end),
-    fetchOrders("2026-01-01"),
+    fetchOrders(months24[0].start),
   ]);
 
   // Monthly aggregation — display only the latest 12 months
@@ -271,7 +270,7 @@ export default async function CategoryTrendsPage() {
       }));
   }
 
-  // 신규/이탈 카테고리 감지: 최신월 vs 전월 비교
+// 신규/이탈 카테고리 감지: 최신월 vs 전월 비교
   const latestM = monthList[monthList.length - 1];
   const prevM = monthList[monthList.length - 2] ?? null;
   const latestCats = new Set(
@@ -349,7 +348,7 @@ export default async function CategoryTrendsPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-[#222222]">카테고리 트렌드</h1>
         <p className="text-sm text-[#788093] mt-1">
-          계약완료·주문확정 기준 · 월별 카테고리 비중 및 주별 상품 현황
+          계약완료 기준 · 월별 트렌드 | 주문확정 기준 · 주차별 트렌드
         </p>
       </div>
       <CategoryTrendsClient

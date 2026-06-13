@@ -1,16 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  ResponsiveContainer,
-  Legend,
-} from "recharts";
+import React, { useState, useMemo } from "react";
 import type {
   MonthCategoryData,
   YoYBadge,
@@ -36,6 +26,7 @@ const COLORS = [
 const TOP_N = 5;
 const TAB_LIMIT = 10;
 const ALL = "__all__";
+const EXCLUDE_CATS = new Set(["정수기", "인터넷"]);
 
 type Props = {
   monthlyData: MonthCategoryData[];
@@ -76,7 +67,7 @@ export default function CategoryTrendsClient({
           onClick={() => setActiveTab("monthly")}
         />
         <TabButton
-          label="주별 상품"
+          label="주차별 트렌드"
           active={activeTab === "weekly"}
           onClick={() => setActiveTab("weekly")}
         />
@@ -170,6 +161,7 @@ function MonthlyView({
   categoryChanges: CategoryChange[];
 }) {
   const [drillCat, setDrillCat] = useState<string | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<string>(months[months.length - 1]);
 
   const dataMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -179,44 +171,29 @@ function MonthlyView({
     return map;
   }, [monthlyData]);
 
-  const chartData = useMemo(() => {
-    return months
-      .map((month) => {
-        const total = categories.reduce(
-          (s, cat) => s + (dataMap.get(`${month}::${cat}`) ?? 0),
-          0,
-        );
-        const entry: Record<string, number | string> = { month };
-        for (const cat of categories) {
-          const count = dataMap.get(`${month}::${cat}`) ?? 0;
-          entry[cat] =
-            total > 0 ? parseFloat(((count / total) * 100).toFixed(1)) : 0;
-          entry[`${cat}_count`] = count;
-        }
-        entry["_total"] = total;
-        return entry;
-      })
-      .filter((d) => (d["_total"] as number) > 0); // 데이터 있는 월만 표시
-  }, [months, categories, dataMap]);
-
   const changeMap = useMemo(() => {
     const m = new Map<string, "new" | "gone">();
     for (const c of categoryChanges) m.set(c.category, c.type);
     return m;
   }, [categoryChanges]);
 
-  const latestMonth = months[months.length - 1];
-  const prevMonth = months[months.length - 2] ?? null;
+  const prevMonth = useMemo(() => {
+    const sorted = months.filter((m) =>
+      categories.some((c) => (dataMap.get(`${m}::${c}`) ?? 0) > 0)
+    );
+    const idx = sorted.indexOf(selectedMonth);
+    return idx > 0 ? sorted[idx - 1] : null;
+  }, [months, categories, dataMap, selectedMonth]);
 
-  const latestRows = useMemo(() => {
-    const latestTotal = categories.reduce(
-      (s, cat) => s + (dataMap.get(`${latestMonth}::${cat}`) ?? 0),
+  const selectedRows = useMemo(() => {
+    const total = categories.reduce(
+      (s, cat) => s + (dataMap.get(`${selectedMonth}::${cat}`) ?? 0),
       0,
     );
     return categories
       .map((cat) => {
-        const count = dataMap.get(`${latestMonth}::${cat}`) ?? 0;
-        const pct = latestTotal > 0 ? (count / latestTotal) * 100 : 0;
+        const count = dataMap.get(`${selectedMonth}::${cat}`) ?? 0;
+        const pct = total > 0 ? (count / total) * 100 : 0;
         const prevCount = prevMonth
           ? (dataMap.get(`${prevMonth}::${cat}`) ?? 0)
           : null;
@@ -232,118 +209,32 @@ function MonthlyView({
         return { cat, count, pct, diff };
       })
       .sort((a, b) => b.count - a.count);
-  }, [categories, dataMap, latestMonth, prevMonth]);
+  }, [categories, dataMap, selectedMonth, prevMonth]);
 
   return (
     <div className="space-y-6">
-      {/* 100% Stacked Bar Chart */}
-      <div className="bg-white border border-[#ebebe9] rounded-xl p-5">
-        <h2 className="text-base font-semibold text-[#222222] mb-4">
-          월별 카테고리 비중 (%)
-        </h2>
-        <ResponsiveContainer width="100%" height={320}>
-          <BarChart
-            data={chartData}
-            margin={{ top: 4, right: 24, left: 0, bottom: 4 }}
-          >
-            <CartesianGrid
-              strokeDasharray="3 3"
-              stroke="#ebebe9"
-              vertical={false}
-            />
-            <XAxis
-              dataKey="month"
-              tick={{ fontSize: 11, fill: "#788093" }}
-              axisLine={false}
-              tickLine={false}
-            />
-            <YAxis
-              tick={{ fontSize: 11, fill: "#788093" }}
-              axisLine={false}
-              tickLine={false}
-              unit="%"
-              domain={[0, 100]}
-            />
-            <Tooltip
-              content={({ active, payload, label }) => {
-                if (!active || !payload) return null;
-                const totalEntry = chartData.find((d) => d.month === label);
-                const total = totalEntry
-                  ? (totalEntry["_total"] as number)
-                  : 0;
-                return (
-                  <div
-                    style={{
-                      background: "#fff",
-                      border: "1px solid #ebebe9",
-                      borderRadius: 8,
-                      padding: "10px 14px",
-                      fontSize: 12,
-                      minWidth: 160,
-                    }}
-                  >
-                    <div className="font-semibold text-[#222222] mb-2">
-                      {label}
-                    </div>
-                    {[...payload].reverse().map((p) => {
-                      const catKey = String(p.dataKey);
-                      const count = totalEntry
-                        ? (totalEntry[`${catKey}_count`] as number)
-                        : 0;
-                      return (
-                        <div
-                          key={catKey}
-                          className="flex justify-between gap-4"
-                          style={{ color: p.color }}
-                        >
-                          <span>{catKey}</span>
-                          <span>
-                            {count.toLocaleString("ko-KR")}건 (
-                            {Number(p.value).toFixed(1)}%)
-                          </span>
-                        </div>
-                      );
-                    })}
-                    <div className="mt-1 pt-1 border-t border-[#ebebe9] text-[#586177]">
-                      합계: {total.toLocaleString("ko-KR")}건
-                    </div>
-                  </div>
-                );
-              }}
-            />
-            <Legend
-              wrapperStyle={{ fontSize: 12, paddingTop: 12 }}
-              iconType="circle"
-              iconSize={8}
-            />
-            {categories.map((cat, i) => (
-              <Bar
-                key={cat}
-                dataKey={cat}
-                stackId="a"
-                fill={COLORS[i % COLORS.length]}
-                radius={
-                  i === categories.length - 1 ? [3, 3, 0, 0] : undefined
-                }
-              />
-            ))}
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+      {/* 카테고리 순위 카드 */}
+      <CategoryCardNews
+        months={months}
+        categories={categories}
+        dataMap={dataMap}
+        selectedMonth={selectedMonth}
+        onMonthSelect={(m) => { setSelectedMonth(m); setDrillCat(null); }}
+      />
 
-      {/* 최신 월 테이블 */}
+      {/* 선택 월 테이블 */}
       <div className="bg-white border border-[#ebebe9] rounded-xl overflow-hidden">
         <div className="px-5 py-3 border-b border-[#ebebe9] bg-[#f6f6f6] flex items-center justify-between">
           <div>
             <span className="text-sm font-semibold text-[#393939]">
-              {latestMonth} 카테고리별 현황
+              {selectedMonth} 카테고리별 현황
             </span>
             <span className="ml-2 text-xs text-[#a1a5ac]">
               · 행 클릭 시 렌탈사 현황 확인
             </span>
           </div>
           <button
-            onClick={() => onCategoryClick(latestRows[0]?.cat ?? "")}
+            onClick={() => onCategoryClick(selectedRows[0]?.cat ?? "")}
             className="text-xs text-[#6366f1] hover:underline"
           >
             주별 상품 보기 →
@@ -370,15 +261,14 @@ function MonthlyView({
             </tr>
           </thead>
           <tbody>
-            {latestRows.map((row, i) => {
+            {selectedRows.map((row, i) => {
               const isSelected = drillCat === row.cat;
               const changeType = changeMap.get(row.cat);
-              const drillKey = `${latestMonth}::${row.cat}`;
+              const drillKey = `${selectedMonth}::${row.cat}`;
               const rentalItems = categoryRentalMap[drillKey] ?? [];
               return (
-                <>
+                <React.Fragment key={row.cat}>
                   <tr
-                    key={row.cat}
                     onClick={() => setDrillCat(isSelected ? null : row.cat)}
                     className={`border-b border-[#ebebe9] cursor-pointer transition ${
                       isSelected
@@ -435,7 +325,7 @@ function MonthlyView({
                     <tr key={`${row.cat}-drill`} className="bg-[#edf2ff]">
                       <td colSpan={5} className="px-6 py-4">
                         <div className="text-xs font-semibold text-[#3531FF] mb-3">
-                          {row.cat} · 렌탈사별 비중 ({latestMonth})
+                          {row.cat} · 렌탈사별 비중 ({selectedMonth})
                         </div>
                         <div className="space-y-2">
                           {rentalItems.map((item) => (
@@ -448,11 +338,11 @@ function MonthlyView({
                                   className="h-2 rounded-full"
                                   style={{
                                     width: `${item.pct}%`,
-                                    backgroundColor: "var(--primary)",
+                                    backgroundColor: "#3531FF",
                                   }}
                                 />
                               </div>
-                              <span className="text-xs font-medium text-[#3531FF] w-16 text-right flex-shrink-0">
+                              <span className="text-xs font-medium text-[#3531FF] text-right flex-shrink-0 whitespace-nowrap">
                                 {item.count.toLocaleString("ko-KR")}건 ({item.pct}%)
                               </span>
                             </div>
@@ -461,7 +351,7 @@ function MonthlyView({
                       </td>
                     </tr>
                   )}
-                </>
+                </React.Fragment>
               );
             })}
           </tbody>
@@ -482,6 +372,183 @@ function MonthlyView({
               ))}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Category Card News ───────────────────────────────────────────────────────
+
+function CategoryCardNews({
+  months,
+  categories,
+  dataMap,
+  selectedMonth,
+  onMonthSelect,
+}: {
+  months: string[];
+  categories: string[];
+  dataMap: Map<string, number>;
+  selectedMonth: string;
+  onMonthSelect: (month: string) => void;
+}) {
+  const filteredCats = categories.filter((c) => !EXCLUDE_CATS.has(c));
+
+  // months are chronological asc; reverse so latest is first (leftmost)
+  const reversedMonths = [...months]
+    .reverse()
+    .filter((m) => categories.some((c) => (dataMap.get(`${m}::${c}`) ?? 0) > 0));
+
+  if (reversedMonths.length === 0) return null;
+
+  // Precompute per-month ranked filtered cats (by count, using ALL cats as denominator)
+  type MonthRankInfo = { cat: string; count: number; pct: number; rank: number }[];
+  const ranksByMonth = new Map<string, MonthRankInfo>();
+
+  for (const m of reversedMonths) {
+    const allTotal = categories.reduce((s, c) => s + (dataMap.get(`${m}::${c}`) ?? 0), 0);
+    const ranked = filteredCats
+      .map((cat) => {
+        const count = dataMap.get(`${m}::${cat}`) ?? 0;
+        const pct = allTotal > 0 ? (count / allTotal) * 100 : 0;
+        return { cat, count, pct };
+      })
+      .sort((a, b) => b.pct - a.pct)
+      .slice(0, 7)
+      .map((r, idx) => ({ ...r, rank: idx + 1 }));
+    ranksByMonth.set(m, ranked);
+  }
+
+  return (
+    <div className="bg-white border border-[#ebebe9] rounded-xl p-5">
+      {/* Section header */}
+      <div className="mb-3">
+        <span className="text-base font-semibold text-[#222222]">카테고리 순위 카드</span>
+        <span className="ml-2 text-xs text-[#a1a5ac]">계약완료 기준 · 정수기·인터넷 제외 · 최신월 순</span>
+      </div>
+
+      {/* Horizontally scrollable cards */}
+      <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: "thin" }}>
+        {reversedMonths.map((month, cardIdx) => {
+          const isLatest = cardIdx === 0;
+          const isSelected = month === selectedMonth;
+          const [year, mon] = month.split("-");
+          const allTotal = categories.reduce(
+            (s, c) => s + (dataMap.get(`${month}::${c}`) ?? 0),
+            0,
+          );
+          const rows = ranksByMonth.get(month) ?? [];
+          const maxPct = rows.length > 0 ? rows[0].pct : 1;
+
+          // Previous calendar month (next item in reversedMonths since reversed)
+          const prevMonthCard = reversedMonths[cardIdx + 1] ?? null;
+          const prevRanks = prevMonthCard ? ranksByMonth.get(prevMonthCard) : null;
+
+          return (
+            <div
+              key={month}
+              onClick={() => onMonthSelect(month)}
+              style={{
+                minWidth: 240,
+                maxWidth: 240,
+                borderRadius: 12,
+                border: isSelected ? "2px solid #3531FF" : "2px solid #ebebe9",
+                background: "#ffffff",
+                padding: "14px 16px",
+                flexShrink: 0,
+                cursor: "pointer",
+              }}
+            >
+              {/* Card header */}
+              <div className="flex items-start justify-between mb-2">
+                <div>
+                  <div style={{ fontSize: 10, color: "#788093", fontWeight: 500 }}>{year}년</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: isLatest ? "#3531FF" : "#222222", lineHeight: 1.1 }}>
+                    {parseInt(mon, 10)}월
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div style={{ fontSize: 11, color: "#586177" }}>
+                    {allTotal.toLocaleString("ko-KR")}건
+                  </div>
+                </div>
+              </div>
+
+              {/* Ranked rows */}
+              <div className="flex flex-col gap-1.5">
+                {rows.map((row) => {
+                  // rank change vs previous month
+                  const prevRankInfo = prevRanks?.find((r) => r.cat === row.cat);
+                  const prevRankNum = prevRankInfo?.rank ?? null;
+                  const rankDelta = prevRankNum !== null ? prevRankNum - row.rank : null;
+
+                  const barColor = COLORS[filteredCats.indexOf(row.cat) % COLORS.length];
+                  const barWidth = maxPct > 0 ? (row.pct / maxPct) * 100 : 0;
+
+                  return (
+                    <div key={row.cat}>
+                      {/* Rank + name + pct */}
+                      <div className="flex items-center gap-1" style={{ fontSize: 11 }}>
+                        {/* Rank number */}
+                        <span style={{ color: "#a1a5ac", width: 14, flexShrink: 0, fontWeight: 600 }}>
+                          {row.rank}
+                        </span>
+                        {/* Rank change */}
+                        <span style={{ width: 22, flexShrink: 0, fontSize: 10 }}>
+                          {rankDelta === null ? (
+                            <span style={{ color: "#a1a5ac" }}>—</span>
+                          ) : rankDelta > 0 ? (
+                            <span style={{ color: "#f90000" }}>▲{rankDelta}</span>
+                          ) : rankDelta < 0 ? (
+                            <span style={{ color: "#3531FF" }}>▼{Math.abs(rankDelta)}</span>
+                          ) : (
+                            <span style={{ color: "#a1a5ac" }}>—</span>
+                          )}
+                        </span>
+                        {/* Category name */}
+                        <span
+                          style={{
+                            flex: 1,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                            color: "#393939",
+                          }}
+                        >
+                          {row.cat}
+                        </span>
+                        {/* Pct */}
+                        <span style={{ fontWeight: 700, color: "#222222", flexShrink: 0 }}>
+                          {row.pct.toFixed(1)}%
+                        </span>
+                      </div>
+                      {/* Bar */}
+                      <div
+                        style={{
+                          marginTop: 2,
+                          marginLeft: 36,
+                          height: 4,
+                          borderRadius: 9999,
+                          background: "#f3f5f9",
+                          overflow: "hidden",
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: `${barWidth}%`,
+                            height: "100%",
+                            borderRadius: 9999,
+                            background: barColor,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
