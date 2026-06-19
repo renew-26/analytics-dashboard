@@ -28,10 +28,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-.omc/*
+
 
 # claude code — machine-specific / generated (keep settings.json, CLAUDE.md)
-.claude/skills/
-.claude/commands/rentre/
-.claude/bmad-profile.json
-.claude/settings.local.json
+.claude/*
+.omc/*
