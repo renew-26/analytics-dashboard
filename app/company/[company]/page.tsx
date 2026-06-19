@@ -52,6 +52,9 @@ interface DataRow {
   dateStr: string;
   total_rental_fee: number | null;
   contribution_margin: number | null;
+  monthly_fee: number | null;
+  sales_incentive: number | null;
+  contract_months: number | null;
   category: string | null;
   product_name: string | null;
   model_name: string | null;
@@ -202,6 +205,101 @@ function aggregateByCategoryProduct(
       const bTotal = b.products.reduce((s, p) => s + p.count, 0);
       return bTotal - aTotal;
     });
+}
+
+interface ProductDetail {
+  product_name: string;
+  model_name: string;
+  count: number;
+  topContractMonths: number | null;
+  topPeriodFee: number;
+  avgIncentive: number;
+  avgMargin: number;
+}
+
+// (카테고리, 표시열인덱스 i) → 제품 상세 목록.
+// weekIndices[i] = i번째 표시 열에 대응하는 실제 weekIndex. 키는 표시열 i 기준으로 맞춰
+// CategoryTable의 counts 배열 인덱스와 직접 매칭한다.
+function aggregateByCategoryWeekProduct(
+  rows: DataRow[],
+  weekIndices: number[],
+): Record<string, ProductDetail[]> {
+  const idxToCol = new Map<number, number>();
+  weekIndices.forEach((wi, i) => idxToCol.set(wi, i));
+
+  // bucketKey `${category}::${i}` → productKey → 누적값
+  const buckets = new Map<
+    string,
+    Map<
+      string,
+      {
+        count: number;
+        incentive: number;
+        margin: number;
+        // 계약기간(개월) → 해당 기간 건수/월렌탈료 합계
+        periods: Map<number, { count: number; feeSum: number }>;
+      }
+    >
+  >();
+
+  for (const row of rows) {
+    const col = idxToCol.get(getWeekIndex(row.dateStr));
+    if (col === undefined) continue;
+    const cat = row.category ?? "기타";
+    const bucketKey = `${cat}::${col}`;
+    const productKey = `${row.product_name ?? ""}|${row.model_name ?? ""}`;
+    if (!buckets.has(bucketKey)) buckets.set(bucketKey, new Map());
+    const pm = buckets.get(bucketKey)!;
+    const cur =
+      pm.get(productKey) ?? {
+        count: 0,
+        incentive: 0,
+        margin: 0,
+        periods: new Map<number, { count: number; feeSum: number }>(),
+      };
+    cur.count += 1;
+    cur.incentive += row.sales_incentive ?? 0;
+    cur.margin += row.contribution_margin ?? 0;
+    const months = row.contract_months;
+    if (months != null) {
+      const p = cur.periods.get(months) ?? { count: 0, feeSum: 0 };
+      p.count += 1;
+      p.feeSum += row.monthly_fee ?? 0;
+      cur.periods.set(months, p);
+    }
+    pm.set(productKey, cur);
+  }
+
+  const result: Record<string, ProductDetail[]> = {};
+  for (const [bucketKey, pm] of buckets.entries()) {
+    result[bucketKey] = Array.from(pm.entries())
+      .map(([productKey, val]) => {
+        const [product_name, model_name] = productKey.split("|");
+        // 가장 많이 팔린 계약기간(상위 계약기간)과 그 기간의 평균 월렌탈료
+        let topContractMonths: number | null = null;
+        let topPeriodFee = 0;
+        let topCount = -1;
+        for (const [months, p] of val.periods.entries()) {
+          if (p.count > topCount) {
+            topCount = p.count;
+            topContractMonths = months;
+            topPeriodFee = Math.round(p.feeSum / p.count);
+          }
+        }
+        return {
+          product_name,
+          model_name,
+          count: val.count,
+          topContractMonths,
+          topPeriodFee,
+          avgIncentive: Math.round(val.incentive / val.count),
+          avgMargin: Math.round(val.margin / val.count),
+        };
+      })
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+  }
+  return result;
 }
 
 function aggregateByMonth(rows: DataRow[]) {
@@ -387,7 +485,7 @@ export default async function CompanyPage({
       let q = supabase
         .from("raw_orders")
         .select(
-          "order_confirmed_at, total_rental_fee, contribution_margin, category, product_name, model_name, partner_company",
+          "order_confirmed_at, total_rental_fee, contribution_margin, monthly_fee, sales_incentive, contract_months, category, product_name, model_name, partner_company",
         )
         .eq("rental_company", dbName);
       if (mapping.categoryIs) {
@@ -412,6 +510,9 @@ export default async function CompanyPage({
           dateStr: r.order_confirmed_at,
           total_rental_fee: r.total_rental_fee,
           contribution_margin: r.contribution_margin,
+          monthly_fee: r.monthly_fee,
+          sales_incentive: r.sales_incentive,
+          contract_months: r.contract_months,
           category: normalizeCategory(r.category),
           product_name: r.product_name,
           model_name: r.model_name,
@@ -427,7 +528,7 @@ export default async function CompanyPage({
       let q = supabase
         .from("raw_contracts")
         .select(
-          "contract_date, total_rental_fee, contribution_margin, category, product_name, model_name, partner_company",
+          "contract_date, total_rental_fee, contribution_margin, monthly_fee, sales_incentive, contract_months, category, product_name, model_name, partner_company",
         )
         .eq("rental_company", dbName);
       if (mapping.categoryIs) {
@@ -452,6 +553,9 @@ export default async function CompanyPage({
           dateStr: r.contract_date,
           total_rental_fee: r.total_rental_fee,
           contribution_margin: r.contribution_margin,
+          monthly_fee: r.monthly_fee,
+          sales_incentive: r.sales_incentive,
+          contract_months: r.contract_months,
           category: normalizeCategory(r.category),
           product_name: r.product_name,
           model_name: r.model_name,
@@ -488,6 +592,10 @@ export default async function CompanyPage({
   const weekIndices = weeks.map((w) => w.idx);
   const categoryStats = aggregateByCategory(filteredRows, weekIndices);
   const categoryProductStats = aggregateByCategoryProduct(filteredRows);
+  const categoryWeekProducts = aggregateByCategoryWeekProduct(
+    filteredRows,
+    weekIndices,
+  );
 
   // 카테고리 포지션
   const GROUP_CATEGORIES: Record<string, string[]> = {
@@ -1516,6 +1624,7 @@ export default async function CompanyPage({
         categoryStats={categoryStats}
         weeks={weeks}
         totalCount={totalCount}
+        weekProducts={categoryWeekProducts}
       />
 
       {/* 카테고리 포지션 */}
