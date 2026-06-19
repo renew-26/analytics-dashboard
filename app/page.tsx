@@ -296,14 +296,14 @@ export default async function Home() {
       .from("raw_contracts")
       .select("*", { count: "exact", head: true })
       .eq("category", "정수기")
-      .eq("partner_company", "더블체크 파트너스")
+      .eq("partner_company", "더블체크파트너스")
       .gte("contract_date", curr.start)
       .lte("contract_date", curr.end),
     supabase
       .from("raw_contracts")
       .select("*", { count: "exact", head: true })
       .eq("category", "정수기")
-      .eq("partner_company", "더블체크 파트너스")
+      .eq("partner_company", "더블체크파트너스")
       .gte("contract_date", prev.start)
       .lte("contract_date", prev.end),
     fetchContracts(curr.start, curr.end),
