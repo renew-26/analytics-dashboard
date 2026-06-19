@@ -131,6 +131,11 @@ export default function Sidebar() {
           label="렌탈사 비교"
           active={pathname === "/compare"}
         />
+        <NavItem
+          href="/brand-analysis"
+          label="브랜드 분석"
+          active={pathname === "/brand-analysis"}
+        />
 
         {/* 시장 조사 섹션 */}
         <SectionHeader label="시장 조사" />
