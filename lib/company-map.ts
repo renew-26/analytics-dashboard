@@ -39,7 +39,7 @@ export const COMPANY_MAP: {
   { label: "쿠쿠", dbName: "쿠쿠", group: "정수기" },
   { label: "청호", dbName: "청호", group: "정수기" },
   {
-    label: "LG_헬스케어",
+    label: "LG_가전구독",
     dbName: "LG",
     group: "정수기",
     categoryIs: ["정수기", "공기청정기", "비데"],
@@ -57,7 +57,7 @@ export const COMPANY_MAP: {
 export const MAIN_RENTAL_COMPANIES: { label: string; dbName: string }[] = [
   { label: "코웨이", dbName: "코웨이" },
   { label: "쿠쿠", dbName: "쿠쿠" },
-  { label: "LG 헬스케어", dbName: "LG" },
+  { label: "LG_가전구독", dbName: "LG" },
   { label: "SK인텔릭스", dbName: "SK인텔릭스" },
   { label: "현대유버스", dbName: "유버스(현대렌탈서비스)" },
   { label: "이니렌탈", dbName: "이니렌탈" },
