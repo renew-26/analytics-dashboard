@@ -13,6 +13,7 @@ const QUERY_ID_CONTRACT = 4445;
 const QUERY_ID_ORDER = 4441;
 const QUERY_ID_AUTO_QUOTE = 4404;
 const QUERY_ID_AUTO_QUOTE_TYPEA = 4403;
+const QUERY_ID_TPS_PNL = 4405;
 
 interface RedashContractRow {
   PROP_ITEM_USID: number;
@@ -69,6 +70,7 @@ async function fetchRedashData(
   startDate?: string,
   endDate?: string,
   rowLimit: string | number = 100000,
+  dateParamName: string = "조회기간",
 ): Promise<unknown[]> {
   const initRes = await fetch(`${REDASH_URL}/api/queries/${queryId}`, {
     headers: { Authorization: `Key ${REDASH_API_KEY}` },
@@ -87,7 +89,7 @@ async function fetchRedashData(
 
   const parameters: Record<string, unknown> = { row_limit: rowLimit };
   if (startDate && endDate) {
-    parameters["조회기간"] = { start: startDate, end: endDate };
+    parameters[dateParamName] = { start: startDate, end: endDate };
   }
 
   const jobRes = await fetch(`${REDASH_URL}/api/queries/${queryId}/results`, {
@@ -128,7 +130,53 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}));
     const startDate = body.startDate ?? "2026-01-01";
     const endDate = body.endDate ?? new Date().toISOString().slice(0, 10);
-    const type: "contract" | "order" | "auto_quote" | "auto_quote_typea" = body.type ?? "contract";
+    const type: "contract" | "order" | "auto_quote" | "auto_quote_typea" | "tps_pnl" = body.type ?? "contract";
+
+    if (type === "tps_pnl") {
+      const rows = (await fetchRedashData(QUERY_ID_TPS_PNL, startDate, endDate, 100000, "견적완료일시")) as Record<string, unknown>[];
+
+      const records = rows
+        .filter((r) => r["PROP_ITEM_USID"])
+        .map((r) => {
+          const n = (k: string) => { const v = r[k]; return (v === null || v === undefined || v === "") ? null : Number(v); };
+          const s = (k: string) => (r[k] as string | null) ?? null;
+          return {
+            prop_item_usid: r["PROP_ITEM_USID"] as number,
+            brand: s("대상 제품 브랜드"),
+            model_code: s("대상 제품 모델코드"),
+            monthly_fee: n("월렌탈료"),
+            contract_months: n("계약기간") !== null ? Math.round(n("계약기간")!) : null,
+            total_subsidy: n("총 지원금 (수량반영)"),
+            voucher: n("상품권 (수량반영)"),
+            coupon_amount: n("쿠폰 금액"),
+            event_subsidy: n("이벤트 지원금"),
+            extra_reward_subsidy: n("2만원 추가 보상제 지원금"),
+            layer3_subsidy: n("LAYER3 지원금"),
+            total_contract_amount: n("총 계약금액 (수량반영)"),
+            quote_status: s("견적상태"),
+            order_confirmed_at: s("주문확정일") ? s("주문확정일")!.slice(0, 10) : null,
+            contract_completed_at: s("계약완료일 (지원금 지급일)") ? s("계약완료일 (지원금 지급일)")!.slice(0, 10) : null,
+            sales: n("매출"),
+            bad_debt: n("대손비"),
+            promotion: n("프로모션"),
+            settle_status: s("정산 상태"),
+            target_margin: n("공헌이익_타겟마진"),
+            synced_at: new Date().toISOString(),
+          };
+        });
+
+      const deduped = Object.values(
+        Object.fromEntries(records.map((r) => [r.prop_item_usid, r]))
+      );
+
+      const { error } = await supabase.from("tps_pnl").upsert(deduped, {
+        onConflict: "prop_item_usid",
+        ignoreDuplicates: false,
+      });
+
+      if (error) throw new Error(JSON.stringify(error));
+      return NextResponse.json({ ok: true, fetched: rows.length, upserted: deduped.length });
+    }
 
     if (type === "auto_quote_typea") {
       const rows = (await fetchRedashData(QUERY_ID_AUTO_QUOTE_TYPEA, undefined, undefined, "100000")) as Record<string, unknown>[];

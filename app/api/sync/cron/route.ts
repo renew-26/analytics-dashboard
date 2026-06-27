@@ -28,6 +28,17 @@ export async function GET(req: Request) {
     results[type] = await res.json();
   }
 
+  // tps_pnl: 올해 전체 기준 upsert
+  {
+    const yearStart = `${new Date().getFullYear()}-01-01`;
+    const res = await fetch(base, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "tps_pnl", startDate: yearStart, endDate: today }),
+    });
+    results["tps_pnl"] = await res.json();
+  }
+
   // 날짜 범위 없이 전체 동기화
   for (const type of ["auto_quote", "auto_quote_typea"] as const) {
     const res = await fetch(base, {
