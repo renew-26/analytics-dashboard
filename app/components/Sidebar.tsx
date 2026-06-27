@@ -136,6 +136,11 @@ export default function Sidebar() {
           label="브랜드 분석"
           active={pathname === "/brand-analysis"}
         />
+        <NavItem
+          href="/exception-approval"
+          label="예외승인 분석"
+          active={pathname === "/exception-approval"}
+        />
 
         {/* 시장 조사 섹션 */}
         <SectionHeader label="시장 조사" />
