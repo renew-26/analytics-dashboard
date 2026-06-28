@@ -114,27 +114,25 @@ export default function Sidebar() {
           );
         })}
 
-        {/* 분석 섹션 */}
-        <SectionHeader label="분석" />
-        <NavItem
-          href="/conversion"
-          label="전환율 분석"
-          active={pathname === "/conversion"}
-        />
+        {/* 상품 전략 섹션 */}
+        <SectionHeader label="상품 전략" />
         <NavItem
           href="/category-trends"
           label="카테고리 트렌드"
           active={pathname === "/category-trends"}
         />
         <NavItem
-          href="/compare"
-          label="렌탈사 비교"
-          active={pathname === "/compare"}
-        />
-        <NavItem
           href="/brand-analysis"
           label="브랜드 분석"
           active={pathname === "/brand-analysis"}
+        />
+
+        {/* 수익성 분석 섹션 */}
+        <SectionHeader label="수익성 분석" />
+        <NavItem
+          href="/profitability"
+          label="공헌이익 분석"
+          active={pathname === "/profitability"}
         />
         <NavItem
           href="/exception-approval"
@@ -142,8 +140,26 @@ export default function Sidebar() {
           active={pathname === "/exception-approval"}
         />
 
-        {/* 시장 조사 섹션 */}
-        <SectionHeader label="시장 조사" />
+        {/* 렌탈사 분석 섹션 */}
+        <SectionHeader label="렌탈사 분석" />
+        <NavItem
+          href="/compare"
+          label="렌탈사 비교"
+          active={pathname === "/compare"}
+        />
+        <NavItem
+          href="/conversion"
+          label="전환율 분석"
+          active={pathname === "/conversion"}
+        />
+
+        {/* 시장 정보 섹션 */}
+        <SectionHeader label="시장 정보" />
+        <NavItem
+          href="/auto-quote"
+          label="자동견적 비교"
+          active={pathname === "/auto-quote"}
+        />
         <NavItem
           href="/competitive-subsidy"
           label="경쟁사 지원금 조사"

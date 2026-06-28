@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, Fragment } from "react";
 import type { BrandRow } from "./page";
 
 type Props = {
@@ -9,6 +9,8 @@ type Props = {
   categories: string[]; // 계약건수 내림차순
   months: string[]; // YYYY-MM, 오름차순 6개
 };
+
+type TabKey = "brand" | "product";
 
 const TOP_N = 5;
 
@@ -46,6 +48,7 @@ export default function BrandAnalysisClient({
   categories,
   months,
 }: Props) {
+  const [activeTab, setActiveTab] = useState<TabKey>("brand");
   const [period, setPeriod] = useState<PeriodKey>("3m");
   const [catFilter, setCatFilter] = useState<string | null>(null); // null = 전체
   const [openProduct, setOpenProduct] = useState<{
@@ -222,6 +225,39 @@ export default function BrandAnalysisClient({
 
   return (
     <div className="space-y-6">
+      {/* 탭 바 */}
+      <div className="flex border-b border-[#e2e6ec]">
+        {(
+          [
+            { key: "brand", label: "브랜드 분석" },
+            { key: "product", label: "상품별 성과" },
+          ] as const
+        ).map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className="px-4 py-2.5 text-sm font-medium transition-colors relative"
+            style={
+              activeTab === tab.key
+                ? { color: "var(--primary, #3531FF)" }
+                : { color: "var(--gray-500, #788093)" }
+            }
+          >
+            {tab.label}
+            {activeTab === tab.key && (
+              <span
+                className="absolute bottom-0 left-0 right-0 h-0.5"
+                style={{ background: "var(--primary, #3531FF)" }}
+              />
+            )}
+          </button>
+        ))}
+      </div>
+
+      <div hidden={activeTab !== "product"}>
+        <ProductPerformanceTab data={data} categories={categories} />
+      </div>
+      <div hidden={activeTab !== "brand"} className="space-y-6">
       {/* 기간 토글 */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex gap-1">
@@ -449,6 +485,244 @@ export default function BrandAnalysisClient({
           })}
         </div>
       )}
+      </div>
+    </div>
+  );
+}
+
+type ProductSortKey = "count" | "sales" | "marginSum" | "marginRate";
+
+type ProductPerfRow = {
+  product: string;
+  category: string;
+  brand: string;
+  term: number | null; // null when not grouped by term
+  count: number;
+  sales: number;
+  marginSum: number;
+  marginRate: number;
+};
+
+function ProductPerformanceTab({
+  data,
+  categories,
+}: {
+  data: BrandRow[];
+  categories: string[];
+}) {
+  const [catFilter, setCatFilter] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<ProductSortKey>("count");
+  const [sortAsc, setSortAsc] = useState(false);
+  const [groupByTerm, setGroupByTerm] = useState(false);
+  const [catOpen, setCatOpen] = useState(false);
+
+  function handleSort(key: ProductSortKey) {
+    if (sortKey === key) {
+      setSortAsc((v) => !v);
+    } else {
+      setSortKey(key);
+      setSortAsc(false);
+    }
+  }
+
+  const rows = useMemo<ProductPerfRow[]>(() => {
+    type Agg = { category: string; brand: string; count: number; sales: number; marginSum: number };
+    const map = new Map<string, Agg>();
+    for (const d of data) {
+      if (catFilter !== null && d.category !== catFilter) continue;
+      const key = groupByTerm
+        ? `${d.product}::${d.term}`
+        : d.product;
+      const prev = map.get(key);
+      if (!prev) {
+        map.set(key, {
+          category: d.category,
+          brand: d.brand,
+          count: d.count,
+          sales: d.sales,
+          marginSum: d.marginSum,
+        });
+      } else {
+        prev.count += d.count;
+        prev.sales += d.sales;
+        prev.marginSum += d.marginSum;
+      }
+    }
+    return [...map.entries()].map(([key, v]) => {
+      const parts = key.split("::");
+      const product = groupByTerm ? parts[0] : key;
+      const term = groupByTerm ? Number(parts[1]) : null;
+      return {
+        product,
+        category: v.category,
+        brand: v.brand,
+        term,
+        count: v.count,
+        sales: v.sales,
+        marginSum: v.marginSum,
+        marginRate: v.sales > 0 ? (v.marginSum / v.sales) * 100 : 0,
+      };
+    });
+  }, [data, catFilter, groupByTerm]);
+
+  const sorted = useMemo(() => {
+    return [...rows].sort((a, b) => {
+      const diff = a[sortKey] - b[sortKey];
+      return sortAsc ? diff : -diff;
+    });
+  }, [rows, sortKey, sortAsc]);
+
+  function SortTh({
+    label,
+    col,
+  }: {
+    label: string;
+    col: ProductSortKey;
+  }) {
+    const active = sortKey === col;
+    return (
+      <th
+        className="px-3 py-2.5 text-right cursor-pointer select-none whitespace-nowrap"
+        onClick={() => handleSort(col)}
+      >
+        <span
+          className="text-xs font-semibold"
+          style={{ color: active ? "var(--primary, #3531FF)" : "#788093" }}
+        >
+          {label}
+          <span className="ml-0.5 text-[10px]">
+            {active ? (sortAsc ? "▲" : "▼") : ""}
+          </span>
+        </span>
+      </th>
+    );
+  }
+
+  const selectedCatLabel = catFilter ?? "전체";
+
+  return (
+    <div className="space-y-4">
+      {/* 필터 + 토글 행 */}
+      <div className="flex items-center gap-3 flex-wrap">
+        {/* 카테고리 드롭다운 */}
+        <div className="relative">
+          <button
+            onClick={() => setCatOpen((v) => !v)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#e2e6ec] bg-white text-sm font-medium text-[#393939] hover:bg-[#f3f5f9] transition-colors"
+          >
+            <span className="text-[#a1a5ac] text-xs">카테고리</span>
+            <span>{selectedCatLabel}</span>
+            <span className="text-[10px] text-[#a1a5ac]">▾</span>
+          </button>
+          {catOpen && (
+            <div
+              className="absolute top-full left-0 mt-1 bg-white border border-[#e2e6ec] rounded-xl shadow-lg z-10 py-1.5 min-w-[140px]"
+              style={{ boxShadow: "var(--sh-card, 0 4px 16px 0 rgba(142,142,142,0.30))" }}
+            >
+              {[null, ...categories].map((cat) => (
+                <button
+                  key={cat ?? "__all__"}
+                  onClick={() => {
+                    setCatFilter(cat);
+                    setCatOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-1.5 text-sm hover:bg-[#f3f5f9] transition-colors"
+                  style={{
+                    color: catFilter === cat ? "var(--primary, #3531FF)" : "#393939",
+                    fontWeight: catFilter === cat ? 600 : 400,
+                  }}
+                >
+                  {cat ?? "전체"}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 계약기간 그룹핑 토글 */}
+        <button
+          onClick={() => setGroupByTerm((v) => !v)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors"
+          style={
+            groupByTerm
+              ? { background: "#3531FF", color: "#fff", borderColor: "#3531FF" }
+              : { background: "#fff", color: "#586177", borderColor: "#e2e6ec" }
+          }
+        >
+          <span className="text-xs">계약기간별 분리</span>
+        </button>
+
+        <span className="text-xs text-[#a1a5ac] ml-auto">
+          {sorted.length.toLocaleString("ko-KR")}개 상품
+        </span>
+      </div>
+
+      {/* 테이블 */}
+      <div className="bg-white border border-[#ebebe9] rounded-xl overflow-hidden">
+        {sorted.length === 0 ? (
+          <div className="px-6 py-12 text-center text-[#a1a5ac] text-sm">
+            데이터가 없습니다
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-[#f3f5f9] border-b border-[#e2e6ec]">
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-[#788093] w-8">#</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-[#788093]">상품명</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-[#788093] whitespace-nowrap">카테고리</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-[#788093] whitespace-nowrap">브랜드</th>
+                  {groupByTerm && (
+                    <th className="px-3 py-2.5 text-right text-xs font-semibold text-[#788093] whitespace-nowrap">계약기간</th>
+                  )}
+                  <SortTh label="건수" col="count" />
+                  <SortTh label="매출" col="sales" />
+                  <SortTh label="공헌이익" col="marginSum" />
+                  <SortTh label="공헌이익률" col="marginRate" />
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map((row, i) => (
+                  <tr
+                    key={groupByTerm ? `${row.product}::${row.term}` : row.product}
+                    className="border-b border-[#f3f5f9] hover:bg-[#f9fafb] transition-colors"
+                  >
+                    <td className="px-3 py-2.5 text-xs text-[#a1a5ac]">{i + 1}</td>
+                    <td className="px-3 py-2.5 text-sm font-medium text-[#222222] max-w-[220px]">
+                      <span className="block truncate" title={row.product}>
+                        {row.product}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-xs text-[#586177] whitespace-nowrap">{row.category}</td>
+                    <td className="px-3 py-2.5 text-xs text-[#586177] whitespace-nowrap">{row.brand}</td>
+                    {groupByTerm && (
+                      <td className="px-3 py-2.5 text-xs text-right text-[#586177] whitespace-nowrap">
+                        {row.term && row.term > 0 ? `${row.term}개월` : "-"}
+                      </td>
+                    )}
+                    <td className="px-3 py-2.5 text-xs text-right font-medium text-[#393939] whitespace-nowrap">
+                      {row.count.toLocaleString("ko-KR")}건
+                    </td>
+                    <td className="px-3 py-2.5 text-xs text-right font-medium text-[#393939] whitespace-nowrap">
+                      {Math.round(row.sales).toLocaleString("ko-KR")}원
+                    </td>
+                    <td className="px-3 py-2.5 text-xs text-right font-medium whitespace-nowrap"
+                      style={{ color: row.marginSum >= 0 ? "var(--success, #1EA85E)" : "var(--warning, #F90000)" }}
+                    >
+                      {Math.round(row.marginSum).toLocaleString("ko-KR")}원
+                    </td>
+                    <td className="px-3 py-2.5 text-xs text-right font-semibold whitespace-nowrap"
+                      style={{ color: row.marginRate >= 0 ? "var(--success, #1EA85E)" : "var(--warning, #F90000)" }}
+                    >
+                      {row.marginRate.toFixed(1)}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

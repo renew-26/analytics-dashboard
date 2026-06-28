@@ -94,20 +94,35 @@ function IdxCell({
 type ContractRow = {
   partner_company: string | null;
   total_rental_fee: number | null;
+  contribution_margin: number | null;
+  bad_debt: number | null;
+  sales_incentive: number | null;
+  sales: number | null;
 };
 
 function aggregateByBM(rows: ContractRow[]) {
   const counts = { BM1: 0, BM2: 0, BM3: 0, total: 0 };
   const revenue = { BM1: 0, BM2: 0, BM3: 0, total: 0 };
+  const margin = { BM1: 0, BM2: 0, BM3: 0, total: 0 };
+  const badDebt = { BM1: 0, BM2: 0, BM3: 0, total: 0 };
+  const incentive = { BM1: 0, BM2: 0, BM3: 0, total: 0 };
+  const salesTotal = { BM1: 0, BM2: 0, BM3: 0, total: 0 };
   for (const r of rows) {
     const bm = getBM(r.partner_company);
-    const fee = r.total_rental_fee ?? 0;
     counts[bm]++;
     counts.total++;
-    revenue[bm] += fee;
-    revenue.total += fee;
+    revenue[bm] += r.total_rental_fee ?? 0;
+    revenue.total += r.total_rental_fee ?? 0;
+    margin[bm] += r.contribution_margin ?? 0;
+    margin.total += r.contribution_margin ?? 0;
+    badDebt[bm] += r.bad_debt ?? 0;
+    badDebt.total += r.bad_debt ?? 0;
+    incentive[bm] += r.sales_incentive ?? 0;
+    incentive.total += r.sales_incentive ?? 0;
+    salesTotal[bm] += r.sales ?? 0;
+    salesTotal.total += r.sales ?? 0;
   }
-  return { counts, revenue };
+  return { counts, revenue, margin, badDebt, incentive, salesTotal };
 }
 
 async function fetchContracts(
@@ -120,7 +135,7 @@ async function fetchContracts(
   while (true) {
     const { data, error } = await supabase
       .from("raw_contracts")
-      .select("partner_company, total_rental_fee")
+      .select("partner_company, total_rental_fee, contribution_margin, bad_debt, sales_incentive, sales")
       .gte("contract_date", start)
       .lte("contract_date", end)
       .order("prop_item_usid", { ascending: true })
@@ -325,6 +340,7 @@ export default async function Home() {
   // ── 섹션 1 집계
   const currAgg = aggregateByBM(currContracts);
   const prevAgg = aggregateByBM(prevContracts);
+  const { margin: currMargin, badDebt: currBadDebt, incentive: currIncentive, salesTotal: currSalesTotal } = currAgg;
 
   const cmpMetrics: { label: string; curr: number; prev: number }[] = [
     {
@@ -852,6 +868,89 @@ export default async function Home() {
           </div>
         </div>
       </div>
+
+      {/* ── Section 3: BM 수익성 ── */}
+      <details className="group">
+        <summary className="text-base font-semibold text-gray-700 cursor-pointer list-none flex items-center gap-2 select-none">
+          <span className="text-gray-400 group-open:rotate-90 transition-transform inline-block">▶</span>
+          3. BM 수익성 분석
+        </summary>
+        <div className="mt-3 grid grid-cols-3 gap-4">
+          {/* 카드 1: BM별 공헌이익률 */}
+          <div className="rounded-xl shadow-sm border border-gray-100 bg-white p-5">
+            <h3 className="text-sm font-semibold text-gray-700 mb-4">BM별 공헌이익률</h3>
+            <div className="space-y-3">
+              {(["BM1", "BM2", "BM3", "total"] as const).map((bm) => {
+                const s = currSalesTotal[bm];
+                const r = s > 0 ? (currMargin[bm] / s) * 100 : null;
+                return (
+                  <div key={bm} className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-gray-500">
+                      {bm === "total" ? "전체" : bm}
+                    </span>
+                    <span
+                      className="text-sm font-bold"
+                      style={{ color: r === null ? "#d1d5db" : r >= 0 ? "var(--color-up)" : "var(--color-down)" }}
+                    >
+                      {r === null ? "-" : `${r.toFixed(1)}%`}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 카드 2: BM별 대손율 */}
+          <div className="rounded-xl shadow-sm border border-gray-100 bg-white p-5">
+            <h3 className="text-sm font-semibold text-gray-700 mb-4">BM별 대손율</h3>
+            <div className="space-y-3">
+              {(["BM1", "BM2", "BM3", "total"] as const).map((bm) => {
+                const s = currSalesTotal[bm];
+                const r = s > 0 ? (currBadDebt[bm] / s) * 100 : null;
+                const isHigh = r !== null && r > 5;
+                return (
+                  <div key={bm} className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-gray-500">
+                      {bm === "total" ? "전체" : bm}
+                    </span>
+                    <span
+                      className="text-sm font-bold"
+                      style={{ color: r === null ? "#d1d5db" : isHigh ? "var(--color-down)" : "#393939" }}
+                    >
+                      {r === null ? "-" : `${r.toFixed(1)}%`}
+                      {isHigh && <span className="ml-1 text-xs">⚠</span>}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 카드 3: BM별 인센티브 효율 */}
+          <div className="rounded-xl shadow-sm border border-gray-100 bg-white p-5">
+            <h3 className="text-sm font-semibold text-gray-700 mb-4">BM별 인센티브 효율</h3>
+            <div className="space-y-3">
+              {(["BM1", "BM2", "BM3", "total"] as const).map((bm) => {
+                const s = currSalesTotal[bm];
+                const r = s > 0 ? (currIncentive[bm] / s) * 100 : null;
+                return (
+                  <div key={bm} className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-gray-500">
+                      {bm === "total" ? "전체" : bm}
+                    </span>
+                    <span
+                      className="text-sm font-bold"
+                      style={{ color: r === null ? "#d1d5db" : "#393939" }}
+                    >
+                      {r === null ? "-" : `${r.toFixed(1)}%`}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </details>
     </div>
   );
 }
