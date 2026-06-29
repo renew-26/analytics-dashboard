@@ -57,8 +57,8 @@ export type BrandBreakdown = {
   totalCount: number;
   exceptionCount: number;
   exceptionRate: number;
-  avgContributionMargin: number;
-  marginHitRate: number;
+  totalTargetMarginHit: number;
+  totalBadDebtHit: number;
 };
 
 export type ContributionComparison = {
@@ -94,13 +94,13 @@ export type ExceptionDetail = {
   sales: number;
   ourSubsidy: number;
   voucher: number;
-  brandCost: number;
-  room: number;
   targetMargin: number;
   badDebt: number;
-  minRequired: number;
   exceptionAmount: number;
   contributionMargin: number;
+  totalSubsidy: number;
+  targetMarginHit: number;
+  badDebtHit: number;
   marginImpact: "safe" | "margin_hit" | "both_hit";
 };
 
@@ -192,21 +192,19 @@ function buildMonthlySummary(
       ? Number(((exceptionBadDebt / exceptionSales) * 100).toFixed(1))
       : 0;
 
-    // 건별 까임 비율 계산
-    const BRAND_COST = 20000;
+    // 건별 까임 비율 계산 (타겟마진+대손비 합산 대비)
     let marginHitCount = 0;
     let badDebtHitCount = 0;
     for (const r of exceptionRows) {
       const s = r.sales ?? 0;
       const sub = (r.total_subsidy ?? 0) + (r.coupon_amount ?? 0) + (r.layer3_subsidy ?? 0);
-      const rm = s - sub;
       const exc = r.event_subsidy ?? 0;
-      const v = r.voucher ?? 0;
-      const cm = rm - exc + BRAND_COST + v;
+      const available = s + (r.voucher ?? 0) + 20000 - (sub + exc);
       const tm = r.target_margin ?? 0;
       const bd = r.bad_debt ?? 0;
-      if (cm < bd) badDebtHitCount++;
-      if (cm < tm + bd) marginHitCount++;
+      const shortfall = Math.max(0, (tm + bd) - Math.max(0, available));
+      if (shortfall > 0) marginHitCount++;
+      if (shortfall > tm) badDebtHitCount++;
     }
 
     return {
@@ -267,21 +265,19 @@ function buildOverallSummary(rows: TpsPnlRow[]): OverallSummary {
     ? Number(((exceptionBadDebt / exceptionSales) * 100).toFixed(1))
     : 0;
 
-  // 건별 까임 비율
-  const BRAND_COST = 20000;
+  // 건별 까임 비율 (타겟마진+대손비 합산 대비)
   let marginHitCount = 0;
   let badDebtHitCount = 0;
   for (const r of exceptionRows) {
     const s = r.sales ?? 0;
     const sub = (r.total_subsidy ?? 0) + (r.coupon_amount ?? 0) + (r.layer3_subsidy ?? 0);
-    const rm = s - sub;
     const exc = r.event_subsidy ?? 0;
-    const v = r.voucher ?? 0;
-    const cm = rm - exc + BRAND_COST + v;
+    const available = s + (r.voucher ?? 0) + 20000 - (sub + exc);
     const tm = r.target_margin ?? 0;
     const bd = r.bad_debt ?? 0;
-    if (cm < bd) badDebtHitCount++;
-    if (cm < tm + bd) marginHitCount++;
+    const shortfall = Math.max(0, (tm + bd) - Math.max(0, available));
+    if (shortfall > 0) marginHitCount++;
+    if (shortfall > tm) badDebtHitCount++;
   }
 
   return {
@@ -321,10 +317,21 @@ function buildExceptionDetails(rows: TpsPnlRow[]): ExceptionDetail[] {
       const exceptionAmount = r.event_subsidy ?? 0;
       const contributionMargin = room - exceptionAmount + BRAND_COST + voucher;
 
+      // 예외승인 지원금 = 렌트리 지원금 + 예외승인 금액
+      const totalSubsidy = ourSubsidy + exceptionAmount;
+      // 수수료 - 예외승인지원금 = 지급 후 남은 금액
+      const available = sales + voucher + BRAND_COST - totalSubsidy;
+      // 타겟마진+대손비 합산 대비 부족분
+      const shortfall = Math.max(0, (targetMargin + badDebt) - Math.max(0, available));
+      // 타겟마진부터 까임
+      const targetMarginHit = Math.min(targetMargin, shortfall);
+      // 타겟마진 넘어서면 대손비 까임
+      const badDebtHit = Math.max(0, shortfall - targetMargin);
+
       let marginImpact: ExceptionDetail["marginImpact"] = "safe";
-      if (contributionMargin < badDebt) {
+      if (shortfall > targetMargin) {
         marginImpact = "both_hit";
-      } else if (contributionMargin < minRequired) {
+      } else if (shortfall > 0) {
         marginImpact = "margin_hit";
       }
 
@@ -338,13 +345,14 @@ function buildExceptionDetails(rows: TpsPnlRow[]): ExceptionDetail[] {
         sales,
         ourSubsidy,
         voucher,
-        brandCost: BRAND_COST,
-        room,
         targetMargin,
         badDebt,
-        minRequired,
         exceptionAmount,
         contributionMargin,
+        totalSubsidy,
+
+        targetMarginHit,
+        badDebtHit,
         marginImpact,
       };
     })
@@ -384,23 +392,26 @@ function buildBrandBreakdown(rows: TpsPnlRow[]): BrandBreakdown[] {
   return Array.from(brandMap.entries())
     .filter(([, v]) => v.exception.length > 0)
     .map(([brand, v]) => {
-      const BRAND_COST = 20000;
-      let marginHitCount = 0;
-      let cmSum = 0;
+      let totalTargetMarginHit = 0;
+      let totalBadDebtHit = 0;
       for (const r of v.exception) {
-        const cm = calcContributionMargin(r, true);
-        cmSum += cm;
+        const s = r.sales ?? 0;
+        const sub = (r.total_subsidy ?? 0) + (r.coupon_amount ?? 0) + (r.layer3_subsidy ?? 0);
+        const exc = r.event_subsidy ?? 0;
+        const available = s + (r.voucher ?? 0) + 20000 - (sub + exc);
         const tm = r.target_margin ?? 0;
         const bd = r.bad_debt ?? 0;
-        if (cm < tm + bd) marginHitCount++;
+        const shortfall = Math.max(0, (tm + bd) - Math.max(0, available));
+        totalTargetMarginHit += Math.min(tm, shortfall);
+        totalBadDebtHit += Math.max(0, shortfall - tm);
       }
       return {
         brand,
         totalCount: v.total,
         exceptionCount: v.exception.length,
         exceptionRate: Number(((v.exception.length / v.total) * 100).toFixed(1)),
-        avgContributionMargin: Math.round(cmSum / v.exception.length),
-        marginHitRate: Number(((marginHitCount / v.exception.length) * 100).toFixed(1)),
+        totalTargetMarginHit: Math.round(totalTargetMarginHit),
+        totalBadDebtHit: Math.round(totalBadDebtHit),
       };
     })
     .sort((a, b) => b.exceptionCount - a.exceptionCount);
@@ -495,7 +506,7 @@ export default async function ExceptionApprovalPage() {
   const overallSummary = buildOverallSummary(rows);
   const exceptionDetails = buildExceptionDetails(rows);
   const brandBreakdown = buildBrandBreakdown(rows);
-  const contributionComparison = buildContributionComparison(rows);
+
   const simulationData = buildSimulationData(rows);
 
   return (
@@ -512,7 +523,7 @@ export default async function ExceptionApprovalPage() {
         overallSummary={overallSummary}
         exceptionDetails={exceptionDetails}
         brandBreakdown={brandBreakdown}
-        contributionComparison={contributionComparison}
+
         simulationData={simulationData}
       />
     </div>

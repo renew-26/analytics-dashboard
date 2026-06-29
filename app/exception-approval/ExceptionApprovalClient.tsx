@@ -16,7 +16,7 @@ import {
   Area,
   AreaChart,
 } from "recharts";
-import type { MonthlySummary, OverallSummary, ExceptionDetail, BrandBreakdown, ContributionComparison, SimulationData } from "./page";
+import type { MonthlySummary, OverallSummary, ExceptionDetail, BrandBreakdown, SimulationData } from "./page";
 
 type Props = {
   months: { month: string; label: string }[];
@@ -24,7 +24,7 @@ type Props = {
   overallSummary: OverallSummary;
   exceptionDetails: ExceptionDetail[];
   brandBreakdown: BrandBreakdown[];
-  contributionComparison: ContributionComparison;
+
   simulationData: SimulationData;
 };
 
@@ -34,7 +34,7 @@ export default function ExceptionApprovalClient({
   overallSummary,
   exceptionDetails,
   brandBreakdown,
-  contributionComparison,
+
   simulationData,
 }: Props) {
   return (
@@ -42,10 +42,10 @@ export default function ExceptionApprovalClient({
       {/* ─── 1. 예외승인 전체 현황 (최상단) ─── */}
       <SummaryCards summary={overallSummary} />
 
-      {/* ─── 2. 건당 공헌이익 비교 + 브랜드별 분포 ─── */}
+      {/* ─── 2. 까임 현황 + 브랜드별 까임 ─── */}
       <div className="grid grid-cols-2 gap-4">
-        <ContributionComparisonCard comparison={contributionComparison} />
-        <BrandBreakdownCard brands={brandBreakdown} />
+        <MarginHitCard exceptionDetails={exceptionDetails} />
+        <BrandHitCard brands={brandBreakdown} />
       </div>
 
       {/* ─── 3. 월별 트래킹 차트 ─── */}
@@ -229,9 +229,12 @@ function MonthlyDetailSection({
 
   return (
     <section>
-      <h2 className="text-lg font-bold text-[#222222] mb-1">
-        예외승인 월별 상세 현황
-      </h2>
+      <div className="flex items-center gap-2 mb-1">
+        <h2 className="text-lg font-bold text-[#222222]">
+          예외승인 월별 상세 현황
+        </h2>
+        <DetailFormulaTooltip />
+      </div>
       <p className="text-xs text-[#a1a5ac] mb-4">
         월을 클릭하면 해당 월 건별 상세를 확인할 수 있습니다
       </p>
@@ -257,10 +260,10 @@ function MonthlyDetailSection({
                   예외승인 금액
                 </th>
                 <th className="text-right px-4 py-3 text-xs font-bold text-[#586177]">
-                  타겟마진 영향
+                  대손비용 영향
                 </th>
                 <th className="text-right px-4 py-3 text-xs font-bold text-[#586177]">
-                  대손비용 영향
+                  타겟마진 영향
                 </th>
               </tr>
             </thead>
@@ -319,12 +322,12 @@ function MonthlyDetailSection({
                         {m.exceptionCount > 0 ? (
                           <span
                             className={
-                              m.marginHitRate > 0
+                              m.badDebtHitRate > 0
                                 ? "text-[#F90000]"
                                 : "text-[#1EA85E]"
                             }
                           >
-                            {m.marginHitRate}%
+                            {m.badDebtHitRate}%
                           </span>
                         ) : (
                           <span className="text-[#a1a5ac]">-</span>
@@ -334,12 +337,12 @@ function MonthlyDetailSection({
                         {m.exceptionCount > 0 ? (
                           <span
                             className={
-                              m.badDebtHitRate > 0
+                              m.marginHitRate > 0
                                 ? "text-[#F90000]"
                                 : "text-[#1EA85E]"
                             }
                           >
-                            {m.badDebtHitRate}%
+                            {m.marginHitRate}%
                           </span>
                         ) : (
                           <span className="text-[#a1a5ac]">-</span>
@@ -380,22 +383,19 @@ function MonthlyDetailSection({
                                       렌트리 지원금
                                     </th>
                                     <th className="text-right px-2 py-2 font-bold text-[#586177]">
-                                      룸
+                                      대손비
                                     </th>
                                     <th className="text-right px-2 py-2 font-bold text-[#586177]">
                                       타겟마진
                                     </th>
                                     <th className="text-right px-2 py-2 font-bold text-[#586177]">
-                                      대손비
+                                      대손비 까임
                                     </th>
                                     <th className="text-right px-2 py-2 font-bold text-[#586177]">
-                                      브랜드 비용
+                                      타겟마진 까임
                                     </th>
                                     <th className="text-right px-2 py-2 font-bold text-[#586177]">
-                                      예외승인
-                                    </th>
-                                    <th className="text-right px-2 py-2 font-bold text-[#586177]">
-                                      공헌이익
+                                      예외승인 지원금
                                     </th>
                                     <th className="text-center px-2 py-2 font-bold text-[#586177]">
                                       영향 범위
@@ -435,25 +435,20 @@ function MonthlyDetailSection({
                                         <td className="px-2 py-2 text-right text-[#586177]">
                                           {formatKRW(d.ourSubsidy)}
                                         </td>
-                                        <td className="px-2 py-2 text-right font-medium text-[#222222]">
-                                          {formatKRW(d.room)}
+                                        <td className="px-2 py-2 text-right text-[#586177]">
+                                          {formatKRW(d.badDebt)}
                                         </td>
                                         <td className="px-2 py-2 text-right text-[#586177]">
                                           {formatKRW(d.targetMargin)}
                                         </td>
-                                        <td className="px-2 py-2 text-right text-[#586177]">
-                                          {formatKRW(d.badDebt)}
+                                        <td className={`px-2 py-2 text-right font-medium ${d.badDebtHit > 0 ? "text-[#F90000]" : "text-[#a1a5ac]"}`}>
+                                          {d.badDebtHit > 0 ? formatKRW(d.badDebtHit) : "-"}
                                         </td>
-                                        <td className="px-2 py-2 text-right text-[#1EA85E]">
-                                          {formatKRW(d.brandCost)}
+                                        <td className={`px-2 py-2 text-right font-medium ${d.targetMarginHit > 0 ? "text-[#F90000]" : "text-[#a1a5ac]"}`}>
+                                          {d.targetMarginHit > 0 ? formatKRW(d.targetMarginHit) : "-"}
                                         </td>
                                         <td className="px-2 py-2 text-right font-medium text-[#F90000]">
-                                          {formatKRW(d.exceptionAmount)}
-                                        </td>
-                                        <td
-                                          className={`px-2 py-2 text-right font-medium ${d.contributionMargin < 0 ? "text-[#F90000]" : "text-[#222222]"}`}
-                                        >
-                                          {formatKRW(d.contributionMargin)}
+                                          {formatKRW(d.totalSubsidy)}
                                         </td>
                                         <td className="px-2 py-2 text-center">
                                           <span
@@ -500,100 +495,153 @@ function MonthlyDetailSection({
 
 // ─── Contribution Comparison Card ─────────────────────────────────────────────
 
-function ContributionComparisonCard({ comparison }: { comparison: ContributionComparison }) {
-  const maxVal = Math.max(comparison.nonExceptionAvg, comparison.exceptionAvg, 1);
+function MarginHitCard({ exceptionDetails }: { exceptionDetails: ExceptionDetail[] }) {
+  const stats = useMemo(() => {
+    let totalTargetHit = 0;
+    let totalBadDebtHit = 0;
+    let targetHitCount = 0;
+    let badDebtHitCount = 0;
+
+    for (const d of exceptionDetails) {
+      if (d.targetMarginHit > 0) {
+        totalTargetHit += d.targetMarginHit;
+        targetHitCount++;
+      }
+      if (d.badDebtHit > 0) {
+        totalBadDebtHit += d.badDebtHit;
+        badDebtHitCount++;
+      }
+    }
+
+    const total = exceptionDetails.length;
+    return {
+      totalTargetHit,
+      totalBadDebtHit,
+      targetHitCount,
+      badDebtHitCount,
+      avgTargetHit: targetHitCount > 0 ? Math.round(totalTargetHit / targetHitCount) : 0,
+      avgBadDebtHit: badDebtHitCount > 0 ? Math.round(totalBadDebtHit / badDebtHitCount) : 0,
+      targetHitRate: total > 0 ? Number(((targetHitCount / total) * 100).toFixed(1)) : 0,
+      badDebtHitRate: total > 0 ? Number(((badDebtHitCount / total) * 100).toFixed(1)) : 0,
+    };
+  }, [exceptionDetails]);
 
   return (
     <div className="bg-white border border-[#ebebe9] rounded-xl p-6">
-      <h3 className="text-sm font-bold text-[#222222] mb-1">건당 공헌이익 비교</h3>
-      <p className="text-xs text-[#a1a5ac] mb-6">예외승인 vs 미승인 건당 평균 공헌이익</p>
+      <h3 className="text-sm font-bold text-[#222222] mb-1">대손비·타겟마진 까임 현황</h3>
+      <p className="text-xs text-[#a1a5ac] mb-6">예외승인 지원금으로 인한 까임 총액 및 건당 평균</p>
 
-      <div className="space-y-5 mb-6">
-        {/* 미승인 */}
+      <div className="space-y-5 mb-4">
         <div>
-          <div className="flex items-baseline justify-between mb-2">
+          <div className="flex items-baseline justify-between mb-1">
             <div className="flex items-baseline gap-2">
-              <span className="text-xs font-medium text-[#586177]">미승인</span>
-              <span className="text-[11px] text-[#a1a5ac]">{comparison.nonExceptionCount.toLocaleString("ko-KR")}건</span>
+              <span className="text-xs font-medium text-[#586177]">대손비 까임</span>
+              <span className="text-[11px] text-[#a1a5ac]">{stats.badDebtHitCount}건 ({stats.badDebtHitRate}%)</span>
             </div>
-            <span className="text-lg font-bold text-[#222222]">{formatKRW(comparison.nonExceptionAvg)}</span>
+            <span className={`text-lg font-bold ${stats.totalBadDebtHit > 0 ? "text-[#F90000]" : "text-[#222222]"}`}>
+              {formatKRW(stats.totalBadDebtHit, true)}
+            </span>
           </div>
-          <div className="h-3 bg-[#f3f5f9] rounded-full overflow-hidden">
-            <div
-              className="h-full bg-[#3531FF] rounded-full transition-all"
-              style={{ width: `${(comparison.nonExceptionAvg / maxVal) * 100}%` }}
-            />
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] text-[#a1a5ac]">건당 평균</span>
+            <span className="text-xs font-medium text-[#586177]">{formatKRW(stats.avgBadDebtHit)}</span>
           </div>
         </div>
 
-        {/* 예외승인 */}
+        <div className="border-t border-[#f3f5f9]" />
+
         <div>
-          <div className="flex items-baseline justify-between mb-2">
+          <div className="flex items-baseline justify-between mb-1">
             <div className="flex items-baseline gap-2">
-              <span className="text-xs font-medium text-[#586177]">예외승인</span>
-              <span className="text-[11px] text-[#a1a5ac]">{comparison.exceptionCount.toLocaleString("ko-KR")}건</span>
+              <span className="text-xs font-medium text-[#586177]">타겟마진 까임</span>
+              <span className="text-[11px] text-[#a1a5ac]">{stats.targetHitCount}건 ({stats.targetHitRate}%)</span>
             </div>
-            <span className="text-lg font-bold text-[#F90000]">{formatKRW(comparison.exceptionAvg)}</span>
+            <span className={`text-lg font-bold ${stats.totalTargetHit > 0 ? "text-[#FF7700]" : "text-[#222222]"}`}>
+              {formatKRW(stats.totalTargetHit, true)}
+            </span>
           </div>
-          <div className="h-3 bg-[#f3f5f9] rounded-full overflow-hidden">
-            <div
-              className="h-full bg-[#FF5252] rounded-full transition-all"
-              style={{ width: `${Math.max(0, (comparison.exceptionAvg / maxVal) * 100)}%` }}
-            />
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] text-[#a1a5ac]">건당 평균</span>
+            <span className="text-xs font-medium text-[#586177]">{formatKRW(stats.avgTargetHit)}</span>
           </div>
         </div>
       </div>
 
-      <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg ${comparison.diff < 0 ? "bg-[#FFE0E0]" : "bg-[#DFF7EA]"}`}>
-        <span className={`text-sm font-bold ${comparison.diff < 0 ? "text-[#F90000]" : "text-[#1EA85E]"}`}>
-          {comparison.diff > 0 ? "+" : ""}{formatKRW(comparison.diff)}
-        </span>
-        <span className="text-xs text-[#586177]">건당 차이</span>
+      <div className="bg-[#f3f5f9] rounded-lg px-4 py-3">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium text-[#586177]">까임 총액</span>
+          <span className={`text-sm font-bold ${(stats.totalTargetHit + stats.totalBadDebtHit) > 0 ? "text-[#F90000]" : "text-[#222222]"}`}>
+            {formatKRW(stats.totalTargetHit + stats.totalBadDebtHit, true)}
+          </span>
+        </div>
       </div>
     </div>
   );
 }
 
-// ─── Brand Breakdown Card ────────────────────────────────────────────────────
-
-function BrandBreakdownCard({ brands }: { brands: BrandBreakdown[] }) {
+function BrandHitCard({ brands }: { brands: BrandBreakdown[] }) {
   return (
     <div className="bg-white border border-[#ebebe9] rounded-xl p-5">
-      <h3 className="text-sm font-bold text-[#222222] mb-1">브랜드별 예외승인 분포</h3>
-      <p className="text-xs text-[#a1a5ac] mb-4">예외승인 건이 있는 브랜드</p>
+      <h3 className="text-sm font-bold text-[#222222] mb-1">브랜드별 까임 현황</h3>
+      <p className="text-xs text-[#a1a5ac] mb-4">예외승인 지원금으로 인한 브랜드별 타겟마진·대손비 까임</p>
 
-      <div className="overflow-y-auto max-h-[220px]">
+      <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-[#e2e6ec]">
-              <th className="text-left px-2 py-2 font-bold text-[#586177]">브랜드</th>
-              <th className="text-right px-2 py-2 font-bold text-[#586177]">예외승인</th>
-              <th className="text-right px-2 py-2 font-bold text-[#586177]">비율</th>
-              <th className="text-right px-2 py-2 font-bold text-[#586177]">평균 공헌이익</th>
-              <th className="text-right px-2 py-2 font-bold text-[#586177]">까임 비율</th>
+              <th className="text-left px-3 py-2 font-bold text-[#586177]">브랜드</th>
+              <th className="text-right px-3 py-2 font-bold text-[#586177]">예외승인</th>
+              <th className="text-right px-3 py-2 font-bold text-[#586177]">비율</th>
+              <th className="text-right px-3 py-2 font-bold text-[#F90000]">대손비 까임</th>
+              <th className="text-right px-3 py-2 font-bold text-[#FF7700]">타겟마진 까임</th>
+              <th className="text-right px-3 py-2 font-bold text-[#586177]">까임 합계</th>
             </tr>
           </thead>
           <tbody>
-            {brands.map((b, i) => (
-              <tr
-                key={b.brand}
-                className={`border-b border-[#f3f5f9] ${i % 2 === 1 ? "bg-[#f9fafb]" : "bg-white"}`}
-              >
-                <td className="px-2 py-2 font-medium text-[#222222]">{b.brand}</td>
-                <td className="px-2 py-2 text-right text-[#222222]">
-                  {b.exceptionCount}건
-                  <span className="text-[#a1a5ac] ml-1">/ {b.totalCount}</span>
-                </td>
-                <td className="px-2 py-2 text-right text-[#586177]">{b.exceptionRate}%</td>
-                <td className="px-2 py-2 text-right text-[#222222]">{formatKRW(b.avgContributionMargin)}</td>
-                <td className="px-2 py-2 text-right">
-                  <span className={`font-medium ${b.marginHitRate > 0 ? "text-[#F90000]" : "text-[#1EA85E]"}`}>
-                    {b.marginHitRate}%
-                  </span>
-                </td>
-              </tr>
-            ))}
+            {brands.map((b, i) => {
+              const brandTotal = b.totalTargetMarginHit + b.totalBadDebtHit;
+              return (
+                <tr
+                  key={b.brand}
+                  className={`border-b border-[#f3f5f9] ${i % 2 === 1 ? "bg-[#f9fafb]" : "bg-white"}`}
+                >
+                  <td className="px-3 py-2.5 font-medium text-[#222222]">{b.brand}</td>
+                  <td className="px-3 py-2.5 text-right text-[#222222]">
+                    {b.exceptionCount}건
+                    <span className="text-[#a1a5ac] ml-1">/ {b.totalCount}</span>
+                  </td>
+                  <td className="px-3 py-2.5 text-right text-[#586177]">{b.exceptionRate}%</td>
+                  <td className={`px-3 py-2.5 text-right font-medium ${b.totalBadDebtHit > 0 ? "text-[#F90000]" : "text-[#a1a5ac]"}`}>
+                    {b.totalBadDebtHit > 0 ? formatKRW(b.totalBadDebtHit, true) : "-"}
+                  </td>
+                  <td className={`px-3 py-2.5 text-right font-medium ${b.totalTargetMarginHit > 0 ? "text-[#FF7700]" : "text-[#a1a5ac]"}`}>
+                    {b.totalTargetMarginHit > 0 ? formatKRW(b.totalTargetMarginHit, true) : "-"}
+                  </td>
+                  <td className={`px-3 py-2.5 text-right font-medium ${brandTotal > 0 ? "text-[#222222]" : "text-[#a1a5ac]"}`}>
+                    {brandTotal > 0 ? formatKRW(brandTotal, true) : "-"}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
+          <tfoot>
+            <tr className="bg-[#f3f5f9] border-t border-[#e2e6ec]">
+              <td className="px-3 py-2.5 font-bold text-[#222222]">합계</td>
+              <td className="px-3 py-2.5 text-right font-bold text-[#222222]">
+                {brands.reduce((s, b) => s + b.exceptionCount, 0)}건
+              </td>
+              <td className="px-3 py-2.5" />
+              <td className="px-3 py-2.5 text-right font-bold text-[#F90000]">
+                {formatKRW(brands.reduce((s, b) => s + b.totalBadDebtHit, 0), true)}
+              </td>
+              <td className="px-3 py-2.5 text-right font-bold text-[#FF7700]">
+                {formatKRW(brands.reduce((s, b) => s + b.totalTargetMarginHit, 0), true)}
+              </td>
+              <td className="px-3 py-2.5 text-right font-bold text-[#222222]">
+                {formatKRW(brands.reduce((s, b) => s + b.totalTargetMarginHit + b.totalBadDebtHit, 0), true)}
+              </td>
+            </tr>
+          </tfoot>
         </table>
       </div>
     </div>
@@ -834,7 +882,7 @@ function FormulaTooltip() {
                 <p className="font-bold text-[#222222] mb-1">총 공헌이익</p>
                 <p className="bg-[#f3f5f9] rounded-lg px-3 py-2 font-mono text-[11px]">
                   (예외승인 건당 공헌이익 × 예외승인 건수)<br />
-                  + (미승인 건당 공헌이익 × 미승인 건수)
+                  + (정상 건 건당 공헌이익 × 정상 건 건수)
                 </p>
               </div>
               <div>
@@ -845,7 +893,7 @@ function FormulaTooltip() {
                 </p>
               </div>
               <div>
-                <p className="font-bold text-[#222222] mb-1">미승인 건당 공헌이익</p>
+                <p className="font-bold text-[#222222] mb-1">정상 건 건당 공헌이익</p>
                 <p className="bg-[#f3f5f9] rounded-lg px-3 py-2 font-mono text-[11px]">
                   수수료 - 렌트리 지원금 - 대손비용
                 </p>
@@ -855,7 +903,79 @@ function FormulaTooltip() {
                 <p className="font-bold text-[#222222] mb-1">건수 분배</p>
                 <p className="bg-[#f3f5f9] rounded-lg px-3 py-2 font-mono text-[11px]">
                   예외승인 건수 = 전체 건수 × 슬라이더 비율<br />
-                  미승인 건수 = 전체 건수 - 예외승인 건수
+                  정상 건 건수 = 전체 건수 - 예외승인 건수
+                </p>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function DetailFormulaTooltip() {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-5 h-5 rounded-full border border-[#a1a5ac] text-[#a1a5ac] text-xs font-bold hover:border-[#3531FF] hover:text-[#3531FF] transition flex items-center justify-center"
+      >
+        ?
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 top-8 z-50 w-[420px] bg-white border border-[#e2e6ec] rounded-xl shadow-lg p-5">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-bold text-[#222222]">건별 상세 계산 공식</span>
+              <button onClick={() => setOpen(false)} className="text-xs text-[#a1a5ac] hover:text-[#222222]">닫기</button>
+            </div>
+            <div className="space-y-4 text-xs text-[#586177]">
+              <div>
+                <p className="font-bold text-[#222222] mb-1">수익 배분 구조</p>
+                <p className="bg-[#f3f5f9] rounded-lg px-3 py-2 text-[11px]">
+                  수수료에서 <strong>대손비(5%)</strong>와 <strong>타겟마진</strong>을 먼저 확보한 뒤,<br />
+                  나머지를 지원금으로 세팅하는 구조입니다.
+                </p>
+              </div>
+              <div>
+                <p className="font-bold text-[#222222] mb-1">예외승인 지원금</p>
+                <p className="bg-[#f3f5f9] rounded-lg px-3 py-2 font-mono text-[11px]">
+                  렌트리 지원금 + 예외승인 금액
+                </p>
+                <p className="text-[#a1a5ac] mt-1">* 예외승인으로 실제 지출된 총 지원금</p>
+              </div>
+              <div>
+                <p className="font-bold text-[#222222] mb-1">까임 판정</p>
+                <p className="bg-[#f3f5f9] rounded-lg px-3 py-2 font-mono text-[11px]">
+                  남은 금액 = 수수료 + 상품권 + 브랜드 비용(2만) - 예외승인 지원금<br />
+                  까임 비용 = (타겟마진 + 대손비) - 남은 금액
+                </p>
+                <p className="text-[#a1a5ac] mt-1">* 예외승인 지원금이 과다하면 타겟마진·대손비 확보분을 잠식</p>
+              </div>
+              <div>
+                <p className="font-bold text-[#222222] mb-1">타겟마진 까임</p>
+                <p className="bg-[#f3f5f9] rounded-lg px-3 py-2 font-mono text-[11px]">
+                  min(타겟마진, 까임 비용)
+                </p>
+                <p className="text-[#a1a5ac] mt-1">* 까임 비용이 타겟마진부터 잠식</p>
+              </div>
+              <div>
+                <p className="font-bold text-[#222222] mb-1">대손비 까임</p>
+                <p className="bg-[#f3f5f9] rounded-lg px-3 py-2 font-mono text-[11px]">
+                  까임 비용 - 타겟마진
+                </p>
+                <p className="text-[#a1a5ac] mt-1">* 타겟마진 전액 잠식 후 대손비까지 침범한 금액</p>
+              </div>
+              <div>
+                <p className="font-bold text-[#222222] mb-1">영향 범위</p>
+                <p className="bg-[#f3f5f9] rounded-lg px-3 py-2 text-[11px]">
+                  <strong>영향 없음</strong> — 까임 비용 없음 (타겟마진·대손비 모두 확보)<br />
+                  <strong>타겟마진 까임</strong> — 타겟마진 일부/전액 잠식<br />
+                  <strong>마진+대손 까임</strong> — 타겟마진 전액 + 대손비까지 잠식
                 </p>
               </div>
             </div>
