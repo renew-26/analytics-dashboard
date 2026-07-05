@@ -942,6 +942,19 @@ function DetailFormulaTooltip() {
                 </p>
               </div>
               <div>
+                <p className="font-bold text-[#222222] mb-1">렌트리 지원금</p>
+                <p className="bg-[#f3f5f9] rounded-lg px-3 py-2 font-mono text-[11px]">
+                  총 지원금 + 쿠폰 금액 + 추가 TV지원금 + LAYER3 지원금
+                </p>
+              </div>
+              <div>
+                <p className="font-bold text-[#222222] mb-1">예외승인 금액</p>
+                <p className="bg-[#f3f5f9] rounded-lg px-3 py-2 font-mono text-[11px]">
+                  인터넷 상담원 추가 지원금 + 2만원 추가 보상제 지원금
+                </p>
+                <p className="text-[#a1a5ac] mt-1">* 둘 중 하나라도 있으면 예외승인 건으로 분류</p>
+              </div>
+              <div>
                 <p className="font-bold text-[#222222] mb-1">예외승인 지원금</p>
                 <p className="bg-[#f3f5f9] rounded-lg px-3 py-2 font-mono text-[11px]">
                   렌트리 지원금 + 예외승인 금액

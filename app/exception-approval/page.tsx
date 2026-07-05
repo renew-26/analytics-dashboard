@@ -26,7 +26,8 @@ type TpsPnlRow = {
   coupon_amount: number | null;
   layer3_subsidy: number | null;
   extra_reward_subsidy: number | null;
-  event_subsidy: number | null;
+  internet_consultant_subsidy: number | null;
+  tv_subsidy: number | null;
   sales: number | null;
   bad_debt: number | null;
   target_margin: number | null;
@@ -104,6 +105,16 @@ export type ExceptionDetail = {
   marginImpact: "safe" | "margin_hit" | "both_hit";
 };
 
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function isException(r: TpsPnlRow): boolean {
+  return (r.internet_consultant_subsidy ?? 0) > 0 || (r.extra_reward_subsidy ?? 0) > 0;
+}
+
+function getExceptionAmount(r: TpsPnlRow): number {
+  return (r.internet_consultant_subsidy ?? 0) + (r.extra_reward_subsidy ?? 0);
+}
+
 // ─── Data Fetching ───────────────────────────────────────────────────────────
 
 function getLast6Months(): { month: string; label: string; start: string; end: string }[] {
@@ -130,7 +141,7 @@ async function fetchAllRows(): Promise<TpsPnlRow[]> {
   while (true) {
     const { data, error } = await supabase
       .from("tps_pnl")
-      .select("prop_item_usid, brand, model_code, order_confirmed_at, contract_completed_at, monthly_fee, contract_months, total_contract_amount, total_subsidy, voucher, coupon_amount, layer3_subsidy, extra_reward_subsidy, event_subsidy, sales, bad_debt, target_margin, promotion")
+      .select("prop_item_usid, brand, model_code, order_confirmed_at, contract_completed_at, monthly_fee, contract_months, total_contract_amount, total_subsidy, voucher, coupon_amount, layer3_subsidy, extra_reward_subsidy, internet_consultant_subsidy, tv_subsidy, sales, bad_debt, target_margin, promotion")
       .range(from, from + PAGE - 1);
 
     if (error) throw new Error(JSON.stringify(error));
@@ -154,15 +165,13 @@ function buildMonthlySummary(
     });
 
     const totalCount = monthRows.length;
-    // 예외승인 = extra_reward_subsidy > 0
-    const exceptionRows = monthRows.filter(
-      (r) => r.extra_reward_subsidy !== null && r.extra_reward_subsidy > 0,
-    );
+    // 예외승인 = 인터넷 상담원 추가 지원금 > 0 OR 2만원 추가 보상제 > 0
+    const exceptionRows = monthRows.filter(isException);
     const exceptionCount = exceptionRows.length;
 
-    // 예외승인 총 금액 = 예외승인 건들의 event_subsidy 합계
+    // 예외승인 총 금액 = 인터넷 상담원 추가 지원금 + 2만원 추가 보상제 지원금
     const exceptionAmount = exceptionRows.reduce(
-      (sum, r) => sum + (r.event_subsidy ?? 0),
+      (sum, r) => sum + getExceptionAmount(r),
       0,
     );
 
@@ -197,8 +206,8 @@ function buildMonthlySummary(
     let badDebtHitCount = 0;
     for (const r of exceptionRows) {
       const s = r.sales ?? 0;
-      const sub = (r.total_subsidy ?? 0) + (r.coupon_amount ?? 0) + (r.layer3_subsidy ?? 0);
-      const exc = r.event_subsidy ?? 0;
+      const sub = (r.total_subsidy ?? 0) + (r.coupon_amount ?? 0) + (r.tv_subsidy ?? 0) + (r.layer3_subsidy ?? 0);
+      const exc = getExceptionAmount(r);
       const available = s + (r.voucher ?? 0) + 20000 - (sub + exc);
       const tm = r.target_margin ?? 0;
       const bd = r.bad_debt ?? 0;
@@ -234,12 +243,10 @@ function buildMonthlySummary(
 
 function buildOverallSummary(rows: TpsPnlRow[]): OverallSummary {
   const totalCount = rows.length;
-  const exceptionRows = rows.filter(
-    (r) => r.extra_reward_subsidy !== null && r.extra_reward_subsidy > 0,
-  );
+  const exceptionRows = rows.filter(isException);
   const exceptionCount = exceptionRows.length;
   const exceptionAmount = exceptionRows.reduce(
-    (sum, r) => sum + (r.event_subsidy ?? 0),
+    (sum, r) => sum + getExceptionAmount(r),
     0,
   );
 
@@ -271,7 +278,7 @@ function buildOverallSummary(rows: TpsPnlRow[]): OverallSummary {
   for (const r of exceptionRows) {
     const s = r.sales ?? 0;
     const sub = (r.total_subsidy ?? 0) + (r.coupon_amount ?? 0) + (r.layer3_subsidy ?? 0);
-    const exc = r.event_subsidy ?? 0;
+    const exc = getExceptionAmount(r);
     const available = s + (r.voucher ?? 0) + 20000 - (sub + exc);
     const tm = r.target_margin ?? 0;
     const bd = r.bad_debt ?? 0;
@@ -304,17 +311,17 @@ function buildOverallSummary(rows: TpsPnlRow[]): OverallSummary {
 
 function buildExceptionDetails(rows: TpsPnlRow[]): ExceptionDetail[] {
   return rows
-    .filter((r) => r.extra_reward_subsidy !== null && r.extra_reward_subsidy > 0)
+    .filter(isException)
     .map((r) => {
       const sales = r.sales ?? 0;
       const BRAND_COST = 20000;
       const voucher = r.voucher ?? 0;
-      const ourSubsidy = calcOurSubsidy(r, true);
+      const ourSubsidy = calcOurSubsidy(r);
       const room = sales - ourSubsidy;
       const targetMargin = r.target_margin ?? 0;
       const badDebt = r.bad_debt ?? 0;
       const minRequired = targetMargin + badDebt;
-      const exceptionAmount = r.event_subsidy ?? 0;
+      const exceptionAmount = getExceptionAmount(r);
       const contributionMargin = room - exceptionAmount + BRAND_COST + voucher;
 
       // 예외승인 지원금 = 렌트리 지원금 + 예외승인 금액
@@ -359,20 +366,17 @@ function buildExceptionDetails(rows: TpsPnlRow[]): ExceptionDetail[] {
     .sort((a, b) => b.date.localeCompare(a.date));
 }
 
-function calcOurSubsidy(r: TpsPnlRow, isException: boolean): number {
-  const base = (r.total_subsidy ?? 0) + (r.coupon_amount ?? 0) + (r.layer3_subsidy ?? 0);
-  // 미승인 건은 이벤트 지원금도 렌트리 지원금에 포함
-  if (!isException) return base + (r.event_subsidy ?? 0);
-  return base;
+function calcOurSubsidy(r: TpsPnlRow): number {
+  return (r.total_subsidy ?? 0) + (r.coupon_amount ?? 0) + (r.tv_subsidy ?? 0) + (r.layer3_subsidy ?? 0);
 }
 
-function calcContributionMargin(r: TpsPnlRow, isException: boolean): number {
+function calcContributionMargin(r: TpsPnlRow, isExc: boolean): number {
   const sales = r.sales ?? 0;
-  const ourSubsidy = calcOurSubsidy(r, isException);
+  const ourSubsidy = calcOurSubsidy(r);
   const room = sales - ourSubsidy;
-  if (!isException) return room - (r.bad_debt ?? 0);
+  if (!isExc) return room - (r.bad_debt ?? 0);
   const BRAND_COST = 20000;
-  return room - (r.event_subsidy ?? 0) + BRAND_COST + (r.voucher ?? 0);
+  return room - getExceptionAmount(r) + BRAND_COST + (r.voucher ?? 0);
 }
 
 function buildBrandBreakdown(rows: TpsPnlRow[]): BrandBreakdown[] {
@@ -384,7 +388,7 @@ function buildBrandBreakdown(rows: TpsPnlRow[]): BrandBreakdown[] {
     const entry = brandMap.get(brand)!;
     entry.total++;
     entry.all.push(r);
-    if (r.extra_reward_subsidy !== null && r.extra_reward_subsidy > 0) {
+    if (isException(r)) {
       entry.exception.push(r);
     }
   }
@@ -396,8 +400,8 @@ function buildBrandBreakdown(rows: TpsPnlRow[]): BrandBreakdown[] {
       let totalBadDebtHit = 0;
       for (const r of v.exception) {
         const s = r.sales ?? 0;
-        const sub = (r.total_subsidy ?? 0) + (r.coupon_amount ?? 0) + (r.layer3_subsidy ?? 0);
-        const exc = r.event_subsidy ?? 0;
+        const sub = (r.total_subsidy ?? 0) + (r.coupon_amount ?? 0) + (r.tv_subsidy ?? 0) + (r.layer3_subsidy ?? 0);
+        const exc = getExceptionAmount(r);
         const available = s + (r.voucher ?? 0) + 20000 - (sub + exc);
         const tm = r.target_margin ?? 0;
         const bd = r.bad_debt ?? 0;
@@ -418,8 +422,8 @@ function buildBrandBreakdown(rows: TpsPnlRow[]): BrandBreakdown[] {
 }
 
 function buildContributionComparison(rows: TpsPnlRow[]): ContributionComparison {
-  const exceptionRows = rows.filter((r) => r.extra_reward_subsidy !== null && r.extra_reward_subsidy > 0);
-  const nonExceptionRows = rows.filter((r) => !r.extra_reward_subsidy || r.extra_reward_subsidy <= 0);
+  const exceptionRows = rows.filter(isException);
+  const nonExceptionRows = rows.filter((r) => !isException(r));
 
   const exceptionCmSum = exceptionRows.reduce((sum, r) => sum + calcContributionMargin(r, true), 0);
   const nonExceptionCmSum = nonExceptionRows.reduce((sum, r) => sum + calcContributionMargin(r, false), 0);
@@ -438,12 +442,12 @@ function buildContributionComparison(rows: TpsPnlRow[]): ContributionComparison 
 
 function buildSimulationData(rows: TpsPnlRow[]): SimulationData {
   const totalCount = rows.length;
-  const exceptionRows = rows.filter((r) => r.extra_reward_subsidy !== null && r.extra_reward_subsidy > 0);
-  const nonExceptionRows = rows.filter((r) => !r.extra_reward_subsidy || r.extra_reward_subsidy <= 0);
+  const exceptionRows = rows.filter(isException);
+  const nonExceptionRows = rows.filter((r) => !isException(r));
   const exceptionCount = exceptionRows.length;
 
   const avgEventSubsidy = exceptionCount > 0
-    ? Math.round(exceptionRows.reduce((s, r) => s + (r.event_subsidy ?? 0), 0) / exceptionCount)
+    ? Math.round(exceptionRows.reduce((s, r) => s + getExceptionAmount(r), 0) / exceptionCount)
     : 0;
   const avgVoucher = exceptionCount > 0
     ? Math.round(exceptionRows.reduce((s, r) => s + (r.voucher ?? 0), 0) / exceptionCount)
@@ -453,7 +457,7 @@ function buildSimulationData(rows: TpsPnlRow[]): SimulationData {
     ? Math.round(rows.reduce((s, r) => s + (r.sales ?? 0), 0) / totalCount)
     : 0;
   const avgSubsidy = totalCount > 0
-    ? Math.round(rows.reduce((s, r) => s + (r.total_subsidy ?? 0) + (r.coupon_amount ?? 0) + (r.layer3_subsidy ?? 0), 0) / totalCount)
+    ? Math.round(rows.reduce((s, r) => s + (r.total_subsidy ?? 0) + (r.coupon_amount ?? 0) + (r.tv_subsidy ?? 0) + (r.layer3_subsidy ?? 0), 0) / totalCount)
     : 0;
   const avgTargetMargin = totalCount > 0
     ? Math.round(rows.reduce((s, r) => s + (r.target_margin ?? 0), 0) / totalCount)
@@ -467,7 +471,7 @@ function buildSimulationData(rows: TpsPnlRow[]): SimulationData {
   let totalCm = 0;
   let marginHitCount = 0;
   for (const r of rows) {
-    const isExc = r.extra_reward_subsidy !== null && r.extra_reward_subsidy > 0;
+    const isExc = isException(r);
     const cm = calcContributionMargin(r, isExc);
     totalCm += cm;
     if (isExc) {
