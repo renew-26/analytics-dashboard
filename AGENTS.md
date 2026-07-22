@@ -62,6 +62,7 @@
 | `raw_contracts` | 계약완료 데이터 (Redash Query 4445에서 동기화) |
 | `auto_quote_typeb` | 가전&상조 렌탈사별 자동견적 (Redash Query 4404) |
 | `auto_quote_typea` | 정수기 자동견적 — 더블체크 파트너스 기준 (Redash Query 4403) |
-| `competitive_subsidy` | 경쟁사 지원금 조사 데이터 |
+| `tps_pnl` | 견적/손익 원장 — 예외승인 분석용 (Redash Query 4405) |
+| `competitive_subsidy` | 경쟁사 지원금 조사 데이터 (엑셀 업로드) |
 
 <!-- MANUAL: -->
