@@ -234,7 +234,7 @@ export default async function Home() {
   const { start, end, month } = getMonthRange();
   const { curr, prev, currLabel, prevLabel } = getComparisonDates();
   const excludedList = `(${EXCLUDED_CATS.join(",")})`;
-  const yearStart = `${new Date().getFullYear()}-01-01`;
+  const yearStart = "2025-01-01"; // 섹션 2 월별 거래건수 조회 시작 시점
 
   const [
     goalResults,
@@ -385,12 +385,15 @@ export default async function Home() {
   ];
 
   // ── 섹션 2 집계
-  const monthCatMap = new Map<number, Map<string, number>>(); // month → cat → count
-  const monthBmMap = new Map<number, Record<"BM1" | "BM2" | "BM3", number>>(); // month → BM → count
-  const monthRcMap = new Map<number, Map<string, number>>(); // month → rental_company → count
+  const monthCatMap = new Map<string, Map<string, number>>(); // "YYYY-MM" → cat → count
+  const monthBmMap = new Map<
+    string,
+    Record<"BM1" | "BM2" | "BM3", number>
+  >(); // "YYYY-MM" → BM → count
+  const monthRcMap = new Map<string, Map<string, number>>(); // "YYYY-MM" → rental_company → count
 
   for (const r of catRaw) {
-    const m = parseInt(r.contract_date.slice(5, 7), 10);
+    const m = r.contract_date.slice(0, 7); // "YYYY-MM"
     const cat = KNOWN_CATS.has(r.category ?? "")
       ? (r.category as string)
       : "그 외";
@@ -412,26 +415,32 @@ export default async function Home() {
     rcMm.set(rc, (rcMm.get(rc) ?? 0) + 1);
   }
 
-  const months = Array.from(monthCatMap.keys()).sort((a, b) => b - a); // 최근 월 먼저
+  const months = Array.from(monthCatMap.keys()).sort((a, b) =>
+    b.localeCompare(a),
+  ); // 최근 월 먼저
 
-  function getCatCount(m: number, cat: string | null): number {
+  function monthLabel(ym: string): string {
+    return `${ym.slice(2, 4)}.${ym.slice(5, 7)}`; // "2025-07" → "25.07"
+  }
+
+  function getCatCount(m: string, cat: string | null): number {
     const mm = monthCatMap.get(m);
     if (!mm) return 0;
     if (cat === null) return mm.get("그 외") ?? 0;
     return mm.get(cat) ?? 0;
   }
 
-  function getMonthTotal(m: number): number {
+  function getMonthTotal(m: string): number {
     const mm = monthCatMap.get(m);
     if (!mm) return 0;
     return Array.from(mm.values()).reduce((s, v) => s + v, 0);
   }
 
-  function getBmCount(m: number, bm: "BM1" | "BM2" | "BM3"): number {
+  function getBmCount(m: string, bm: "BM1" | "BM2" | "BM3"): number {
     return monthBmMap.get(m)?.[bm] ?? 0;
   }
 
-  function getRcCount(m: number, dbName: string): number {
+  function getRcCount(m: string, dbName: string): number {
     return monthRcMap.get(m)?.get(dbName) ?? 0;
   }
 
@@ -688,7 +697,7 @@ export default async function Home() {
                       key={m}
                       className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[90px] cell-highlight"
                     >
-                      {m}월
+                      {monthLabel(m)}
                     </th>
                   ))}
                 </tr>
@@ -762,7 +771,7 @@ export default async function Home() {
                       key={m}
                       className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[90px] cell-highlight"
                     >
-                      {m}월
+                      {monthLabel(m)}
                     </th>
                   ))}
                 </tr>
@@ -822,7 +831,7 @@ export default async function Home() {
                       key={m}
                       className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[90px] cell-highlight"
                     >
-                      {m}월
+                      {monthLabel(m)}
                     </th>
                   ))}
                 </tr>
