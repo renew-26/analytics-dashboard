@@ -339,53 +339,65 @@ function aggregateByMonth(rows: DataRow[]) {
   }));
 }
 
-function aggregateByMonthFull(rows: DataRow[]) {
-  const MONTHS = [
-    "1월",
-    "2월",
-    "3월",
-    "4월",
-    "5월",
-    "6월",
-    "7월",
-    "8월",
-    "9월",
-    "10월",
-    "11월",
-    "12월",
-  ];
-  const map = new Map<
+function monthKeyFull(dateStr: string): string {
+  const d = new Date(dateStr);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthLabelFull(ym: string): string {
+  return `${ym.slice(2, 4)}.${ym.slice(5, 7)}`; // "2025-07" → "25.07"
+}
+
+// revenueRows: 매출·공헌이익 계산 대상 (현재 기준 범위), countRows: 거래건수 집계 대상 (2025년~ 전체 범위)
+function aggregateByMonthFull(revenueRows: DataRow[], countRows: DataRow[]) {
+  const revMap = new Map<
     string,
     { count: number; rental: number; margin: number }
   >();
-  for (const row of rows) {
-    const key = `${new Date(row.dateStr).getMonth() + 1}월`;
-    const cur = map.get(key) ?? { count: 0, rental: 0, margin: 0 };
+  for (const row of revenueRows) {
+    const key = monthKeyFull(row.dateStr);
+    const cur = revMap.get(key) ?? { count: 0, rental: 0, margin: 0 };
     cur.count += 1;
     cur.rental += row.total_rental_fee ?? 0;
     cur.margin += row.contribution_margin ?? 0;
-    map.set(key, cur);
+    revMap.set(key, cur);
   }
-  const sorted = MONTHS.filter((m) => map.has(m)).map((m) => {
-    const v = map.get(m)!;
+
+  const countMap = new Map<string, number>();
+  for (const row of countRows) {
+    const key = monthKeyFull(row.dateStr);
+    countMap.set(key, (countMap.get(key) ?? 0) + 1);
+  }
+
+  const months = Array.from(
+    new Set([...revMap.keys(), ...countMap.keys()]),
+  ).sort((a, b) => a.localeCompare(b));
+
+  const sorted = months.map((ym) => {
+    const rev = revMap.get(ym);
     return {
-      month: m,
-      count: v.count,
-      totalRentalFee: v.rental,
-      contributionMargin: v.margin,
-      marginPerContract: v.count > 0 ? Math.round(v.margin / v.count) : 0,
+      month: ym,
+      count: countMap.get(ym) ?? rev?.count ?? 0,
+      totalRentalFee: rev ? rev.rental : null,
+      contributionMargin: rev ? rev.margin : null,
+      marginPerContract:
+        rev && rev.count > 0 ? Math.round(rev.margin / rev.count) : null,
     };
   });
+
   return sorted
-    .map((d, i) => ({
-      ...d,
-      mom:
-        i === 0 || sorted[i - 1].totalRentalFee === 0
+    .map((d, i) => {
+      const prev = sorted[i - 1];
+      const mom =
+        i === 0 ||
+        prev.totalRentalFee === null ||
+        prev.totalRentalFee === 0 ||
+        d.totalRentalFee === null
           ? null
-          : ((d.totalRentalFee - sorted[i - 1].totalRentalFee) /
-              sorted[i - 1].totalRentalFee) *
-            100,
-    }))
+          : ((d.totalRentalFee - prev.totalRentalFee) / prev.totalRentalFee) *
+            100;
+      return { ...d, mom };
+    })
     .reverse();
 }
 
@@ -476,6 +488,8 @@ export default async function CompanyPage({
   }
 
   const PAGE = 1000;
+  const FETCH_RANGE_START = "2025-01-01"; // 거래건수 조회 시작 시점
+  const REVENUE_RANGE_START = "2026-01-01"; // 매출·공헌이익 등 현재 기준 시점
   const normalizedRows: DataRow[] = [];
   let fetchError = null;
 
@@ -497,7 +511,7 @@ export default async function CompanyPage({
         for (const c of cnot) q = q.neq("category", c);
       }
       const { data, error } = await q
-        .gte("order_confirmed_at", "2026-01-01")
+        .gte("order_confirmed_at", FETCH_RANGE_START)
         .order("order_confirmed_at", { ascending: false })
         .range(from, from + PAGE - 1);
       if (error) {
@@ -540,7 +554,7 @@ export default async function CompanyPage({
         for (const c of cnot) q = q.neq("category", c);
       }
       const { data, error } = await q
-        .gte("contract_date", "2026-01-01")
+        .gte("contract_date", FETCH_RANGE_START)
         .order("contract_date", { ascending: false })
         .range(from, from + PAGE - 1);
       if (error) {
@@ -575,18 +589,23 @@ export default async function CompanyPage({
     );
   }
 
-  const filteredRows =
+  const bmFilteredRows =
     bm === "all"
       ? normalizedRows
       : normalizedRows.filter(
           (r) => getBM(r.partner_company) === bm.toUpperCase(),
         );
 
+  // 매출·공헌이익 등은 현재 기준(2026년~)만, 거래건수는 월별 현황 테이블에서 2025년~ 전체 반영
+  const filteredRows = bmFilteredRows.filter(
+    (r) => r.dateStr >= REVENUE_RANGE_START,
+  );
+
   const today = new Date();
   const weeks = aggregateByWeek(filteredRows);
   const totalCount = weeks.reduce((s, w) => s + w.count, 0);
   const monthlyStats = aggregateByMonth(filteredRows);
-  const monthlyFullStats = aggregateByMonthFull(filteredRows);
+  const monthlyFullStats = aggregateByMonthFull(filteredRows, bmFilteredRows);
   const summary = calcSummaryStats(filteredRows);
 
   const weekIndices = weeks.map((w) => w.idx);
@@ -1337,7 +1356,7 @@ export default async function CompanyPage({
                   {monthlyFullStats.map((m) => (
                     <th key={m.month} className="px-4 py-3 text-center">
                       <div className="font-semibold text-gray-700 text-xs">
-                        {m.month}
+                        {monthLabelFull(m.month)}
                       </div>
                     </th>
                   ))}
@@ -1366,7 +1385,7 @@ export default async function CompanyPage({
                       key={m.month}
                       className="px-4 py-3.5 text-center text-gray-800"
                     >
-                      {fmt(m.totalRentalFee)}
+                      {m.totalRentalFee === null ? "-" : fmt(m.totalRentalFee)}
                     </td>
                   ))}
                 </tr>
@@ -1378,14 +1397,20 @@ export default async function CompanyPage({
                     <td
                       key={m.month}
                       className="px-4 py-3.5 text-center font-medium"
-                      style={{
-                        color:
-                          m.contributionMargin >= 0
-                            ? "var(--color-success)"
-                            : "var(--color-error)",
-                      }}
+                      style={
+                        m.contributionMargin === null
+                          ? undefined
+                          : {
+                              color:
+                                m.contributionMargin >= 0
+                                  ? "var(--color-success)"
+                                  : "var(--color-error)",
+                            }
+                      }
                     >
-                      {fmt(m.contributionMargin)}
+                      {m.contributionMargin === null
+                        ? "-"
+                        : fmt(m.contributionMargin)}
                     </td>
                   ))}
                 </tr>
@@ -1398,7 +1423,9 @@ export default async function CompanyPage({
                       key={m.month}
                       className="px-4 py-3.5 text-center text-gray-600"
                     >
-                      {fmt(m.marginPerContract)}
+                      {m.marginPerContract === null
+                        ? "-"
+                        : fmt(m.marginPerContract)}
                     </td>
                   ))}
                 </tr>
