@@ -17,17 +17,18 @@
 
 ## 데이터 모델
 
-Supabase 대신 브라우저 `localStorage`에 렌탈사별로 저장한다.
+Supabase 대신 브라우저 `localStorage`에 렌탈사×뷰(주문확정/계약완료)×BM(전체/BM1/BM2/BM3) 조합별로 저장한다 (2026-07-30 추가 변경: 뷰/BM에 따라 매출 규모가 크게 달라 기준선도 조합별로 달라야 한다는 피드백 반영).
 
-- 키: `revenue-targets:{rental_company}` (`rental_company`는 `lib/company-map.ts`의 `dbName`)
+- 키: `revenue-targets:{rental_company}:{view}:{bm}` (`rental_company`는 `dbName`, `view`는 `order`/`contract`, `bm`은 `all`/`bm1`/`bm2`/`bm3`)
 - 값: JSON 배열 `{ id: number; label: string; amount: number }[]` (`amount`는 원 단위로 저장, UI 입력은 억 단위 → ×100,000,000 변환)
 - `id`는 클라이언트에서 `Date.now()`로 생성 (서버 왕복이 없으므로 별도 시퀀스 불필요)
-- 서버 컴포넌트(`page.tsx`)는 이 데이터를 조회하지 않는다 — 전적으로 클라이언트(`MonthlyRevenueChart`)가 마운트 시 `localStorage`에서 읽고 쓴다
+- 서버 컴포넌트(`page.tsx`)는 이 데이터를 조회하지 않는다 — 전적으로 클라이언트(`MonthlyRevenueChart`)가 마운트/뷰·BM 전환 시 `localStorage`에서 읽고 쓴다
 
 ## `MonthlyRevenueChart` 컴포넌트 변경
 
-- 새 optional prop 추가: `companyDbName?: string` — 전달된 경우에만 기준선 기능(표시 + 입력 UI) 활성화
-- 컴포넌트 마운트 시 `useEffect`로 `localStorage`에서 `revenue-targets:{companyDbName}` 읽어 state 초기화 (서버 렌더링 시점에는 `localStorage`가 없으므로 초기 state는 빈 배열 — 클라이언트 hydration 이후 짧게 나타남)
+- 새 optional prop 추가: `companyDbName?: string`, `view?: "order" | "contract"` (기본값 `"order"`), `bm?: "all" | "bm1" | "bm2" | "bm3"` (기본값 `"all"`) — `companyDbName`이 전달된 경우에만 기준선 기능(표시 + 입력 UI) 활성화
+- `useEffect`가 `companyDbName`·`view`·`bm` 세 값에 의존해, 탭 전환 시마다 해당 조합의 `localStorage` 값으로 다시 로드
+- 입력 폼 위에 현재 조합을 알려주는 캡션 표시 (예: "계약완료 · BM1 기준선") — 어떤 조합에 등록 중인지 혼동 방지
 - `LineChart` 내부에 기준선마다 `<ReferenceLine y={t.amount} .../>` 렌더링. 라벨은 `label={{ value: t.label, position: "insideTopLeft", fontSize: 11 }}`로 표시
 - 색상은 DESIGN.md의 accent 계열(`--accent-purple`, `--accent-orange`, `--accent-yellow`, `--warning-500`)을 기준선 인덱스에 따라 순환 배정 (기존 매출 라인의 `--primary` 계열과 시각적으로 구분되도록)
 - 차트 아래에 인라인 폼 렌더:
@@ -38,7 +39,7 @@ Supabase 대신 브라우저 `localStorage`에 렌탈사별로 저장한다.
 
 ## 서버 컴포넌트 변경 (`app/company/[company]/page.tsx`)
 
-- 별도 데이터 조회 없음. "월별 매출 현황" 섹션에서만 `<MonthlyRevenueChart data={monthlyStats} companyDbName={dbName} key={dbName} />` 형태로 전달
+- 별도 데이터 조회 없음. "월별 매출 현황" 섹션에서만 `<MonthlyRevenueChart data={monthlyStats} companyDbName={dbName} view={view} bm={bm} key={dbName} />` 형태로 전달 (`view`/`bm`은 이미 페이지에서 tab/bm 쿼리 파라미터로 계산돼 있는 값 그대로 사용)
 - "주차별 매출 현황" 섹션(`weekChartData`)의 `<MonthlyRevenueChart>` 호출은 변경하지 않음
 
 ## 에러 처리
@@ -55,6 +56,7 @@ Supabase 대신 브라우저 `localStorage`에 렌탈사별로 저장한다.
    - 기준선 삭제 → 차트에서 즉시 사라지고 새로고침 후에도 사라진 상태 유지되는지 확인
 3. "주차별 매출 현황" 차트가 기존과 동일하게 렌더링되는지(기준선 없이) 확인
 4. 다른 렌탈사 페이지로 이동 시 해당 렌탈사의 기준선만 보이는지 확인 (렌탈사 간 데이터 섞임 없는지, `localStorage` 키 분리 확인)
+5. 같은 렌탈사 내에서 탭(주문확정/계약완료)·BM(전체/BM1/BM2/BM3)을 바꿔가며 기준선이 조합별로 독립적으로 저장·표시되는지 확인
 
 ## 범위 밖 (Out of Scope)
 

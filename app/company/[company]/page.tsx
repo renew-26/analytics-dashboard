@@ -1325,6 +1325,8 @@ export default async function CompanyPage({
               data={monthlyStats}
               color={view === "contract" ? "#6366f1" : undefined}
               companyDbName={dbName}
+              view={view}
+              bm={bm}
             />
           </div>
         </div>
