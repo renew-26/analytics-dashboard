@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   LineChart,
   Line,
@@ -7,6 +8,7 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
+  ReferenceLine,
   ResponsiveContainer,
 } from "recharts";
 
@@ -16,10 +18,46 @@ export interface MonthStat {
   mom: number | null;
 }
 
+export interface RevenueTarget {
+  id: number;
+  label: string;
+  amount: number; // 원 단위
+}
+
+const TARGET_COLORS = [
+  "var(--color-accent-purple)",
+  "var(--color-accent-orange)",
+  "var(--color-warning-500)",
+  "var(--color-accent-yellow)",
+];
+
+function storageKey(companyDbName: string): string {
+  return `revenue-targets:${companyDbName}`;
+}
+
+function loadTargets(companyDbName: string): RevenueTarget[] {
+  try {
+    const raw = localStorage.getItem(storageKey(companyDbName));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveTargets(companyDbName: string, targets: RevenueTarget[]) {
+  localStorage.setItem(storageKey(companyDbName), JSON.stringify(targets));
+}
+
 function fmtAxis(n: number) {
   if (n >= 100_000_000) return `${(n / 100_000_000).toFixed(1)}억`;
   if (n >= 10_000) return `${Math.round(n / 10_000)}만`;
   return n.toLocaleString("ko-KR");
+}
+
+function fmtEok(amountWon: number): string {
+  return `${Number((amountWon / 100_000_000).toFixed(2))}억`;
 }
 
 function CustomTooltip({
@@ -71,11 +109,50 @@ function CustomTooltip({
 export default function MonthlyRevenueChart({
   data,
   color = "var(--color-primary-500)",
+  companyDbName,
 }: {
   data: MonthStat[];
   color?: string;
+  companyDbName?: string;
 }) {
+  const [targets, setTargets] = useState<RevenueTarget[]>([]);
+  const [label, setLabel] = useState("");
+  const [amountEok, setAmountEok] = useState("");
+
+  useEffect(() => {
+    if (companyDbName) setTargets(loadTargets(companyDbName));
+  }, [companyDbName]);
+
   if (data.length === 0) return null;
+
+  const editable = !!companyDbName;
+
+  function handleAdd() {
+    if (!companyDbName) return;
+    const trimmedLabel = label.trim();
+    const parsedEok = Number(amountEok);
+    if (!trimmedLabel || !amountEok || isNaN(parsedEok) || parsedEok <= 0) return;
+
+    const next = [
+      ...targets,
+      {
+        id: Date.now(),
+        label: trimmedLabel,
+        amount: Math.round(parsedEok * 100_000_000),
+      },
+    ];
+    setTargets(next);
+    saveTargets(companyDbName, next);
+    setLabel("");
+    setAmountEok("");
+  }
+
+  function handleRemove(id: number) {
+    if (!companyDbName) return;
+    const next = targets.filter((t) => t.id !== id);
+    setTargets(next);
+    saveTargets(companyDbName, next);
+  }
 
   return (
     <div className="[&_svg]:outline-none [&_svg]:focus:outline-none">
@@ -111,6 +188,21 @@ export default function MonthlyRevenueChart({
             dot={{ r: 4, fill: color, strokeWidth: 2, stroke: "#fff" }}
             activeDot={{ r: 5.5, fill: color, strokeWidth: 2, stroke: "#fff" }}
           />
+          {targets.map((t, i) => (
+            <ReferenceLine
+              key={t.id}
+              y={t.amount}
+              stroke={TARGET_COLORS[i % TARGET_COLORS.length]}
+              strokeDasharray="4 4"
+              strokeWidth={1.5}
+              label={{
+                value: `${t.label} ${fmtEok(t.amount)}`,
+                position: "insideTopLeft",
+                fontSize: 11,
+                fill: TARGET_COLORS[i % TARGET_COLORS.length],
+              }}
+            />
+          ))}
         </LineChart>
       </ResponsiveContainer>
 
@@ -139,6 +231,64 @@ export default function MonthlyRevenueChart({
             )
         )}
       </div>
+
+      {editable && (
+        <div className="mt-4 pt-4 border-t border-[var(--color-gray-150)]">
+          <div className="flex items-center gap-2 flex-wrap">
+            <input
+              type="text"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder="라벨 (예: 2026 목표)"
+              className="px-3 py-1.5 text-xs rounded-md border border-[var(--color-gray-200)] w-36"
+            />
+            <div className="flex items-center gap-1">
+              <input
+                type="number"
+                value={amountEok}
+                onChange={(e) => setAmountEok(e.target.value)}
+                placeholder="금액"
+                className="px-3 py-1.5 text-xs rounded-md border border-[var(--color-gray-200)] w-20"
+              />
+              <span className="text-xs text-[var(--color-gray-500)]">억원</span>
+            </div>
+            <button
+              type="button"
+              onClick={handleAdd}
+              disabled={!label.trim() || !amountEok}
+              className="px-3 py-1.5 text-xs font-semibold rounded-md bg-[var(--color-primary)] text-white disabled:opacity-40"
+            >
+              기준선 추가
+            </button>
+          </div>
+          {targets.length > 0 && (
+            <div className="flex gap-2 flex-wrap mt-2">
+              {targets.map((t, i) => (
+                <div
+                  key={t.id}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs"
+                  style={{
+                    backgroundColor: "var(--color-gray-100)",
+                    color: TARGET_COLORS[i % TARGET_COLORS.length],
+                  }}
+                >
+                  <span className="font-medium">
+                    {t.label} {fmtEok(t.amount)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemove(t.id)}
+                    className="text-[var(--color-gray-400)] hover:text-[var(--color-gray-700)]"
+                    aria-label={`${t.label} 삭제`}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
