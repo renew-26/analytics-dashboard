@@ -213,6 +213,7 @@ export default function MonthlyRevenueChart({
             <ReferenceLine
               key={t.id}
               y={t.amount}
+              ifOverflow="extendDomain"
               stroke={TARGET_COLORS[i % TARGET_COLORS.length]}
               strokeDasharray="4 4"
               strokeWidth={1.5}
