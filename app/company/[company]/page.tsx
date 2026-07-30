@@ -1321,8 +1321,10 @@ export default async function CompanyPage({
           </div>
           <div className="rounded-xl shadow-sm border border-gray-100 bg-white px-5 pt-5 pb-4">
             <MonthlyRevenueChart
+              key={dbName}
               data={monthlyStats}
               color={view === "contract" ? "#6366f1" : undefined}
+              companyDbName={dbName}
             />
           </div>
         </div>
