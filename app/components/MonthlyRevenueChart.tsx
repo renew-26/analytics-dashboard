@@ -31,13 +31,25 @@ const TARGET_COLORS = [
   "var(--color-accent-yellow)",
 ];
 
-function storageKey(companyDbName: string): string {
-  return `revenue-targets:${companyDbName}`;
+const VIEW_LABELS: Record<"order" | "contract", string> = {
+  order: "주문확정",
+  contract: "계약완료",
+};
+
+const BM_LABELS: Record<"all" | "bm1" | "bm2" | "bm3", string> = {
+  all: "전체",
+  bm1: "BM1",
+  bm2: "BM2",
+  bm3: "BM3",
+};
+
+function storageKey(companyDbName: string, view: string, bm: string): string {
+  return `revenue-targets:${companyDbName}:${view}:${bm}`;
 }
 
-function loadTargets(companyDbName: string): RevenueTarget[] {
+function loadTargets(companyDbName: string, view: string, bm: string): RevenueTarget[] {
   try {
-    const raw = localStorage.getItem(storageKey(companyDbName));
+    const raw = localStorage.getItem(storageKey(companyDbName, view, bm));
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -46,8 +58,13 @@ function loadTargets(companyDbName: string): RevenueTarget[] {
   }
 }
 
-function saveTargets(companyDbName: string, targets: RevenueTarget[]) {
-  localStorage.setItem(storageKey(companyDbName), JSON.stringify(targets));
+function saveTargets(
+  companyDbName: string,
+  view: string,
+  bm: string,
+  targets: RevenueTarget[],
+) {
+  localStorage.setItem(storageKey(companyDbName, view, bm), JSON.stringify(targets));
 }
 
 function fmtAxis(n: number) {
@@ -110,18 +127,22 @@ export default function MonthlyRevenueChart({
   data,
   color = "var(--color-primary-500)",
   companyDbName,
+  view = "order",
+  bm = "all",
 }: {
   data: MonthStat[];
   color?: string;
   companyDbName?: string;
+  view?: "order" | "contract";
+  bm?: "all" | "bm1" | "bm2" | "bm3";
 }) {
   const [targets, setTargets] = useState<RevenueTarget[]>([]);
   const [label, setLabel] = useState("");
   const [amountEok, setAmountEok] = useState("");
 
   useEffect(() => {
-    if (companyDbName) setTargets(loadTargets(companyDbName));
-  }, [companyDbName]);
+    if (companyDbName) setTargets(loadTargets(companyDbName, view, bm));
+  }, [companyDbName, view, bm]);
 
   if (data.length === 0) return null;
 
@@ -142,7 +163,7 @@ export default function MonthlyRevenueChart({
       },
     ];
     setTargets(next);
-    saveTargets(companyDbName, next);
+    saveTargets(companyDbName, view, bm, next);
     setLabel("");
     setAmountEok("");
   }
@@ -151,7 +172,7 @@ export default function MonthlyRevenueChart({
     if (!companyDbName) return;
     const next = targets.filter((t) => t.id !== id);
     setTargets(next);
-    saveTargets(companyDbName, next);
+    saveTargets(companyDbName, view, bm, next);
   }
 
   return (
@@ -234,6 +255,9 @@ export default function MonthlyRevenueChart({
 
       {editable && (
         <div className="mt-4 pt-4 border-t border-[var(--color-gray-150)]">
+          <p className="text-xs text-[var(--color-gray-500)] mb-2">
+            {VIEW_LABELS[view]} · {BM_LABELS[bm]} 기준선
+          </p>
           <div className="flex items-center gap-2 flex-wrap">
             <input
               type="text"
