@@ -139,12 +139,18 @@ export default function MonthlyRevenueChart({
   const [targets, setTargets] = useState<RevenueTarget[]>([]);
   const [label, setLabel] = useState("");
   const [amountEok, setAmountEok] = useState("");
+  const [hide2025, setHide2025] = useState(false);
 
   useEffect(() => {
     if (companyDbName) setTargets(loadTargets(companyDbName, view, bm));
   }, [companyDbName, view, bm]);
 
   if (data.length === 0) return null;
+
+  const has2025 = data.some((d) => d.month.startsWith("25."));
+  const visibleData = hide2025
+    ? data.filter((d) => !d.month.startsWith("25."))
+    : data;
 
   const editable = !!companyDbName;
 
@@ -177,9 +183,20 @@ export default function MonthlyRevenueChart({
 
   return (
     <div className="[&_svg]:outline-none [&_svg]:focus:outline-none">
+      {has2025 && (
+        <div className="flex justify-end mb-2">
+          <button
+            type="button"
+            onClick={() => setHide2025((v) => !v)}
+            className="px-2.5 py-1 text-xs font-medium rounded-md border border-[var(--color-gray-200)] text-[var(--color-gray-500)] hover:bg-[var(--color-gray-50)]"
+          >
+            {hide2025 ? "25년 데이터 보기" : "25년 데이터 숨기기"}
+          </button>
+        </div>
+      )}
       <ResponsiveContainer width="100%" height={200}>
         <LineChart
-          data={data}
+          data={visibleData}
           margin={{ left: 8, right: 24, top: 8, bottom: 0 }}
         >
           <CartesianGrid
@@ -230,7 +247,7 @@ export default function MonthlyRevenueChart({
 
       {/* MOM 요약 배지 */}
       <div className="flex gap-2 flex-wrap mt-3">
-        {data.map(
+        {visibleData.map(
           (d) =>
             d.mom !== null && (
               <div

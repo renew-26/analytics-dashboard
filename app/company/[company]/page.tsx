@@ -4,6 +4,7 @@ import CategoryTable from "@/app/components/CategoryTable";
 import BMFilter from "@/app/components/BMFilter";
 import PositionChartModal from "@/app/components/PositionChartModal";
 import MonthlyRevenueChart from "@/app/components/MonthlyRevenueChart";
+import MonthlyStatusTable from "@/app/components/MonthlyStatusTable";
 import ViewToggle from "@/app/components/ViewToggle";
 import CategoryCompetitiveSection, {
   type CompetitiveProduct,
@@ -305,27 +306,12 @@ function aggregateByCategoryWeekProduct(
 function aggregateByMonth(rows: DataRow[]) {
   const map = new Map<string, number>();
   for (const row of rows) {
-    const d = new Date(row.dateStr);
-    const key = `${d.getMonth() + 1}월`;
+    const key = monthKeyFull(row.dateStr);
     map.set(key, (map.get(key) ?? 0) + (row.total_rental_fee ?? 0));
   }
-  const months = [
-    "1월",
-    "2월",
-    "3월",
-    "4월",
-    "5월",
-    "6월",
-    "7월",
-    "8월",
-    "9월",
-    "10월",
-    "11월",
-    "12월",
-  ];
-  const sorted = months
-    .filter((m) => map.has(m))
-    .map((m) => ({ month: m, totalRentalFee: map.get(m)! }));
+  const sorted = Array.from(map.keys())
+    .sort((a, b) => a.localeCompare(b))
+    .map((ym) => ({ month: monthLabelFull(ym), totalRentalFee: map.get(ym)! }));
   return sorted.map((d, i) => ({
     ...d,
     mom:
@@ -489,7 +475,7 @@ export default async function CompanyPage({
 
   const PAGE = 1000;
   const FETCH_RANGE_START = "2025-01-01"; // 거래건수 조회 시작 시점
-  const REVENUE_RANGE_START = "2026-01-01"; // 매출·공헌이익 등 현재 기준 시점
+  const REVENUE_RANGE_START = "2025-01-01"; // 매출·공헌이익 등 현재 기준 시점
   const normalizedRows: DataRow[] = [];
   let fetchError = null;
 
@@ -596,7 +582,7 @@ export default async function CompanyPage({
           (r) => getBM(r.partner_company) === bm.toUpperCase(),
         );
 
-  // 매출·공헌이익 등은 현재 기준(2026년~)만, 거래건수는 월별 현황 테이블에서 2025년~ 전체 반영
+  // 매출·공헌이익 등도 거래건수와 동일하게 2025년~ 전체 반영
   const filteredRows = bmFilteredRows.filter(
     (r) => r.dateStr >= REVENUE_RANGE_START,
   );
@@ -1333,142 +1319,7 @@ export default async function CompanyPage({
       )}
 
       {/* 월별 현황 테이블 */}
-      {monthlyFullStats.length > 0 && (
-        <div className="mb-10">
-          <div className="mb-4 flex items-center gap-2">
-            <h2 className="text-base font-semibold text-gray-700">월별 현황</h2>
-            <span className="text-xs text-gray-400">
-              {view === "order" ? "주문확정" : "계약완료"} 기준
-            </span>
-          </div>
-          <div className="rounded-xl shadow-sm border border-gray-100">
-            <table className="text-sm bg-white w-full table-fixed">
-              <colgroup>
-                <col style={{ width: "14%" }} />
-                {monthlyFullStats.map((m) => (
-                  <col
-                    key={m.month}
-                    style={{ width: `${86 / monthlyFullStats.length}%` }}
-                  />
-                ))}
-              </colgroup>
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="px-5 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                    지표
-                  </th>
-                  {monthlyFullStats.map((m) => (
-                    <th key={m.month} className="px-4 py-3 text-center">
-                      <div className="font-semibold text-gray-700 text-xs">
-                        {monthLabelFull(m.month)}
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-t border-gray-50">
-                  <td className="px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider sticky left-0 bg-white">
-                    주문건수
-                  </td>
-                  {monthlyFullStats.map((m) => (
-                    <td
-                      key={m.month}
-                      className="px-4 py-3.5 text-center text-gray-800"
-                    >
-                      {fmt(m.count)}
-                    </td>
-                  ))}
-                </tr>
-                <tr className="border-t border-gray-50">
-                  <td className="px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider sticky left-0 bg-white">
-                    매출 (총렌탈료)
-                  </td>
-                  {monthlyFullStats.map((m) => (
-                    <td
-                      key={m.month}
-                      className="px-4 py-3.5 text-center text-gray-800"
-                    >
-                      {m.totalRentalFee === null ? "-" : fmt(m.totalRentalFee)}
-                    </td>
-                  ))}
-                </tr>
-                <tr className="border-t border-gray-50">
-                  <td className="px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider sticky left-0 bg-white">
-                    공헌이익
-                  </td>
-                  {monthlyFullStats.map((m) => (
-                    <td
-                      key={m.month}
-                      className="px-4 py-3.5 text-center font-medium"
-                      style={
-                        m.contributionMargin === null
-                          ? undefined
-                          : {
-                              color:
-                                m.contributionMargin >= 0
-                                  ? "var(--color-success)"
-                                  : "var(--color-error)",
-                            }
-                      }
-                    >
-                      {m.contributionMargin === null
-                        ? "-"
-                        : fmt(m.contributionMargin)}
-                    </td>
-                  ))}
-                </tr>
-                <tr className="border-t border-gray-50">
-                  <td className="px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider sticky left-0 bg-white">
-                    건당공헌이익
-                  </td>
-                  {monthlyFullStats.map((m) => (
-                    <td
-                      key={m.month}
-                      className="px-4 py-3.5 text-center text-gray-600"
-                    >
-                      {m.marginPerContract === null
-                        ? "-"
-                        : fmt(m.marginPerContract)}
-                    </td>
-                  ))}
-                </tr>
-                <tr className="border-t-2 border-gray-200">
-                  <td className="px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider sticky left-0 bg-white">
-                    전월 대비
-                  </td>
-                  {monthlyFullStats.map((m) => {
-                    if (m.mom === null) {
-                      return (
-                        <td
-                          key={m.month}
-                          className="px-4 py-3 text-center text-gray-300 text-xs"
-                        >
-                          -
-                        </td>
-                      );
-                    }
-                    const isUp = m.mom > 0;
-                    return (
-                      <td
-                        key={m.month}
-                        className="px-4 py-3 text-center text-xs font-bold"
-                        style={{
-                          color: isUp
-                            ? "var(--color-error)"
-                            : "var(--color-down)",
-                        }}
-                      >
-                        {isUp ? "▲" : "▼"} {Math.abs(m.mom).toFixed(1)}%
-                      </td>
-                    );
-                  })}
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      <MonthlyStatusTable data={monthlyFullStats} view={view} />
 
       {/* 주차별 매출 현황 차트 */}
       {weeks.length > 0 &&
