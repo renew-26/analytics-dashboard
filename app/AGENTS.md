@@ -4,7 +4,7 @@
 # app
 
 ## Purpose
-Next.js App Router 루트 디렉토리. 전역 레이아웃(사이드바+헤더), 홈 대시보드, 렌탈사별 상세 페이지와 다수의 분석 페이지(브랜드·카테고리 트렌드·전환율·공헌이익·예외승인·렌탈사 비교·자동견적·경쟁사 지원금), API 라우트를 포함한다. 대부분의 페이지는 `page.tsx`(Server Component, 데이터 fetch+집계) + `*Client.tsx`(Client Component, 인터랙션) 쌍으로 구성된다.
+Next.js App Router 루트 디렉토리. 전역 레이아웃(사이드바+헤더), 홈 대시보드, 렌탈사별 상세 페이지와 다수의 분석 페이지(브랜드·카테고리 트렌드·전환율·예외승인·렌탈사 비교·경쟁사 지원금), API 라우트를 포함한다. 대부분의 페이지는 `page.tsx`(Server Component, 데이터 fetch+집계) + `*Client.tsx`(Client Component, 인터랙션) 쌍으로 구성된다.
 
 ## Key Files
 
@@ -21,13 +21,11 @@ Next.js App Router 루트 디렉토리. 전역 레이아웃(사이드바+헤더)
 | `api/` | Next.js API 라우트 — 데이터 동기화, 지원금 조회/업로드 (see `api/AGENTS.md`) |
 | `components/` | 공용 UI 컴포넌트 (see `components/AGENTS.md`) |
 | `company/` | 렌탈사별 상세 분석 페이지 — 동적 라우트 `[company]` (see `company/AGENTS.md`) |
-| `auto-quote/` | 렌탈사별 자동견적(가격표) 비교 (see `auto-quote/AGENTS.md`) |
 | `brand-analysis/` | 브랜드별 매출·판매 상품 분석 (see `brand-analysis/AGENTS.md`) |
 | `category-trends/` | 카테고리 월별·주차별 트렌드 (see `category-trends/AGENTS.md`) |
 | `compare/` | 렌탈사 2개 선택 비교 (see `compare/AGENTS.md`) |
 | `conversion/` | 주문확정→계약완료 전환율 분석 (see `conversion/AGENTS.md`) |
 | `exception-approval/` | 예외승인(2만원 추가 보상제) 영향 분석 (see `exception-approval/AGENTS.md`) |
-| `profitability/` | 공헌이익 수익성 분석 (see `profitability/AGENTS.md`) |
 | `competitive-subsidy/` | 경쟁사 지원금 조사 (엑셀 업로드) (see `competitive-subsidy/AGENTS.md`) |
 
 ## For AI Agents

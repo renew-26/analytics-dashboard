@@ -130,11 +130,6 @@ export default function Sidebar() {
         {/* 수익성 분석 섹션 */}
         <SectionHeader label="수익성 분석" />
         <NavItem
-          href="/profitability"
-          label="공헌이익 분석"
-          active={pathname === "/profitability"}
-        />
-        <NavItem
           href="/exception-approval"
           label="예외승인 분석"
           active={pathname === "/exception-approval"}
@@ -155,11 +150,6 @@ export default function Sidebar() {
 
         {/* 시장 정보 섹션 */}
         <SectionHeader label="시장 정보" />
-        <NavItem
-          href="/auto-quote"
-          label="자동견적 비교"
-          active={pathname === "/auto-quote"}
-        />
         <NavItem
           href="/competitive-subsidy"
           label="경쟁사 지원금 조사"
