@@ -1,5 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import { getBM, MAIN_RENTAL_COMPANIES } from "@/lib/company-map";
+import CategoryMonthlyChart, {
+  type CategoryMonthPoint,
+} from "@/app/components/CategoryMonthlyChart";
+import TransactionYearToggle from "@/app/components/TransactionYearToggle";
 
 export const dynamic = "force-dynamic";
 
@@ -230,7 +234,26 @@ const CAT_TABLE_ROWS: {
   { large: "그외 카테고리", largeSpan: 1, cat: null },
 ];
 
-export default async function Home() {
+// CAT_TABLE_ROWS를 대카테고리 단위로 묶은 그룹 (월별 대카테고리 그래프용)
+const LARGE_CATEGORY_GROUPS: { large: string; cats: (string | null)[] }[] = [];
+for (const row of CAT_TABLE_ROWS) {
+  if (row.large) {
+    LARGE_CATEGORY_GROUPS.push({ large: row.large, cats: [row.cat] });
+  } else {
+    LARGE_CATEGORY_GROUPS[LARGE_CATEGORY_GROUPS.length - 1].cats.push(row.cat);
+  }
+}
+
+// dataviz 검증된 카테고리 팔레트 (라이트 서페이스, 5색 인접쌍 CVD 통과)
+const LARGE_CATEGORY_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"];
+
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ hide2025?: string }>;
+}) {
+  const { hide2025 } = await searchParams;
+  const hideOld2025 = hide2025 === "1";
   const { start, end, month } = getMonthRange();
   const { curr, prev, currLabel, prevLabel } = getComparisonDates();
   const excludedList = `(${EXCLUDED_CATS.join(",")})`;
@@ -418,6 +441,9 @@ export default async function Home() {
   const months = Array.from(monthCatMap.keys()).sort((a, b) =>
     b.localeCompare(a),
   ); // 최근 월 먼저
+  const visibleMonths = hideOld2025
+    ? months.filter((m) => !m.startsWith("2025"))
+    : months;
 
   function monthLabel(ym: string): string {
     return `${ym.slice(2, 4)}.${ym.slice(5, 7)}`; // "2025-07" → "25.07"
@@ -435,6 +461,46 @@ export default async function Home() {
     if (!mm) return 0;
     return Array.from(mm.values()).reduce((s, v) => s + v, 0);
   }
+
+  function buildCategoryChartData(year: string) {
+    return months
+      .filter((m) => m.startsWith(year))
+      .sort((a, b) => a.localeCompare(b))
+      .map((m) => {
+        const point: CategoryMonthPoint = {
+          month: `${Number(m.slice(5, 7))}월`,
+        };
+        for (const group of LARGE_CATEGORY_GROUPS) {
+          point[group.large] = group.cats.reduce(
+            (s, cat) => s + getCatCount(m, cat),
+            0,
+          );
+        }
+        return point;
+      });
+  }
+
+  const categoryChartSeries = LARGE_CATEGORY_GROUPS.map((g, i) => ({
+    key: g.large,
+    color: LARGE_CATEGORY_COLORS[i % LARGE_CATEGORY_COLORS.length],
+  }));
+  const categoryChart2026 = buildCategoryChartData("2026");
+  const categoryChart2025 = buildCategoryChartData("2025");
+
+  // 정수기는 스케일이 커서 별도 그래프로, 나머지 대카테고리는 별도 그래프로 분리
+  const waterCategorySeries = categoryChartSeries.filter(
+    (s) => s.key === "정수기",
+  );
+  const categoryGraphSeries = categoryChartSeries.filter(
+    (s) => s.key !== "정수기",
+  );
+  const categoryChartMax = Math.max(
+    0,
+    ...[...categoryChart2026, ...categoryChart2025].flatMap((point) =>
+      categoryGraphSeries.map((s) => Number(point[s.key]) || 0),
+    ),
+  );
+  const categoryChartYDomain: [number, number] = [0, categoryChartMax];
 
   function getBmCount(m: string, bm: "BM1" | "BM2" | "BM3"): number {
     return monthBmMap.get(m)?.[bm] ?? 0;
@@ -675,13 +741,36 @@ export default async function Home() {
 
       {/* ── Section 2 ── */}
       <div className="space-y-6">
-        <h2 className="text-base font-semibold text-gray-700">2. 거래건수</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-base font-semibold text-gray-700">2. 거래건수</h2>
+          <TransactionYearToggle hidden={hideOld2025} />
+        </div>
 
         {/* 2-1. 카테고리 거래건수 */}
         <div>
           <h3 className="text-sm font-semibold text-gray-500 mb-2">
             2-1. 카테고리 거래건수
           </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            {[
+              { year: "26", data: categoryChart2026 },
+              { year: "25", data: categoryChart2025 },
+            ].map(({ year, data }) => (
+              <div key={year} className="space-y-3">
+                <CategoryMonthlyChart
+                  title={`${year}년 정수기 거래건수`}
+                  data={data}
+                  series={waterCategorySeries}
+                />
+                <CategoryMonthlyChart
+                  title={`${year}년 대카테고리별 거래건수 (정수기 제외)`}
+                  data={data}
+                  series={categoryGraphSeries}
+                  yDomain={categoryChartYDomain}
+                />
+              </div>
+            ))}
+          </div>
           <div className="rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
             <table className="text-sm bg-white border-collapse w-full">
               <thead>
@@ -692,7 +781,7 @@ export default async function Home() {
                   <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[130px] border-r border-gray-100">
                     상품 카테고리
                   </th>
-                  {months.map((m) => (
+                  {visibleMonths.map((m) => (
                     <th
                       key={m}
                       className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[90px] cell-highlight"
@@ -719,7 +808,7 @@ export default async function Home() {
                     <td className="px-4 py-3 text-xs text-gray-600 text-center border-r border-gray-100">
                       {row.cat ?? "그 외"}
                     </td>
-                    {months.map((m) => (
+                    {visibleMonths.map((m) => (
                       <td
                         key={m}
                         className="px-4 py-3 text-center text-gray-800 cell-highlight"
@@ -740,7 +829,7 @@ export default async function Home() {
                   >
                     전체
                   </td>
-                  {months.map((m) => (
+                  {visibleMonths.map((m) => (
                     <td
                       key={m}
                       className="px-4 py-3 text-center font-semibold text-gray-800 cell-highlight"
@@ -766,7 +855,7 @@ export default async function Home() {
                   <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[100px] sticky left-0 bg-white z-10 border-r border-gray-100">
                     BM
                   </th>
-                  {months.map((m) => (
+                  {visibleMonths.map((m) => (
                     <th
                       key={m}
                       className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[90px] cell-highlight"
@@ -782,7 +871,7 @@ export default async function Home() {
                     <td className="px-4 py-3 text-xs font-semibold text-gray-600 text-center sticky left-0 bg-white border-r border-gray-100">
                       {bm}
                     </td>
-                    {months.map((m) => (
+                    {visibleMonths.map((m) => (
                       <td
                         key={m}
                         className="px-4 py-3 text-center text-gray-800 cell-highlight"
@@ -800,7 +889,7 @@ export default async function Home() {
                   <td className="px-4 py-3 text-xs font-semibold text-gray-400 text-center sticky left-0 bg-white border-r border-gray-100">
                     전체
                   </td>
-                  {months.map((m) => (
+                  {visibleMonths.map((m) => (
                     <td
                       key={m}
                       className="px-4 py-3 text-center font-semibold text-gray-800 cell-highlight"
@@ -826,7 +915,7 @@ export default async function Home() {
                   <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[160px] sticky left-0 bg-white z-10 border-r border-gray-100">
                     렌탈사
                   </th>
-                  {months.map((m) => (
+                  {visibleMonths.map((m) => (
                     <th
                       key={m}
                       className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[90px] cell-highlight"
@@ -842,7 +931,7 @@ export default async function Home() {
                     <td className="px-4 py-3 text-xs font-semibold text-gray-600 text-center sticky left-0 bg-white border-r border-gray-100">
                       {rc.label}
                     </td>
-                    {months.map((m) => (
+                    {visibleMonths.map((m) => (
                       <td
                         key={m}
                         className="px-4 py-3 text-center text-gray-800 cell-highlight"
