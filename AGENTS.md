@@ -63,6 +63,11 @@
 | `auto_quote_typeb` | 가전&상조 렌탈사별 자동견적 (Redash Query 4404) |
 | `auto_quote_typea` | 정수기 자동견적 — 더블체크 파트너스 기준 (Redash Query 4403) |
 | `tps_pnl` | 견적/손익 원장 — 예외승인 분석용 (Redash Query 4405) |
-| `competitive_subsidy` | 경쟁사 지원금 조사 데이터 (엑셀 업로드) |
+| `products` | 조사 대상 상품 DB — TPS/유심/가전 (tps-dashboard에서 이관) |
+| `competitor_subsidies` | 경쟁사 지원금 데이터 (tps-dashboard에서 이관) |
+| `margin_settings` | 마진 분석 설정 — 싱글턴 id=1 (tps-dashboard에서 이관) |
+| `appliance_rentre_subsidy` | 가전 더블체크 스냅샷 (tps-dashboard에서 이관) |
+| `survey_selection_catalog_cache` | Redash 카탈로그 캐시 (tps-dashboard에서 이관) |
+| `survey_selection_history` | 조사 상품 선정 이력 (tps-dashboard에서 이관) |
 
 <!-- MANUAL: -->

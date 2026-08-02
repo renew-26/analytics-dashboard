@@ -27,7 +27,9 @@ Next.js App Router 루트 디렉토리. 전역 레이아웃(사이드바+헤더)
 | `conversion/` | 주문확정→계약완료 전환율 분석 (see `conversion/AGENTS.md`) |
 | `exception-approval/` | 예외승인(2만원 추가 보상제) 영향 분석 (see `exception-approval/AGENTS.md`) |
 | `profitability/` | 공헌이익 수익성 분석 (see `profitability/AGENTS.md`) |
-| `competitive-subsidy/` | 경쟁사 지원금 조사 (엑셀 업로드) (see `competitive-subsidy/AGENTS.md`) |
+| `margin-analysis/` | 타사 비교 — 경쟁사 타겟마진 역산 (tps-dashboard에서 이관) |
+| `products/` | 상품 관리 — TPS/유심/가전 상품 DB CRUD (tps-dashboard에서 이관) |
+| `survey-selection/` | 조사 상품 선정 — 가전/TPS 카탈로그 선정 (tps-dashboard에서 이관) |
 
 ## For AI Agents
 
