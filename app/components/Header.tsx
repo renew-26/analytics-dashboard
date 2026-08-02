@@ -12,8 +12,14 @@ export default function Header({ lastUpdated }: { lastUpdated?: string | null })
 
   if (pathname === "/weekly-products") {
     title = "렌탈사별 상품 현황";
-  } else if (pathname === "/competitive-subsidy") {
-    title = "경쟁사 지원금 조사";
+  } else if (pathname === "/margin-analysis") {
+    title = "타사 비교";
+  } else if (pathname === "/products") {
+    title = "상품 관리";
+  } else if (pathname === "/survey-selection/appliance") {
+    title = "조사 상품 선정 - 가전";
+  } else if (pathname === "/survey-selection/tps") {
+    title = "조사 상품 선정 - TPS";
   } else if (pathname.startsWith("/company/")) {
     title = pathname.replace("/company/", "");
     group = COMPANY_MAP.find((c) => c.label === title)?.group ?? null;

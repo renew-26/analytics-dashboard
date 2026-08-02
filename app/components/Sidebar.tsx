@@ -151,9 +151,24 @@ export default function Sidebar() {
         {/* 시장 정보 섹션 */}
         <SectionHeader label="시장 정보" />
         <NavItem
-          href="/competitive-subsidy"
-          label="경쟁사 지원금 조사"
-          active={pathname === "/competitive-subsidy"}
+          href="/margin-analysis"
+          label="타사 비교"
+          active={pathname === "/margin-analysis"}
+        />
+        <NavItem
+          href="/products"
+          label="상품 관리"
+          active={pathname === "/products"}
+        />
+        <NavItem
+          href="/survey-selection/appliance"
+          label="조사 상품 선정 - 가전"
+          active={pathname === "/survey-selection/appliance"}
+        />
+        <NavItem
+          href="/survey-selection/tps"
+          label="조사 상품 선정 - TPS"
+          active={pathname === "/survey-selection/tps"}
         />
       </nav>
     </aside>

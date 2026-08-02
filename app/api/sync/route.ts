@@ -1,19 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { fetchRedashData, REDASH_QUERY } from "@/lib/redash";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
-
-const REDASH_URL = process.env.REDASH_URL!;
-const REDASH_API_KEY = process.env.REDASH_API_KEY!;
-
-const QUERY_ID_CONTRACT = 4445;
-const QUERY_ID_ORDER = 4441;
-const QUERY_ID_AUTO_QUOTE = 4404;
-const QUERY_ID_AUTO_QUOTE_TYPEA = 4403;
-const QUERY_ID_TPS_PNL = 4405;
 
 interface RedashContractRow {
   PROP_ITEM_USID: number;
@@ -65,66 +57,6 @@ interface RedashOrderRow {
   공헌이익: number | null;
 }
 
-async function fetchRedashData(
-  queryId: number,
-  startDate?: string,
-  endDate?: string,
-  rowLimit: string | number = 100000,
-  dateParamName: string = "조회기간",
-): Promise<unknown[]> {
-  const initRes = await fetch(`${REDASH_URL}/api/queries/${queryId}`, {
-    headers: { Authorization: `Key ${REDASH_API_KEY}` },
-  });
-  const setCookie = initRes.headers.get("set-cookie") ?? "";
-  const csrfMatch = setCookie.match(/csrf_token=([^;]+)/);
-  const csrfRaw = csrfMatch?.[1] ?? "";
-  const csrfToken = decodeURIComponent(csrfRaw).replace(/^"(.*)"$/, "$1");
-  const sessionMatch = setCookie.match(/session=([^;]+)/);
-  const cookieHeader = [
-    csrfMatch ? `csrf_token=${csrfRaw}` : "",
-    sessionMatch ? `session=${sessionMatch[1]}` : "",
-  ]
-    .filter(Boolean)
-    .join("; ");
-
-  const parameters: Record<string, unknown> = { row_limit: rowLimit };
-  if (startDate && endDate) {
-    parameters[dateParamName] = { start: startDate, end: endDate };
-  }
-
-  const jobRes = await fetch(`${REDASH_URL}/api/queries/${queryId}/results`, {
-    method: "POST",
-    headers: {
-      Authorization: `Key ${REDASH_API_KEY}`,
-      "Content-Type": "application/json",
-      "X-CSRF-Token": csrfToken,
-      Cookie: cookieHeader,
-    },
-    body: JSON.stringify({ max_age: 0, parameters }),
-  });
-
-  const { job } = await jobRes.json();
-
-  let resultId: number | null = null;
-  for (let i = 0; i < 30; i++) {
-    await new Promise((r) => setTimeout(r, 3000));
-    const statusRes = await fetch(`${REDASH_URL}/api/jobs/${job.id}`, {
-      headers: { Authorization: `Key ${REDASH_API_KEY}`, Cookie: cookieHeader },
-    });
-    const { job: j } = await statusRes.json();
-    if (j.status === 3) { resultId = j.query_result_id; break; }
-    if (j.status === 4) throw new Error(`Redash job failed: ${j.error}`);
-  }
-
-  if (!resultId) throw new Error("Redash query timed out");
-
-  const dataRes = await fetch(`${REDASH_URL}/api/query_results/${resultId}`, {
-    headers: { Authorization: `Key ${REDASH_API_KEY}`, Cookie: cookieHeader },
-  });
-  const data = await dataRes.json();
-  return data.query_result.data.rows;
-}
-
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -133,7 +65,7 @@ export async function POST(req: Request) {
     const type: "contract" | "order" | "auto_quote" | "auto_quote_typea" | "tps_pnl" = body.type ?? "contract";
 
     if (type === "tps_pnl") {
-      const rows = (await fetchRedashData(QUERY_ID_TPS_PNL, startDate, endDate, 100000, "견적완료일시")) as Record<string, unknown>[];
+      const rows = (await fetchRedashData(REDASH_QUERY.TPS_PNL, startDate, endDate, 100000, "견적완료일시")) as Record<string, unknown>[];
 
       const records = rows
         .filter((r) => r["PROP_ITEM_USID"])
@@ -180,7 +112,7 @@ export async function POST(req: Request) {
     }
 
     if (type === "auto_quote_typea") {
-      const rows = (await fetchRedashData(QUERY_ID_AUTO_QUOTE_TYPEA, undefined, undefined, "100000")) as Record<string, unknown>[];
+      const rows = (await fetchRedashData(REDASH_QUERY.AUTO_QUOTE_TYPEA, undefined, undefined, "100000")) as Record<string, unknown>[];
 
       const records = rows
         .filter((r) => r["prod_term_usid"])
@@ -247,7 +179,7 @@ export async function POST(req: Request) {
     }
 
     if (type === "auto_quote") {
-      const rows = (await fetchRedashData(QUERY_ID_AUTO_QUOTE)) as Record<string, unknown>[];
+      const rows = (await fetchRedashData(REDASH_QUERY.AUTO_QUOTE)) as Record<string, unknown>[];
 
       const records = rows
         .filter((r) => r["prod_term_usid"])
@@ -329,7 +261,7 @@ export async function POST(req: Request) {
     }
 
     if (type === "order") {
-      const rows = (await fetchRedashData(QUERY_ID_ORDER, startDate, endDate)) as RedashOrderRow[];
+      const rows = (await fetchRedashData(REDASH_QUERY.ORDER, startDate, endDate)) as RedashOrderRow[];
 
       const records = rows
         .filter((r) => r.PROP_ITEM_USID && r.렌탈사)
@@ -369,7 +301,7 @@ export async function POST(req: Request) {
     }
 
     // contract (default)
-    const rows = (await fetchRedashData(QUERY_ID_CONTRACT, startDate, endDate)) as RedashContractRow[];
+    const rows = (await fetchRedashData(REDASH_QUERY.CONTRACT, startDate, endDate)) as RedashContractRow[];
 
     const records = rows
       .filter((r) => r.PROP_ITEM_USID && r.계약완료일 && r.렌탈사)
