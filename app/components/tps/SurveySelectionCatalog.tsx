@@ -21,6 +21,8 @@ interface CandidatesResponse {
   error?: string
 }
 
+const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || ''
+
 export function SurveySelectionCatalog({ category }: { category: SurveyCategory }) {
   const [data, setData] = useState<CandidatesResponse | null>(null)
   const [loading, setLoading] = useState(true)
@@ -41,7 +43,7 @@ export function SurveySelectionCatalog({ category }: { category: SurveyCategory 
     setLoading(true)
     if (!opts?.preserveMessage) setMessage(null)
     try {
-      const res = await fetch(`/api/survey-selection/candidates?category=${category}`)
+      const res = await fetch(`${BASE_PATH}/api/survey-selection/candidates?category=${category}`)
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? '후보 조회 실패')
       setData(json)
@@ -97,7 +99,7 @@ export function SurveySelectionCatalog({ category }: { category: SurveyCategory 
     setConfirming(true)
     setMessage(null)
     try {
-      const res = await fetch('/api/survey-selection/confirm', {
+      const res = await fetch(`${BASE_PATH}/api/survey-selection/confirm`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ category, confirmed }),
