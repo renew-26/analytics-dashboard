@@ -13,7 +13,7 @@
 - 계약완료 기준(`raw_contracts.contract_date`) 데이터만 사용 — 주문확정(`raw_orders`) 데이터로 바꾸지 않는다.
 - 새 Supabase 쿼리를 추가하지 않는다 — 기존 `fetchAllYearContracts(yearStart, end)` 결과(`catRaw`)를 재사용한다.
 - 다른 섹션(0, 1, 3)의 마크업/로직은 변경하지 않는다.
-- 주차별 표/차트는 기본 최근 12주만 보여주고, 하나의 "더보기" 버튼으로 전체(2025-01-01~)를 확장한다 — 표마다 별도 버튼을 두지 않는다.
+- 주차별 표/차트는 항상 최근 12주만 보여준다 — 전체 확장("더보기") 기능은 두지 않는다. (`lib/week.ts`의 `getWeekIndex`가 `WEEK_REF` 이전 날짜를 `weekIdx=0`으로 클램프하므로, 항상 최근 12주만 보이면 그 경계에 닿지 않는다.)
 - 주차별 탭에는 `TransactionYearToggle`("25년 데이터 숨기기")을 노출하지 않는다.
 - 주차 번호/구간 기준은 `app/category-trends/page.tsx`의 `WEEK_REF = new Date("2026-01-02T00:00:00")`와 동일해야 한다.
 
@@ -1136,7 +1136,10 @@ import { getWeekIndex, getWeekLabel } from "@/lib/week";
     ...categoryChart2025,
   ]);
 
-  const weekIndices = Array.from(weekCatMap.keys()).sort((a, b) => b - a); // 최근 주 먼저
+  const WEEKS_LIMIT = 12;
+  const weekIndices = Array.from(weekCatMap.keys())
+    .sort((a, b) => b - a) // 최근 주 먼저
+    .slice(0, WEEKS_LIMIT); // 항상 최근 12주만 (그 이전 날짜는 getWeekIndex가 0으로 클램프하므로 여기서 경계를 넘지 않도록 자른다)
   const weeklyColumns: PeriodColumn[] = weekIndices.map((idx) => ({
     key: String(idx),
     label: getWeekLabel(idx).range,
@@ -1267,8 +1270,6 @@ type Props = {
   categoryChartYDomainWeekly: [number, number];
 };
 
-const WEEKS_DEFAULT_LIMIT = 12;
-
 function fmt(n: number) {
   return n.toLocaleString("ko-KR");
 }
@@ -1283,15 +1284,6 @@ export default function TransactionCountSection({
   categoryChartYDomainWeekly,
 }: Props) {
   const [tab, setTab] = useState<"monthly" | "weekly">("monthly");
-  const [weeksExpanded, setWeeksExpanded] = useState(false);
-
-  const canExpandWeeks = weekly.columns.length > WEEKS_DEFAULT_LIMIT;
-  const visibleWeeklyColumns = weeksExpanded
-    ? weekly.columns
-    : weekly.columns.slice(0, WEEKS_DEFAULT_LIMIT);
-  const visibleWeeklyChart = weeksExpanded
-    ? weekly.chart
-    : weekly.chart.slice(-WEEKS_DEFAULT_LIMIT);
 
   return (
     <div className="space-y-6">
@@ -1310,14 +1302,6 @@ export default function TransactionCountSection({
           />
         </div>
         {tab === "monthly" && <TransactionYearToggle hidden={hideOld2025} />}
-        {tab === "weekly" && canExpandWeeks && (
-          <button
-            onClick={() => setWeeksExpanded((p) => !p)}
-            className="ml-auto px-2.5 py-1 text-xs font-medium rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50"
-          >
-            {weeksExpanded ? "최근 12주만 보기" : "전체 주차 보기"}
-          </button>
-        )}
       </div>
 
       {tab === "monthly" && (
@@ -1389,18 +1373,18 @@ export default function TransactionCountSection({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <CategoryMonthlyChart
                 title="정수기 거래건수 (주차별)"
-                data={visibleWeeklyChart}
+                data={weekly.chart}
                 series={waterSeries}
               />
               <CategoryMonthlyChart
                 title="대카테고리별 거래건수 (주차별, 정수기 제외)"
-                data={visibleWeeklyChart}
+                data={weekly.chart}
                 series={categorySeries}
                 yDomain={categoryChartYDomainWeekly}
               />
             </div>
             <CategoryCountTable
-              columns={visibleWeeklyColumns}
+              columns={weekly.columns}
               catCounts={weekly.catCounts}
               totals={weekly.totals}
             />
@@ -1412,7 +1396,7 @@ export default function TransactionCountSection({
               2-2. BM별 거래건수
             </h3>
             <BmCountTable
-              columns={visibleWeeklyColumns}
+              columns={weekly.columns}
               bmCounts={weekly.bmCounts}
               totals={weekly.totals}
             />
@@ -1424,7 +1408,7 @@ export default function TransactionCountSection({
               2-3. 주요 렌탈사별 거래건수
             </h3>
             <RcCountTable
-              columns={visibleWeeklyColumns}
+              columns={weekly.columns}
               rcCounts={weekly.rcCounts}
             />
           </div>
@@ -1686,9 +1670,8 @@ Expected: 전부 1 이상 (탭 버튼 라벨이 SSR에 존재, 기본 월별 콘
 
 이어서 브라우저로 `http://localhost:3000/`을 열어 직접 확인:
 1. "2. 거래건수" 헤더 옆에 "월별"/"주차별" 탭 버튼이 보이고, 기본은 "월별"이 활성 상태이며 화면은 Task 3과 동일하게 보인다.
-2. "주차별" 탭 클릭 → 정수기/대카테고리 그래프가 각각 1개씩(연도 분할 없음)으로 바뀌고, 2-1/2-2/2-3 표의 열 헤더가 "8/4~8/10" 같은 주차 라벨로 바뀐다. 기본으로 12개 열(주)만 보인다.
-3. "전체 주차 보기" 버튼 클릭 → 표 열과 차트 포인트가 2025-01-01까지 확장된다. 다시 누르면 "최근 12주만 보기"로 라벨이 바뀌고 12주로 축소된다.
-4. "월별" 탭으로 돌아가면 "25년 데이터 숨기기" 토글이 다시 보이고 정상 동작한다.
+2. "주차별" 탭 클릭 → 정수기/대카테고리 그래프가 각각 1개씩(연도 분할 없음)으로 바뀌고, 2-1/2-2/2-3 표의 열 헤더가 "8/4~8/10" 같은 주차 라벨로 바뀐다. 항상 12개 열(최근 12주)만 보이고, 확장 버튼은 없다.
+3. "월별" 탭으로 돌아가면 "25년 데이터 숨기기" 토글이 다시 보이고 정상 동작한다.
 
 - [ ] **Step 8: 커밋**
 
@@ -1713,7 +1696,7 @@ Expected: 에러 없이 통과.
 
 - [ ] **Step 2: 홈 화면과 category-trends 페이지 모두 브라우저에서 재확인**
 
-- `http://localhost:3000/` — 월별/주차별 탭 전환, "전체 주차 보기" 확장/축소, "25년 데이터 숨기기" 토글, 섹션 0/1/3이 그대로인지 확인.
+- `http://localhost:3000/` — 월별/주차별 탭 전환(주차별은 항상 최근 12주), "25년 데이터 숨기기" 토글, 섹션 0/1/3이 그대로인지 확인.
 - `http://localhost:3000/category-trends` — 월별 트렌드/주차별 트렌드 탭이 Task 1 리팩터링 이후에도 그대로 동작하는지 확인 (주차 번호가 리팩터링 전과 동일해야 함).
 
 - [ ] **Step 3: PR 생성 여부 확인**
