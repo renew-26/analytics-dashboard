@@ -1,12 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
-import { getBM, MAIN_RENTAL_COMPANIES } from "@/lib/company-map";
-import CategoryMonthlyChart, {
-  type CategoryMonthPoint,
-} from "@/app/components/CategoryMonthlyChart";
-import TransactionYearToggle from "@/app/components/TransactionYearToggle";
+import { getBM } from "@/lib/company-map";
+import { type CategoryMonthPoint } from "@/app/components/CategoryMonthlyChart";
+import TransactionCountSection, {
+  type PeriodColumn,
+} from "@/app/components/TransactionCountSection";
 import {
   KNOWN_CATS,
-  CAT_TABLE_ROWS,
   LARGE_CATEGORY_GROUPS,
   LARGE_CATEGORY_COLORS,
 } from "@/app/components/transactionCategoryLayout";
@@ -421,44 +420,55 @@ export default async function Home({
     return `${ym.slice(2, 4)}.${ym.slice(5, 7)}`; // "2025-07" → "25.07"
   }
 
-  function getCatCount(m: string, cat: string | null): number {
-    const mm = monthCatMap.get(m);
-    if (!mm) return 0;
-    if (cat === null) return mm.get("그 외") ?? 0;
-    return mm.get(cat) ?? 0;
+  function periodTotal(m: Map<string, number> | undefined): number {
+    if (!m) return 0;
+    return Array.from(m.values()).reduce((s, v) => s + v, 0);
   }
 
-  function getMonthTotal(m: string): number {
-    const mm = monthCatMap.get(m);
-    if (!mm) return 0;
-    return Array.from(mm.values()).reduce((s, v) => s + v, 0);
-  }
+  const monthlyColumns: PeriodColumn[] = visibleMonths.map((m) => ({
+    key: m,
+    label: monthLabel(m),
+  }));
+  const catCountsByMonth = Object.fromEntries(
+    visibleMonths.map((m) => [
+      m,
+      Object.fromEntries(monthCatMap.get(m) ?? new Map()),
+    ]),
+  );
+  const rcCountsByMonth = Object.fromEntries(
+    visibleMonths.map((m) => [
+      m,
+      Object.fromEntries(monthRcMap.get(m) ?? new Map()),
+    ]),
+  );
+  const totalsByMonth = Object.fromEntries(
+    visibleMonths.map((m) => [m, periodTotal(monthCatMap.get(m))]),
+  );
+  const bmCountsByMonth = Object.fromEntries(
+    visibleMonths.map((m) => [
+      m,
+      monthBmMap.get(m) ?? { BM1: 0, BM2: 0, BM3: 0 },
+    ]),
+  );
 
-  function buildCategoryChartData(year: string) {
-    return months
-      .filter((m) => m.startsWith(year))
-      .sort((a, b) => a.localeCompare(b))
-      .map((m) => {
-        const point: CategoryMonthPoint = {
-          month: `${Number(m.slice(5, 7))}월`,
-        };
-        for (const group of LARGE_CATEGORY_GROUPS) {
-          point[group.large] = group.cats.reduce(
-            (s, cat) => s + getCatCount(m, cat),
-            0,
-          );
-        }
-        return point;
-      });
+  function buildCategoryPoint(
+    label: string,
+    catMap: Map<string, number> | undefined,
+  ): CategoryMonthPoint {
+    const point: CategoryMonthPoint = { month: label };
+    for (const group of LARGE_CATEGORY_GROUPS) {
+      point[group.large] = group.cats.reduce(
+        (s, cat) => s + (catMap?.get(cat === null ? "그 외" : cat) ?? 0),
+        0,
+      );
+    }
+    return point;
   }
 
   const categoryChartSeries = LARGE_CATEGORY_GROUPS.map((g, i) => ({
     key: g.large,
     color: LARGE_CATEGORY_COLORS[i % LARGE_CATEGORY_COLORS.length],
   }));
-  const categoryChart2026 = buildCategoryChartData("2026");
-  const categoryChart2025 = buildCategoryChartData("2025");
-
   // 정수기는 스케일이 커서 별도 그래프로, 나머지 대카테고리는 별도 그래프로 분리
   const waterCategorySeries = categoryChartSeries.filter(
     (s) => s.key === "정수기",
@@ -466,21 +476,31 @@ export default async function Home({
   const categoryGraphSeries = categoryChartSeries.filter(
     (s) => s.key !== "정수기",
   );
-  const categoryChartMax = Math.max(
-    0,
-    ...[...categoryChart2026, ...categoryChart2025].flatMap((point) =>
-      categoryGraphSeries.map((s) => Number(point[s.key]) || 0),
-    ),
-  );
-  const categoryChartYDomain: [number, number] = [0, categoryChartMax];
 
-  function getBmCount(m: string, bm: "BM1" | "BM2" | "BM3"): number {
-    return monthBmMap.get(m)?.[bm] ?? 0;
+  function buildMonthlyChart(year: string): CategoryMonthPoint[] {
+    return months
+      .filter((m) => m.startsWith(year))
+      .sort((a, b) => a.localeCompare(b))
+      .map((m) =>
+        buildCategoryPoint(`${Number(m.slice(5, 7))}월`, monthCatMap.get(m)),
+      );
   }
+  const categoryChart2026 = buildMonthlyChart("2026");
+  const categoryChart2025 = buildMonthlyChart("2025");
 
-  function getRcCount(m: string, dbName: string): number {
-    return monthRcMap.get(m)?.get(dbName) ?? 0;
+  function chartYDomain(points: CategoryMonthPoint[]): [number, number] {
+    const max = Math.max(
+      0,
+      ...points.flatMap((point) =>
+        categoryGraphSeries.map((s) => Number(point[s.key]) || 0),
+      ),
+    );
+    return [0, max];
   }
+  const categoryChartYDomainMonthly = chartYDomain([
+    ...categoryChart2026,
+    ...categoryChart2025,
+  ]);
 
   return (
     <div className="px-12 pt-5 pb-8 space-y-8">
@@ -712,216 +732,21 @@ export default async function Home({
       </div>
 
       {/* ── Section 2 ── */}
-      <div className="space-y-6">
-        <div className="flex items-center gap-2">
-          <h2 className="text-base font-semibold text-gray-700">2. 거래건수</h2>
-          <TransactionYearToggle hidden={hideOld2025} />
-        </div>
-
-        {/* 2-1. 카테고리 거래건수 */}
-        <div>
-          <h3 className="text-sm font-semibold text-gray-500 mb-2">
-            2-1. 카테고리 거래건수
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            {[
-              { year: "26", data: categoryChart2026 },
-              { year: "25", data: categoryChart2025 },
-            ].map(({ year, data }) => (
-              <div key={year} className="space-y-3">
-                <CategoryMonthlyChart
-                  title={`${year}년 정수기 거래건수`}
-                  data={data}
-                  series={waterCategorySeries}
-                />
-                <CategoryMonthlyChart
-                  title={`${year}년 대카테고리별 거래건수 (정수기 제외)`}
-                  data={data}
-                  series={categoryGraphSeries}
-                  yDomain={categoryChartYDomain}
-                />
-              </div>
-            ))}
-          </div>
-          <div className="rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
-            <table className="text-sm bg-white border-collapse w-full">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[120px] sticky left-0 bg-white z-10 border-r border-gray-100">
-                    대카테고리
-                  </th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[130px] border-r border-gray-100">
-                    상품 카테고리
-                  </th>
-                  {visibleMonths.map((m) => (
-                    <th
-                      key={m}
-                      className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[90px] cell-highlight"
-                    >
-                      {monthLabel(m)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {CAT_TABLE_ROWS.map((row) => (
-                  <tr
-                    key={row.cat ?? "그 외"}
-                    className="border-t border-gray-50"
-                  >
-                    {row.largeSpan > 0 && (
-                      <td
-                        rowSpan={row.largeSpan}
-                        className="px-4 py-3 text-xs font-semibold text-gray-500 text-center sticky left-0 bg-white border-r border-gray-100 align-middle"
-                      >
-                        {row.large}
-                      </td>
-                    )}
-                    <td className="px-4 py-3 text-xs text-gray-600 text-center border-r border-gray-100">
-                      {row.cat ?? "그 외"}
-                    </td>
-                    {visibleMonths.map((m) => (
-                      <td
-                        key={m}
-                        className="px-4 py-3 text-center text-gray-800 cell-highlight"
-                      >
-                        {getCatCount(m, row.cat) > 0 ? (
-                          fmt(getCatCount(m, row.cat))
-                        ) : (
-                          <span className="text-gray-200">-</span>
-                        )}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-                <tr className="border-t-2 border-gray-200">
-                  <td
-                    colSpan={2}
-                    className="px-4 py-3 text-xs font-semibold text-gray-400 text-center sticky left-0 bg-white border-r border-gray-100"
-                  >
-                    전체
-                  </td>
-                  {visibleMonths.map((m) => (
-                    <td
-                      key={m}
-                      className="px-4 py-3 text-center font-semibold text-gray-800 cell-highlight"
-                    >
-                      {fmt(getMonthTotal(m))}
-                    </td>
-                  ))}
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* 2-2. BM별 거래건수 */}
-        <div>
-          <h3 className="text-sm font-semibold text-gray-500 mb-2">
-            2-2. BM별 거래건수
-          </h3>
-          <div className="rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
-            <table className="text-sm bg-white border-collapse w-full">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[100px] sticky left-0 bg-white z-10 border-r border-gray-100">
-                    BM
-                  </th>
-                  {visibleMonths.map((m) => (
-                    <th
-                      key={m}
-                      className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[90px] cell-highlight"
-                    >
-                      {monthLabel(m)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {(["BM1", "BM2", "BM3"] as const).map((bm) => (
-                  <tr key={bm} className="border-t border-gray-50">
-                    <td className="px-4 py-3 text-xs font-semibold text-gray-600 text-center sticky left-0 bg-white border-r border-gray-100">
-                      {bm}
-                    </td>
-                    {visibleMonths.map((m) => (
-                      <td
-                        key={m}
-                        className="px-4 py-3 text-center text-gray-800 cell-highlight"
-                      >
-                        {getBmCount(m, bm) > 0 ? (
-                          fmt(getBmCount(m, bm))
-                        ) : (
-                          <span className="text-gray-200">-</span>
-                        )}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-                <tr className="border-t-2 border-gray-200">
-                  <td className="px-4 py-3 text-xs font-semibold text-gray-400 text-center sticky left-0 bg-white border-r border-gray-100">
-                    전체
-                  </td>
-                  {visibleMonths.map((m) => (
-                    <td
-                      key={m}
-                      className="px-4 py-3 text-center font-semibold text-gray-800 cell-highlight"
-                    >
-                      {fmt(getMonthTotal(m))}
-                    </td>
-                  ))}
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* 2-3. 주요 렌탈사별 거래건수 */}
-        <div>
-          <h3 className="text-sm font-semibold text-gray-500 mb-2">
-            2-3. 주요 렌탈사별 거래건수
-          </h3>
-          <div className="rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
-            <table className="text-sm bg-white border-collapse w-full">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[160px] sticky left-0 bg-white z-10 border-r border-gray-100">
-                    렌탈사
-                  </th>
-                  {visibleMonths.map((m) => (
-                    <th
-                      key={m}
-                      className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[90px] cell-highlight"
-                    >
-                      {monthLabel(m)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {MAIN_RENTAL_COMPANIES.map((rc) => (
-                  <tr key={rc.dbName} className="border-t border-gray-50">
-                    <td className="px-4 py-3 text-xs font-semibold text-gray-600 text-center sticky left-0 bg-white border-r border-gray-100">
-                      {rc.label}
-                    </td>
-                    {visibleMonths.map((m) => (
-                      <td
-                        key={m}
-                        className="px-4 py-3 text-center text-gray-800 cell-highlight"
-                      >
-                        {getRcCount(m, rc.dbName) > 0 ? (
-                          fmt(getRcCount(m, rc.dbName))
-                        ) : (
-                          <span className="text-gray-200">-</span>
-                        )}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+      <TransactionCountSection
+        hideOld2025={hideOld2025}
+        monthly={{
+          columns: monthlyColumns,
+          catCounts: catCountsByMonth,
+          bmCounts: bmCountsByMonth,
+          rcCounts: rcCountsByMonth,
+          totals: totalsByMonth,
+          chart2026: categoryChart2026,
+          chart2025: categoryChart2025,
+        }}
+        waterSeries={waterCategorySeries}
+        categorySeries={categoryGraphSeries}
+        categoryChartYDomainMonthly={categoryChartYDomainMonthly}
+      />
 
       {/* ── Section 3: BM 수익성 ── */}
       <details className="group">
