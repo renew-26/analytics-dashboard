@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { getBM } from "@/lib/company-map";
+import { getWeekIndex, getWeekLabel } from "@/lib/week";
 import { type CategoryMonthPoint } from "@/app/components/CategoryMonthlyChart";
 import TransactionCountSection, {
   type PeriodColumn,
@@ -385,9 +386,13 @@ export default async function Home({
     Record<"BM1" | "BM2" | "BM3", number>
   >(); // "YYYY-MM" → BM → count
   const monthRcMap = new Map<string, Map<string, number>>(); // "YYYY-MM" → rental_company → count
+  const weekCatMap = new Map<number, Map<string, number>>(); // weekIdx → cat → count
+  const weekBmMap = new Map<number, Record<"BM1" | "BM2" | "BM3", number>>(); // weekIdx → BM → count
+  const weekRcMap = new Map<number, Map<string, number>>(); // weekIdx → rental_company → count
 
   for (const r of catRaw) {
     const m = r.contract_date.slice(0, 7); // "YYYY-MM"
+    const w = getWeekIndex(r.contract_date);
     const cat = KNOWN_CATS.has(r.category ?? "")
       ? (r.category as string)
       : "그 외";
@@ -398,15 +403,23 @@ export default async function Home({
     if (!monthCatMap.has(m)) monthCatMap.set(m, new Map());
     const catMm = monthCatMap.get(m)!;
     catMm.set(cat, (catMm.get(cat) ?? 0) + 1);
+    if (!weekCatMap.has(w)) weekCatMap.set(w, new Map());
+    const catWm = weekCatMap.get(w)!;
+    catWm.set(cat, (catWm.get(cat) ?? 0) + 1);
 
     // BM
     if (!monthBmMap.has(m)) monthBmMap.set(m, { BM1: 0, BM2: 0, BM3: 0 });
     monthBmMap.get(m)![bm]++;
+    if (!weekBmMap.has(w)) weekBmMap.set(w, { BM1: 0, BM2: 0, BM3: 0 });
+    weekBmMap.get(w)![bm]++;
 
     // 렌탈사
     if (!monthRcMap.has(m)) monthRcMap.set(m, new Map());
     const rcMm = monthRcMap.get(m)!;
     rcMm.set(rc, (rcMm.get(rc) ?? 0) + 1);
+    if (!weekRcMap.has(w)) weekRcMap.set(w, new Map());
+    const rcWm = weekRcMap.get(w)!;
+    rcWm.set(rc, (rcWm.get(rc) ?? 0) + 1);
   }
 
   const months = Array.from(monthCatMap.keys()).sort((a, b) =>
@@ -501,6 +514,38 @@ export default async function Home({
     ...categoryChart2026,
     ...categoryChart2025,
   ]);
+
+  const weekIndices = Array.from(weekCatMap.keys()).sort((a, b) => b - a); // 최근 주 먼저
+  const weeklyColumns: PeriodColumn[] = weekIndices.map((idx) => ({
+    key: String(idx),
+    label: getWeekLabel(idx).range,
+  }));
+  const catCountsByWeek = Object.fromEntries(
+    weekIndices.map((idx) => [
+      String(idx),
+      Object.fromEntries(weekCatMap.get(idx) ?? new Map()),
+    ]),
+  );
+  const rcCountsByWeek = Object.fromEntries(
+    weekIndices.map((idx) => [
+      String(idx),
+      Object.fromEntries(weekRcMap.get(idx) ?? new Map()),
+    ]),
+  );
+  const totalsByWeek = Object.fromEntries(
+    weekIndices.map((idx) => [String(idx), periodTotal(weekCatMap.get(idx))]),
+  );
+  const bmCountsByWeek = Object.fromEntries(
+    weekIndices.map((idx) => [
+      String(idx),
+      weekBmMap.get(idx) ?? { BM1: 0, BM2: 0, BM3: 0 },
+    ]),
+  );
+
+  const weeklyChart: CategoryMonthPoint[] = [...weekIndices]
+    .sort((a, b) => a - b)
+    .map((idx) => buildCategoryPoint(getWeekLabel(idx).range, weekCatMap.get(idx)));
+  const categoryChartYDomainWeekly = chartYDomain(weeklyChart);
 
   return (
     <div className="px-12 pt-5 pb-8 space-y-8">
@@ -743,9 +788,18 @@ export default async function Home({
           chart2026: categoryChart2026,
           chart2025: categoryChart2025,
         }}
+        weekly={{
+          columns: weeklyColumns,
+          catCounts: catCountsByWeek,
+          bmCounts: bmCountsByWeek,
+          rcCounts: rcCountsByWeek,
+          totals: totalsByWeek,
+          chart: weeklyChart,
+        }}
         waterSeries={waterCategorySeries}
         categorySeries={categoryGraphSeries}
         categoryChartYDomainMonthly={categoryChartYDomainMonthly}
+        categoryChartYDomainWeekly={categoryChartYDomainWeekly}
       />
 
       {/* ── Section 3: BM 수익성 ── */}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import CategoryMonthlyChart, {
   type CategoryMonthPoint,
   type CategorySeries,
@@ -21,13 +22,26 @@ type MonthlyData = {
   chart2025: CategoryMonthPoint[];
 };
 
+type WeeklyData = {
+  columns: PeriodColumn[];
+  catCounts: Record<string, Record<string, number>>;
+  bmCounts: Record<string, BmCounts>;
+  rcCounts: Record<string, Record<string, number>>;
+  totals: Record<string, number>;
+  chart: CategoryMonthPoint[];
+};
+
 type Props = {
   hideOld2025: boolean;
   monthly: MonthlyData;
+  weekly: WeeklyData;
   waterSeries: CategorySeries[];
   categorySeries: CategorySeries[];
   categoryChartYDomainMonthly: [number, number];
+  categoryChartYDomainWeekly: [number, number];
 };
+
+const WEEKS_DEFAULT_LIMIT = 12;
 
 function fmt(n: number) {
   return n.toLocaleString("ko-KR");
@@ -36,69 +50,184 @@ function fmt(n: number) {
 export default function TransactionCountSection({
   hideOld2025,
   monthly,
+  weekly,
   waterSeries,
   categorySeries,
   categoryChartYDomainMonthly,
+  categoryChartYDomainWeekly,
 }: Props) {
+  const [tab, setTab] = useState<"monthly" | "weekly">("monthly");
+  const [weeksExpanded, setWeeksExpanded] = useState(false);
+
+  const canExpandWeeks = weekly.columns.length > WEEKS_DEFAULT_LIMIT;
+  const visibleWeeklyColumns = weeksExpanded
+    ? weekly.columns
+    : weekly.columns.slice(0, WEEKS_DEFAULT_LIMIT);
+  const visibleWeeklyChart = weeksExpanded
+    ? weekly.chart
+    : weekly.chart.slice(-WEEKS_DEFAULT_LIMIT);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2">
         <h2 className="text-base font-semibold text-gray-700">2. 거래건수</h2>
-        <TransactionYearToggle hidden={hideOld2025} />
+        <div className="flex gap-0 ml-2 border-b border-gray-100">
+          <TabButton
+            label="월별"
+            active={tab === "monthly"}
+            onClick={() => setTab("monthly")}
+          />
+          <TabButton
+            label="주차별"
+            active={tab === "weekly"}
+            onClick={() => setTab("weekly")}
+          />
+        </div>
+        {tab === "monthly" && <TransactionYearToggle hidden={hideOld2025} />}
+        {tab === "weekly" && canExpandWeeks && (
+          <button
+            onClick={() => setWeeksExpanded((p) => !p)}
+            className="ml-auto px-2.5 py-1 text-xs font-medium rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50"
+          >
+            {weeksExpanded ? "최근 12주만 보기" : "전체 주차 보기"}
+          </button>
+        )}
       </div>
 
-      {/* 2-1. 카테고리 거래건수 */}
-      <div>
-        <h3 className="text-sm font-semibold text-gray-500 mb-2">
-          2-1. 카테고리 거래건수
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          {[
-            { year: "26", data: monthly.chart2026 },
-            { year: "25", data: monthly.chart2025 },
-          ].map(({ year, data }) => (
-            <div key={year} className="space-y-3">
+      {tab === "monthly" && (
+        <>
+          {/* 2-1. 카테고리 거래건수 */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-500 mb-2">
+              2-1. 카테고리 거래건수
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              {[
+                { year: "26", data: monthly.chart2026 },
+                { year: "25", data: monthly.chart2025 },
+              ].map(({ year, data }) => (
+                <div key={year} className="space-y-3">
+                  <CategoryMonthlyChart
+                    title={`${year}년 정수기 거래건수`}
+                    data={data}
+                    series={waterSeries}
+                  />
+                  <CategoryMonthlyChart
+                    title={`${year}년 대카테고리별 거래건수 (정수기 제외)`}
+                    data={data}
+                    series={categorySeries}
+                    yDomain={categoryChartYDomainMonthly}
+                  />
+                </div>
+              ))}
+            </div>
+            <CategoryCountTable
+              columns={monthly.columns}
+              catCounts={monthly.catCounts}
+              totals={monthly.totals}
+            />
+          </div>
+
+          {/* 2-2. BM별 거래건수 */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-500 mb-2">
+              2-2. BM별 거래건수
+            </h3>
+            <BmCountTable
+              columns={monthly.columns}
+              bmCounts={monthly.bmCounts}
+              totals={monthly.totals}
+            />
+          </div>
+
+          {/* 2-3. 주요 렌탈사별 거래건수 */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-500 mb-2">
+              2-3. 주요 렌탈사별 거래건수
+            </h3>
+            <RcCountTable
+              columns={monthly.columns}
+              rcCounts={monthly.rcCounts}
+            />
+          </div>
+        </>
+      )}
+
+      {tab === "weekly" && (
+        <>
+          {/* 2-1. 카테고리 거래건수 */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-500 mb-2">
+              2-1. 카테고리 거래건수
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <CategoryMonthlyChart
-                title={`${year}년 정수기 거래건수`}
-                data={data}
+                title="정수기 거래건수 (주차별)"
+                data={visibleWeeklyChart}
                 series={waterSeries}
               />
               <CategoryMonthlyChart
-                title={`${year}년 대카테고리별 거래건수 (정수기 제외)`}
-                data={data}
+                title="대카테고리별 거래건수 (주차별, 정수기 제외)"
+                data={visibleWeeklyChart}
                 series={categorySeries}
-                yDomain={categoryChartYDomainMonthly}
+                yDomain={categoryChartYDomainWeekly}
               />
             </div>
-          ))}
-        </div>
-        <CategoryCountTable
-          columns={monthly.columns}
-          catCounts={monthly.catCounts}
-          totals={monthly.totals}
-        />
-      </div>
+            <CategoryCountTable
+              columns={visibleWeeklyColumns}
+              catCounts={weekly.catCounts}
+              totals={weekly.totals}
+            />
+          </div>
 
-      {/* 2-2. BM별 거래건수 */}
-      <div>
-        <h3 className="text-sm font-semibold text-gray-500 mb-2">
-          2-2. BM별 거래건수
-        </h3>
-        <BmCountTable
-          columns={monthly.columns}
-          bmCounts={monthly.bmCounts}
-          totals={monthly.totals}
-        />
-      </div>
+          {/* 2-2. BM별 거래건수 */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-500 mb-2">
+              2-2. BM별 거래건수
+            </h3>
+            <BmCountTable
+              columns={visibleWeeklyColumns}
+              bmCounts={weekly.bmCounts}
+              totals={weekly.totals}
+            />
+          </div>
 
-      {/* 2-3. 주요 렌탈사별 거래건수 */}
-      <div>
-        <h3 className="text-sm font-semibold text-gray-500 mb-2">
-          2-3. 주요 렌탈사별 거래건수
-        </h3>
-        <RcCountTable columns={monthly.columns} rcCounts={monthly.rcCounts} />
-      </div>
+          {/* 2-3. 주요 렌탈사별 거래건수 */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-500 mb-2">
+              2-3. 주요 렌탈사별 거래건수
+            </h3>
+            <RcCountTable
+              columns={visibleWeeklyColumns}
+              rcCounts={weekly.rcCounts}
+            />
+          </div>
+        </>
+      )}
     </div>
+  );
+}
+
+function TabButton({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-3 py-1.5 text-sm font-medium border-b-2 transition -mb-px ${
+        active
+          ? "border-[#3531FF] text-[#3531FF]"
+          : "border-transparent text-gray-400 hover:text-gray-600"
+      }`}
+    >
+      {label}
+    </button>
   );
 }
 
