@@ -41,8 +41,6 @@ type Props = {
   categoryChartYDomainWeekly: [number, number];
 };
 
-const WEEKS_DEFAULT_LIMIT = 12;
-
 function fmt(n: number) {
   return n.toLocaleString("ko-KR");
 }
@@ -57,15 +55,6 @@ export default function TransactionCountSection({
   categoryChartYDomainWeekly,
 }: Props) {
   const [tab, setTab] = useState<"monthly" | "weekly">("monthly");
-  const [weeksExpanded, setWeeksExpanded] = useState(false);
-
-  const canExpandWeeks = weekly.columns.length > WEEKS_DEFAULT_LIMIT;
-  const visibleWeeklyColumns = weeksExpanded
-    ? weekly.columns
-    : weekly.columns.slice(0, WEEKS_DEFAULT_LIMIT);
-  const visibleWeeklyChart = weeksExpanded
-    ? weekly.chart
-    : weekly.chart.slice(-WEEKS_DEFAULT_LIMIT);
 
   return (
     <div className="space-y-6">
@@ -84,14 +73,6 @@ export default function TransactionCountSection({
           />
         </div>
         {tab === "monthly" && <TransactionYearToggle hidden={hideOld2025} />}
-        {tab === "weekly" && canExpandWeeks && (
-          <button
-            onClick={() => setWeeksExpanded((p) => !p)}
-            className="ml-auto px-2.5 py-1 text-xs font-medium rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50"
-          >
-            {weeksExpanded ? "최근 12주만 보기" : "전체 주차 보기"}
-          </button>
-        )}
       </div>
 
       {tab === "monthly" && (
@@ -163,18 +144,18 @@ export default function TransactionCountSection({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <CategoryMonthlyChart
                 title="정수기 거래건수 (주차별)"
-                data={visibleWeeklyChart}
+                data={weekly.chart}
                 series={waterSeries}
               />
               <CategoryMonthlyChart
                 title="대카테고리별 거래건수 (주차별, 정수기 제외)"
-                data={visibleWeeklyChart}
+                data={weekly.chart}
                 series={categorySeries}
                 yDomain={categoryChartYDomainWeekly}
               />
             </div>
             <CategoryCountTable
-              columns={visibleWeeklyColumns}
+              columns={weekly.columns}
               catCounts={weekly.catCounts}
               totals={weekly.totals}
             />
@@ -186,7 +167,7 @@ export default function TransactionCountSection({
               2-2. BM별 거래건수
             </h3>
             <BmCountTable
-              columns={visibleWeeklyColumns}
+              columns={weekly.columns}
               bmCounts={weekly.bmCounts}
               totals={weekly.totals}
             />
@@ -198,7 +179,7 @@ export default function TransactionCountSection({
               2-3. 주요 렌탈사별 거래건수
             </h3>
             <RcCountTable
-              columns={visibleWeeklyColumns}
+              columns={weekly.columns}
               rcCounts={weekly.rcCounts}
             />
           </div>

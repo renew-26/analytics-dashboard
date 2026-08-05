@@ -515,7 +515,10 @@ export default async function Home({
     ...categoryChart2025,
   ]);
 
-  const weekIndices = Array.from(weekCatMap.keys()).sort((a, b) => b - a); // 최근 주 먼저
+  const WEEKS_LIMIT = 12;
+  const weekIndices = Array.from(weekCatMap.keys())
+    .sort((a, b) => b - a) // 최근 주 먼저
+    .slice(0, WEEKS_LIMIT); // 항상 최근 12주만 (그 이전 날짜는 getWeekIndex가 0으로 클램프하므로 여기서 경계를 넘지 않도록 자른다)
   const weeklyColumns: PeriodColumn[] = weekIndices.map((idx) => ({
     key: String(idx),
     label: getWeekLabel(idx).range,
