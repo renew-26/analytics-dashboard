@@ -364,6 +364,7 @@ export default async function Home({
   const currAgg = aggregateByBM(currContracts);
   const prevAgg = aggregateByBM(prevContracts);
   const { margin: currMargin, badDebt: currBadDebt, incentive: currIncentive, salesTotal: currSalesTotal } = currAgg;
+  const { margin: prevMargin } = prevAgg;
 
   const cmpMetrics: { label: string; curr: number; prev: number }[] = [
     {
@@ -1041,6 +1042,74 @@ export default async function Home({
                       style={{ color: r === null ? "#d1d5db" : "#393939" }}
                     >
                       {r === null ? "-" : `${r.toFixed(1)}%`}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 카드 4: BM별 공헌이익 금액 */}
+          <div className="rounded-xl shadow-sm border border-gray-100 bg-white p-5">
+            <h3 className="text-sm font-semibold text-gray-700 mb-4">BM별 공헌이익 금액</h3>
+            <div className="space-y-3">
+              {(["BM1", "BM2", "BM3", "total"] as const).map((bm) => {
+                const v = currMargin[bm];
+                return (
+                  <div key={bm} className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-gray-500">
+                      {bm === "total" ? "전체" : bm}
+                    </span>
+                    <span className="text-sm font-bold" style={{ color: "#393939" }}>
+                      {fmt(v)}원
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 카드 5: BM별 건당 공헌이익 */}
+          <div className="rounded-xl shadow-sm border border-gray-100 bg-white p-5">
+            <h3 className="text-sm font-semibold text-gray-700 mb-4">BM별 건당 공헌이익</h3>
+            <div className="space-y-3">
+              {(["BM1", "BM2", "BM3", "total"] as const).map((bm) => {
+                const cnt = currAgg.counts[bm];
+                const v = cnt > 0 ? Math.round(currMargin[bm] / cnt) : null;
+                return (
+                  <div key={bm} className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-gray-500">
+                      {bm === "total" ? "전체" : bm}
+                    </span>
+                    <span
+                      className="text-sm font-bold"
+                      style={{ color: v === null ? "#d1d5db" : "#393939" }}
+                    >
+                      {v === null ? "-" : `${fmt(v)}원`}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 카드 6: BM별 공헌이익 증감 (전월 대비) */}
+          <div className="rounded-xl shadow-sm border border-gray-100 bg-white p-5">
+            <h3 className="text-sm font-semibold text-gray-700 mb-4">BM별 공헌이익 증감 (전월 대비)</h3>
+            <div className="space-y-3">
+              {(["BM1", "BM2", "BM3", "total"] as const).map((bm) => {
+                const p = pct(currMargin[bm], prevMargin[bm]);
+                const isUp = p !== null && p > 0;
+                return (
+                  <div key={bm} className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-gray-500">
+                      {bm === "total" ? "전체" : bm}
+                    </span>
+                    <span
+                      className="text-sm font-bold"
+                      style={{ color: p === null ? "#d1d5db" : isUp ? "var(--color-up)" : "var(--color-down)" }}
+                    >
+                      {p === null ? "-" : `${isUp ? "▲" : "▼"} ${Math.abs(p).toFixed(1)}%`}
                     </span>
                   </div>
                 );
