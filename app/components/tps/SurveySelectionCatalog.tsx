@@ -126,6 +126,23 @@ export function SurveySelectionCatalog({ category }: { category: SurveyCategory 
 
   const checkedCount = Object.values(checked).filter(Boolean).length
 
+  const checkedItems = useMemo(() => {
+    if (!data) return []
+    return data.items.filter((item) => checked[item.key])
+  }, [data, checked])
+
+  const countBy = (field: string) => {
+    const counts = new Map<string, number>()
+    for (const item of checkedItems) {
+      const key = String(item[field] ?? '')
+      counts.set(key, (counts.get(key) ?? 0) + 1)
+    }
+    return Array.from(counts.entries())
+  }
+
+  const categoryCounts = category === 'appliance' ? countBy(secondaryField) : []
+  const brandCounts = category === 'appliance' ? countBy(brandField) : []
+
   const formatFieldValue = (value: unknown) =>
     typeof value === 'number' ? `${value.toLocaleString()}원` : String(value ?? '-')
 
@@ -215,17 +232,33 @@ export function SurveySelectionCatalog({ category }: { category: SurveyCategory 
           </div>
 
           <div className="sticky bottom-4 mt-4">
-            <div className="bg-white rounded-xl border border-gray-200 shadow-lg px-5 py-4 flex items-center justify-between">
-              <span className="text-sm text-gray-600">
-                <span className="font-semibold text-gray-900">{checkedCount}개</span> 선택됨
-              </span>
-              <button
-                onClick={confirm}
-                disabled={confirming || checkedCount === 0}
-                className="px-4 py-2 rounded bg-green-600 text-white text-sm disabled:opacity-50"
-              >
-                {confirming ? '확정 중...' : '이번 달 조사 상품 확정'}
-              </button>
+            <div className="bg-white rounded-xl border border-gray-200 shadow-lg px-5 py-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">
+                  <span className="font-semibold text-gray-900">{checkedCount}개</span> 선택됨
+                </span>
+                <button
+                  onClick={confirm}
+                  disabled={confirming || checkedCount === 0}
+                  className="px-4 py-2 rounded bg-green-600 text-white text-sm disabled:opacity-50"
+                >
+                  {confirming ? '확정 중...' : '이번 달 조사 상품 확정'}
+                </button>
+              </div>
+              {category === 'appliance' && checkedCount > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {categoryCounts.map(([name, count]) => (
+                    <span key={`cat-${name}`} className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs">
+                      {name} {count}개
+                    </span>
+                  ))}
+                  {brandCounts.map(([name, count]) => (
+                    <span key={`brand-${name}`} className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 text-xs">
+                      {name} {count}개
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </>
