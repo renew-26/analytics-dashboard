@@ -10,6 +10,9 @@ import {
   LARGE_CATEGORY_GROUPS,
   LARGE_CATEGORY_COLORS,
 } from "@/app/components/transactionCategoryLayout";
+import BmMarginSection, {
+  type MarginPeriodData,
+} from "@/app/components/BmMarginSection";
 
 export const dynamic = "force-dynamic";
 
@@ -163,7 +166,12 @@ type YearContractRow = {
   category: string | null;
   partner_company: string | null;
   rental_company: string | null;
+  contribution_margin: number | null;
 };
+
+type BmKey = "BM1" | "BM2" | "BM3";
+type BmValue = Record<BmKey, number>;
+type BmValueNullable = Record<BmKey, number | null>;
 
 async function fetchAllYearContracts(
   yearStart: string,
@@ -175,7 +183,9 @@ async function fetchAllYearContracts(
   while (true) {
     const { data, error } = await supabase
       .from("raw_contracts")
-      .select("contract_date, category, partner_company, rental_company")
+      .select(
+        "contract_date, category, partner_company, rental_company, contribution_margin",
+      )
       .gte("contract_date", yearStart)
       .lte("contract_date", end)
       .order("prop_item_usid", { ascending: true })
@@ -319,7 +329,6 @@ export default async function Home({
   const currAgg = aggregateByBM(currContracts);
   const prevAgg = aggregateByBM(prevContracts);
   const { margin: currMargin, badDebt: currBadDebt, incentive: currIncentive, salesTotal: currSalesTotal } = currAgg;
-  const { margin: prevMargin } = prevAgg;
 
   const cmpMetrics: { label: string; curr: number; prev: number }[] = [
     {
@@ -386,9 +395,11 @@ export default async function Home({
     Record<"BM1" | "BM2" | "BM3", number>
   >(); // "YYYY-MM" → BM → count
   const monthRcMap = new Map<string, Map<string, number>>(); // "YYYY-MM" → rental_company → count
+  const monthMarginMap = new Map<string, BmValue>(); // "YYYY-MM" → BM → 공헌이익 합계
   const weekCatMap = new Map<number, Map<string, number>>(); // weekIdx → cat → count
   const weekBmMap = new Map<number, Record<"BM1" | "BM2" | "BM3", number>>(); // weekIdx → BM → count
   const weekRcMap = new Map<number, Map<string, number>>(); // weekIdx → rental_company → count
+  const weekMarginMap = new Map<number, BmValue>(); // weekIdx → BM → 공헌이익 합계
 
   for (const r of catRaw) {
     const m = r.contract_date.slice(0, 7); // "YYYY-MM"
@@ -413,6 +424,12 @@ export default async function Home({
     if (!weekBmMap.has(w)) weekBmMap.set(w, { BM1: 0, BM2: 0, BM3: 0 });
     weekBmMap.get(w)![bm]++;
 
+    // 공헌이익
+    if (!monthMarginMap.has(m)) monthMarginMap.set(m, { BM1: 0, BM2: 0, BM3: 0 });
+    monthMarginMap.get(m)![bm] += r.contribution_margin ?? 0;
+    if (!weekMarginMap.has(w)) weekMarginMap.set(w, { BM1: 0, BM2: 0, BM3: 0 });
+    weekMarginMap.get(w)![bm] += r.contribution_margin ?? 0;
+
     // 렌탈사
     if (!monthRcMap.has(m)) monthRcMap.set(m, new Map());
     const rcMm = monthRcMap.get(m)!;
@@ -436,6 +453,52 @@ export default async function Home({
   function periodTotal(m: Map<string, number> | undefined): number {
     if (!m) return 0;
     return Array.from(m.values()).reduce((s, v) => s + v, 0);
+  }
+
+  function buildMarginDerived(
+    periodKeys: string[], // 배열 순서: index 0이 가장 최근, 인덱스가 커질수록 과거
+    amount: Record<string, BmValue>,
+    amountTotal: Record<string, number>,
+    counts: Record<string, BmValue>,
+    countTotals: Record<string, number>,
+  ): {
+    perTx: Record<string, BmValueNullable>;
+    perTxTotal: Record<string, number | null>;
+    change: Record<string, BmValueNullable>;
+    changeTotal: Record<string, number | null>;
+  } {
+    const perTx: Record<string, BmValueNullable> = {};
+    const perTxTotal: Record<string, number | null> = {};
+    const change: Record<string, BmValueNullable> = {};
+    const changeTotal: Record<string, number | null> = {};
+
+    periodKeys.forEach((key, i) => {
+      const bmAmount = amount[key];
+      const bmCount = counts[key];
+      perTx[key] = {
+        BM1: bmCount.BM1 > 0 ? bmAmount.BM1 / bmCount.BM1 : null,
+        BM2: bmCount.BM2 > 0 ? bmAmount.BM2 / bmCount.BM2 : null,
+        BM3: bmCount.BM3 > 0 ? bmAmount.BM3 / bmCount.BM3 : null,
+      };
+      perTxTotal[key] =
+        countTotals[key] > 0 ? amountTotal[key] / countTotals[key] : null;
+
+      const prevKey = periodKeys[i + 1];
+      if (prevKey === undefined) {
+        change[key] = { BM1: null, BM2: null, BM3: null };
+        changeTotal[key] = null;
+      } else {
+        const prevAmount = amount[prevKey];
+        change[key] = {
+          BM1: pct(bmAmount.BM1, prevAmount.BM1),
+          BM2: pct(bmAmount.BM2, prevAmount.BM2),
+          BM3: pct(bmAmount.BM3, prevAmount.BM3),
+        };
+        changeTotal[key] = pct(amountTotal[key], amountTotal[prevKey]);
+      }
+    });
+
+    return { perTx, perTxTotal, change, changeTotal };
   }
 
   const monthlyColumns: PeriodColumn[] = visibleMonths.map((m) => ({
@@ -463,6 +526,30 @@ export default async function Home({
       monthBmMap.get(m) ?? { BM1: 0, BM2: 0, BM3: 0 },
     ]),
   );
+  const amountByMonth: Record<string, BmValue> = Object.fromEntries(
+    visibleMonths.map((m) => [
+      m,
+      monthMarginMap.get(m) ?? { BM1: 0, BM2: 0, BM3: 0 },
+    ]),
+  );
+  const amountTotalByMonth: Record<string, number> = Object.fromEntries(
+    visibleMonths.map((m) => {
+      const v = amountByMonth[m];
+      return [m, v.BM1 + v.BM2 + v.BM3];
+    }),
+  );
+  const monthlyMarginData: MarginPeriodData = {
+    columns: monthlyColumns,
+    amount: amountByMonth,
+    amountTotal: amountTotalByMonth,
+    ...buildMarginDerived(
+      visibleMonths,
+      amountByMonth,
+      amountTotalByMonth,
+      bmCountsByMonth,
+      totalsByMonth,
+    ),
+  };
 
   function buildCategoryPoint(
     label: string,
@@ -544,6 +631,30 @@ export default async function Home({
       weekBmMap.get(idx) ?? { BM1: 0, BM2: 0, BM3: 0 },
     ]),
   );
+  const amountByWeek: Record<string, BmValue> = Object.fromEntries(
+    weekIndices.map((idx) => [
+      String(idx),
+      weekMarginMap.get(idx) ?? { BM1: 0, BM2: 0, BM3: 0 },
+    ]),
+  );
+  const amountTotalByWeek: Record<string, number> = Object.fromEntries(
+    weekIndices.map((idx) => {
+      const v = amountByWeek[String(idx)];
+      return [String(idx), v.BM1 + v.BM2 + v.BM3];
+    }),
+  );
+  const weeklyMarginData: MarginPeriodData = {
+    columns: weeklyColumns,
+    amount: amountByWeek,
+    amountTotal: amountTotalByWeek,
+    ...buildMarginDerived(
+      weekIndices.map(String),
+      amountByWeek,
+      amountTotalByWeek,
+      bmCountsByWeek,
+      totalsByWeek,
+    ),
+  };
 
   const weeklyChart: CategoryMonthPoint[] = [...weekIndices]
     .sort((a, b) => a - b)
@@ -886,73 +997,14 @@ export default async function Home({
             </div>
           </div>
 
-          {/* 카드 4: BM별 공헌이익 금액 */}
-          <div className="rounded-xl shadow-sm border border-gray-100 bg-white p-5">
-            <h3 className="text-sm font-semibold text-gray-700 mb-4">BM별 공헌이익 금액</h3>
-            <div className="space-y-3">
-              {(["BM1", "BM2", "BM3", "total"] as const).map((bm) => {
-                const v = currMargin[bm];
-                return (
-                  <div key={bm} className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-gray-500">
-                      {bm === "total" ? "전체" : bm}
-                    </span>
-                    <span className="text-sm font-bold" style={{ color: "#393939" }}>
-                      {fmt(v)}원
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+        </div>
 
-          {/* 카드 5: BM별 건당 공헌이익 */}
-          <div className="rounded-xl shadow-sm border border-gray-100 bg-white p-5">
-            <h3 className="text-sm font-semibold text-gray-700 mb-4">BM별 건당 공헌이익</h3>
-            <div className="space-y-3">
-              {(["BM1", "BM2", "BM3", "total"] as const).map((bm) => {
-                const cnt = currAgg.counts[bm];
-                const v = cnt > 0 ? Math.round(currMargin[bm] / cnt) : null;
-                return (
-                  <div key={bm} className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-gray-500">
-                      {bm === "total" ? "전체" : bm}
-                    </span>
-                    <span
-                      className="text-sm font-bold"
-                      style={{ color: v === null ? "#d1d5db" : "#393939" }}
-                    >
-                      {v === null ? "-" : `${fmt(v)}원`}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* 카드 6: BM별 공헌이익 증감 (전월 대비) */}
-          <div className="rounded-xl shadow-sm border border-gray-100 bg-white p-5">
-            <h3 className="text-sm font-semibold text-gray-700 mb-4">BM별 공헌이익 증감 (전월 대비)</h3>
-            <div className="space-y-3">
-              {(["BM1", "BM2", "BM3", "total"] as const).map((bm) => {
-                const p = pct(currMargin[bm], prevMargin[bm]);
-                const isUp = p !== null && p > 0;
-                return (
-                  <div key={bm} className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-gray-500">
-                      {bm === "total" ? "전체" : bm}
-                    </span>
-                    <span
-                      className="text-sm font-bold"
-                      style={{ color: p === null ? "#d1d5db" : isUp ? "var(--color-up)" : "var(--color-down)" }}
-                    >
-                      {p === null ? "-" : `${isUp ? "▲" : "▼"} ${Math.abs(p).toFixed(1)}%`}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+        <div className="mt-4">
+          <BmMarginSection
+            hideOld2025={hideOld2025}
+            monthly={monthlyMarginData}
+            weekly={weeklyMarginData}
+          />
         </div>
       </details>
     </div>
