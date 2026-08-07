@@ -484,7 +484,7 @@ export default async function Home({
         countTotals[key] > 0 ? amountTotal[key] / countTotals[key] : null;
 
       const prevKey = periodKeys[i + 1];
-      if (prevKey === undefined) {
+      if (i === 0 || prevKey === undefined) {
         change[key] = { BM1: null, BM2: null, BM3: null };
         changeTotal[key] = null;
       } else {
