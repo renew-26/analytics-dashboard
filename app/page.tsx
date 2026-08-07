@@ -930,7 +930,9 @@ export default async function Home({
         <div className="mt-3 grid grid-cols-3 gap-4">
           {/* 카드 1: BM별 공헌이익률 */}
           <div className="rounded-xl shadow-sm border border-gray-100 bg-white p-5">
-            <h3 className="text-sm font-semibold text-gray-700 mb-4">BM별 공헌이익률</h3>
+            <h3 className="text-sm font-semibold text-gray-700 mb-4">
+              BM별 공헌이익률 <span className="text-xs font-normal text-gray-400">(당월 기준)</span>
+            </h3>
             <div className="space-y-3">
               {(["BM1", "BM2", "BM3", "total"] as const).map((bm) => {
                 const s = currSalesTotal[bm];
@@ -954,7 +956,9 @@ export default async function Home({
 
           {/* 카드 2: BM별 대손율 */}
           <div className="rounded-xl shadow-sm border border-gray-100 bg-white p-5">
-            <h3 className="text-sm font-semibold text-gray-700 mb-4">BM별 대손율</h3>
+            <h3 className="text-sm font-semibold text-gray-700 mb-4">
+              BM별 대손율 <span className="text-xs font-normal text-gray-400">(당월 기준)</span>
+            </h3>
             <div className="space-y-3">
               {(["BM1", "BM2", "BM3", "total"] as const).map((bm) => {
                 const s = currSalesTotal[bm];
@@ -980,7 +984,9 @@ export default async function Home({
 
           {/* 카드 3: BM별 인센티브 효율 */}
           <div className="rounded-xl shadow-sm border border-gray-100 bg-white p-5">
-            <h3 className="text-sm font-semibold text-gray-700 mb-4">BM별 인센티브 효율</h3>
+            <h3 className="text-sm font-semibold text-gray-700 mb-4">
+              BM별 인센티브 효율 <span className="text-xs font-normal text-gray-400">(당월 기준)</span>
+            </h3>
             <div className="space-y-3">
               {(["BM1", "BM2", "BM3", "total"] as const).map((bm) => {
                 const s = currSalesTotal[bm];
