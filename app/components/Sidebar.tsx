@@ -65,6 +65,14 @@ export default function Sidebar() {
 
       {/* 네비게이션 */}
       <nav className="flex-1 min-h-0 overflow-y-auto px-2 py-2">
+        {/* 매출 분석 섹션 */}
+        <SectionHeader label="매출 분석" />
+        <NavItem
+          href="/revenue-analysis"
+          label="매출 분석"
+          active={pathname === "/revenue-analysis"}
+        />
+
         {/* 렌탈사별 매출 추이 섹션 */}
         <SectionHeader label="렌탈사별 매출 추이" />
 
