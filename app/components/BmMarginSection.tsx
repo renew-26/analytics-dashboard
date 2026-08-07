@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import TransactionYearToggle from "@/app/components/TransactionYearToggle";
 
 export type PeriodColumn = { key: string; label: string };
 type BmKey = "BM1" | "BM2" | "BM3";
@@ -19,7 +18,6 @@ export type MarginPeriodData = {
 };
 
 type Props = {
-  hideOld2025: boolean;
   monthly: MarginPeriodData;
   weekly: MarginPeriodData;
 };
@@ -48,7 +46,7 @@ function formatChange(v: number | null): CellFormat {
   };
 }
 
-export default function BmMarginSection({ hideOld2025, monthly, weekly }: Props) {
+export default function BmMarginSection({ monthly, weekly }: Props) {
   const [tab, setTab] = useState<"monthly" | "weekly">("monthly");
   const data = tab === "monthly" ? monthly : weekly;
 
@@ -59,7 +57,6 @@ export default function BmMarginSection({ hideOld2025, monthly, weekly }: Props)
           <TabButton label="월별" active={tab === "monthly"} onClick={() => setTab("monthly")} />
           <TabButton label="주차별" active={tab === "weekly"} onClick={() => setTab("weekly")} />
         </div>
-        {tab === "monthly" && <TransactionYearToggle hidden={hideOld2025} />}
       </div>
 
       <PeriodBmTable

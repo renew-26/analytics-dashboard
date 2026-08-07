@@ -445,6 +445,7 @@ export default async function Home({
   const visibleMonths = hideOld2025
     ? months.filter((m) => !m.startsWith("2025"))
     : months;
+  const bmMarginMonths = months.filter((m) => m.startsWith("2026")); // BM 수익성 분석은 항상 26년 데이터만
 
   function monthLabel(ym: string): string {
     return `${ym.slice(2, 4)}.${ym.slice(5, 7)}`; // "2025-07" → "25.07"
@@ -526,24 +527,28 @@ export default async function Home({
       monthBmMap.get(m) ?? { BM1: 0, BM2: 0, BM3: 0 },
     ]),
   );
+  const bmMarginMonthlyColumns: PeriodColumn[] = bmMarginMonths.map((m) => ({
+    key: m,
+    label: monthLabel(m),
+  }));
   const amountByMonth: Record<string, BmValue> = Object.fromEntries(
-    visibleMonths.map((m) => [
+    bmMarginMonths.map((m) => [
       m,
       monthMarginMap.get(m) ?? { BM1: 0, BM2: 0, BM3: 0 },
     ]),
   );
   const amountTotalByMonth: Record<string, number> = Object.fromEntries(
-    visibleMonths.map((m) => {
+    bmMarginMonths.map((m) => {
       const v = amountByMonth[m];
       return [m, v.BM1 + v.BM2 + v.BM3];
     }),
   );
   const monthlyMarginData: MarginPeriodData = {
-    columns: monthlyColumns,
+    columns: bmMarginMonthlyColumns,
     amount: amountByMonth,
     amountTotal: amountTotalByMonth,
     ...buildMarginDerived(
-      visibleMonths,
+      bmMarginMonths,
       amountByMonth,
       amountTotalByMonth,
       bmCountsByMonth,
@@ -1001,7 +1006,6 @@ export default async function Home({
 
         <div className="mt-4">
           <BmMarginSection
-            hideOld2025={hideOld2025}
             monthly={monthlyMarginData}
             weekly={weeklyMarginData}
           />
