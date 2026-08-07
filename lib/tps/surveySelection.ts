@@ -68,11 +68,9 @@ export const TABLE_COLUMNS: Record<SurveyCategory, string[]> = {
 };
 
 export const CATALOG_QUERY_IDS: Record<SurveyCategory, number> = {
-  appliance: 4656,
+  appliance: 4671,
   tps: 4657,
 };
-
-const APPLIANCE_CATEGORY_WHITELIST = ["정수기", "공기청정기", "비데"];
 
 // Identity keys (see buildIdentityKey) are built from these TRANSLATED labels, not the
 // raw Redash codes. Editing these maps changes the identity key for affected products
@@ -135,14 +133,6 @@ export interface BuildResult {
   skipped: number;
 }
 
-export function filterApplianceRows(rows: Record<string, unknown>[]): Record<string, unknown>[] {
-  return rows.filter(
-    (row) =>
-      APPLIANCE_CATEGORY_WHITELIST.includes(String(row["카테고리"])) &&
-      row["우리_견적상태"] === "발송중"
-  );
-}
-
 export function filterTpsRows(rows: Record<string, unknown>[]): Record<string, unknown>[] {
   return rows.filter((row) => row["견적 발송상태"] === "발송중");
 }
@@ -185,6 +175,6 @@ export function buildCatalogItems(category: SurveyCategory, rows: Record<string,
 }
 
 export function buildCatalog(category: SurveyCategory, rawRows: Record<string, unknown>[]): BuildResult {
-  const filtered = category === "appliance" ? filterApplianceRows(rawRows) : filterTpsRows(rawRows);
+  const filtered = category === "appliance" ? rawRows : filterTpsRows(rawRows);
   return buildCatalogItems(category, filtered);
 }
