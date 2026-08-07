@@ -45,10 +45,10 @@ export function MarginKpiCards({
           : "var(--color-warning-100, #FFE0E0)",
     },
     {
-      label: "기준선 미달 상품",
+      label: "타겟마진 미달 상품",
       value: kpis.belowBaselineCount,
       valueSuffix: `/${kpis.totalCount}개`,
-      sub: "경쟁사가 더 공격적으로 지원",
+      sub: `예상 마진율이 기준선(${formatPercent(baselineRate)})보다 낮음`,
       color: "var(--color-warning, #F90000)",
       bg: "var(--color-warning-100, #FFE0E0)",
     },
