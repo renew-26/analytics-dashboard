@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { Product } from '@/lib/tps/types'
 
+const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || ''
+
 interface Row {
   product_id: string
   partner_name: string
@@ -47,7 +49,7 @@ export function CompetitorSubsidyForm({ tpsProducts, onSaved }: { tpsProducts: P
         bad_debt_applicable: r.bad_debt_applicable,
       }))
 
-      const res = await fetch('/api/margin-analysis/subsidies', {
+      const res = await fetch(`${BASE_PATH}/api/margin-analysis/subsidies`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ entries }),

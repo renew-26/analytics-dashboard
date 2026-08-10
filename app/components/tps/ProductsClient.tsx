@@ -7,6 +7,8 @@ import {
   CATEGORY_LABELS, APPLIANCE_CATEGORIES, calcRoom,
 } from '@/lib/tps/types'
 
+const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || ''
+
 const TELECOMS: Telecom[] = ['SKB', 'LGU+', 'KT']
 const TELECOM_DISPLAY: Record<Telecom, string> = { SKB: 'SK 브로드밴드', 'LGU+': 'LG U+', KT: 'KT' }
 const TPS_PRODUCT_TYPES: ProductType[] = ['인터넷', '인터넷+TV', '유심+인터넷', '유심+인터넷+TV']
@@ -427,7 +429,7 @@ export function ProductsClient({ initialProducts }: { initialProducts: Product[]
     setSyncing(true)
     setSyncResult(null)
     try {
-      const res = await fetch('/api/sync/tps', { method: 'POST' })
+      const res = await fetch(`${BASE_PATH}/api/sync/tps`, { method: 'POST' })
       const json = await res.json()
       if (json.error) throw new Error(json.error)
       setSyncResult(`✓ TPS ${json.matched}개 갱신 완료 (미매칭 ${json.unmatched}개)`)
@@ -444,7 +446,7 @@ export function ProductsClient({ initialProducts }: { initialProducts: Product[]
     setSyncing(true)
     setSyncResult(null)
     try {
-      const res = await fetch('/api/sync/appliance', { method: 'POST' })
+      const res = await fetch(`${BASE_PATH}/api/sync/appliance`, { method: 'POST' })
       const json = await res.json()
       if (json.error) throw new Error(json.error)
       setSyncResult(`✓ 가전 ${json.inserted}개 상품 동기화 완료 (전체 ${json.total}행 → 렌트리 데이터 ${json.filtered}행)`)
