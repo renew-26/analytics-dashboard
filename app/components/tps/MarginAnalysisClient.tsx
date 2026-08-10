@@ -604,6 +604,10 @@ export function MarginAnalysisClient({
         <div className="flex flex-wrap items-center gap-3">
           <input type="file" accept=".xlsx" disabled={uploading} onChange={e => setUploadFile(e.target.files?.[0] ?? null)}
             className="text-xs" title="최종 정리 시트 (유심/인터넷/가전)" />
+          <a href={`${BASE_PATH}/api/margin-analysis/survey-template`}
+            className="text-xs text-blue-600 hover:underline">
+            템플릿 다운로드
+          </a>
           <button onClick={handleSurveyUpload} disabled={uploading}
             className="px-3 py-1.5 text-xs font-medium bg-gray-800 text-white rounded-lg hover:bg-gray-900 disabled:bg-gray-400 disabled:cursor-not-allowed inline-flex items-center gap-1.5">
             {uploading && (
