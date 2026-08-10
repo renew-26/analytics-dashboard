@@ -9,6 +9,8 @@ import { MarginPartnerBarChart } from '@/app/components/tps/MarginPartnerBarChar
 import { MarginKpiCards } from '@/app/components/tps/MarginKpiCards'
 import { buildApplianceSnapshotLookup } from '@/lib/tps/applianceRentreSubsidy'
 
+const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || ''
+
 type SortColumn = 'subsidyDiff' | 'estimatedMarginRate'
 
 type ProductGroup = {
@@ -77,7 +79,7 @@ export function MarginAnalysisClient({
   async function handleApplianceSync() {
     setApplianceSyncing(true)
     try {
-      const res = await fetch('/api/sync/appliance-rentre-subsidy', { method: 'POST' })
+      const res = await fetch(`${BASE_PATH}/api/sync/appliance-rentre-subsidy`, { method: 'POST' })
       const json = await res.json()
       if (json.error) {
         alert(json.error)
@@ -320,7 +322,7 @@ export function MarginAnalysisClient({
   async function saveBaselineRate(category: 'tps' | 'appliance', percentInput: string) {
     const rate = Number(percentInput) / 100
     const field = category === 'tps' ? 'tps_baseline_rate' : 'appliance_baseline_rate'
-    const res = await fetch('/api/margin-analysis/settings', {
+    const res = await fetch(`${BASE_PATH}/api/margin-analysis/settings`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ [field]: rate }),
@@ -337,7 +339,7 @@ export function MarginAnalysisClient({
   async function saveBadDebtRate(category: 'tps' | 'appliance', percentInput: string) {
     const rate = Number(percentInput) / 100
     const field = category === 'tps' ? 'tps_bad_debt_rate' : 'appliance_bad_debt_rate'
-    const res = await fetch('/api/margin-analysis/settings', {
+    const res = await fetch(`${BASE_PATH}/api/margin-analysis/settings`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ [field]: rate }),
@@ -354,7 +356,7 @@ export function MarginAnalysisClient({
       const form = new FormData()
       form.append('file', uploadFile)
 
-      const res = await fetch('/api/margin-analysis/survey-upload', { method: 'POST', body: form })
+      const res = await fetch(`${BASE_PATH}/api/margin-analysis/survey-upload`, { method: 'POST', body: form })
       const json = await res.json()
       if (json.error) {
         setUploadError(json.error)
@@ -696,7 +698,7 @@ export function MarginAnalysisClient({
                     <button
                       disabled={!unmatchedPicks[i]}
                       onClick={async () => {
-                        const res = await fetch('/api/margin-analysis/subsidies', {
+                        const res = await fetch(`${BASE_PATH}/api/margin-analysis/subsidies`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
