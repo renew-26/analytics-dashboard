@@ -1,9 +1,9 @@
 # 운영효율뷰 — 설계
 
 - 작성일: 2026-08-11
-- 대상: `renew-26/analytics-dashboard` 저장소, `margin-analysis-2` 브랜치 위에서 진행
+- 대상: `renew-26/analytics-dashboard` 저장소, `feat/operation-efficiency-view` 브랜치(`margin-analysis-2`에서 분기)
 - 위치: "상품 전략" 섹션(카테고리 트렌드/브랜드 분석 옆)에 신규 메뉴·페이지 추가
-- 상태: 스펙 문서 커밋 완료(`margin-analysis-2`). Supabase 프로젝트 불일치·`target_margin` 컬럼 가정은 2026-08-11 재개 세션에서 검증 완료(아래 "미해결 이슈" 참고). 전체 설계 최종 승인·브랜치 생성은 아직 남아있음.
+- 상태: 스펙 문서 커밋 완료, Supabase 프로젝트 불일치·`target_margin` 컬럼 가정 검증 완료, Redash 4441/4445 쿼리 수정 적용 완료, `feat/operation-efficiency-view` 브랜치 생성 완료(2026-08-11, 아직 origin에 push 전). 남은 건 Supabase `ALTER TABLE` 실행(Notion 요청 등록됨) → `app/api/sync/route.ts` 반영 → 구현.
 
 ## 배경 / 목적
 
