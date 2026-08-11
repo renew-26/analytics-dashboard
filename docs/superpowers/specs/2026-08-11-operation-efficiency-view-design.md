@@ -60,4 +60,5 @@
 - ~~**Supabase 프로젝트 불일치**~~ → **해결(2026-08-11)**: analytics-dashboard가 실제로 쓰는 Supabase 프로젝트는 `hfvbozipidhxosrjwcrh`(별도 계정, MCP에 연결된 `kellyzzang's Project`와 다름)이다. 이 프로젝트에 `tps_pnl`/`raw_orders`/`raw_contracts` 테이블이 모두 존재함을 REST API로 직접 확인했다(`raw_orders`/`raw_contracts`는 `target_margin` 컬럼만 없는 상태로, 설계 가정과 일치). `.env.local`(gitignore 처리됨)에 접속 정보 저장해둠.
 - ~~`settle_prop_item.target_margin` 컬럼 존재 가정~~ → **검증 완료**: 위 "데이터 흐름" 섹션 참고.
 - 위 결정 사항은 요약카드 3개까지만 사용자가 직접 승인했고, 데이터 흐름 ①~④·페이지 구조·계산 로직·화면 3단 구성 전체에 대한 최종 "네, 이대로 진행" 확답은 세션 종료 시점까지 받지 못했다 — 재개 시 전체 설계를 한 번 더 읽고 승인 여부를 확인할 것.
-- 브랜치(`operation-efficiency` 등 가칭)는 **아직 생성되지 않았다**. 남은 순서: 전체 설계 최종 승인 → Redash 4441/4445 쿼리 수정 적용 → Supabase `ALTER TABLE`(직접 실행 필요, DDL은 REST API로 불가) → 신규 브랜치 생성 → 구현.
+- ~~Redash 4441/4445 쿼리 수정~~ → **적용 완료(2026-08-11)**: Redash API로 두 쿼리 모두 `COALESCE(settle.target_margin, pnl.target_margin) AS "타겟마진"` 반영, 실제 실행해서 값 확인함(4441 샘플 53,280원 / 4445 샘플 80,000원). 다른 필드는 변경 없음.
+- 브랜치(`operation-efficiency` 등 가칭)는 **아직 생성되지 않았다**. 남은 순서: Supabase `ALTER TABLE`(직접 실행 필요, DDL은 REST API로 불가) → `app/api/sync/route.ts` 매핑 반영 → 전체 설계 최종 승인 → 신규 브랜치 생성 → 구현.
