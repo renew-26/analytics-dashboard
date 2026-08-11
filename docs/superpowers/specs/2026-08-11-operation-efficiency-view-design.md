@@ -3,7 +3,7 @@
 - 작성일: 2026-08-11
 - 대상: `renew-26/analytics-dashboard` 저장소, `margin-analysis-2` 브랜치 위에서 진행
 - 위치: "상품 전략" 섹션(카테고리 트렌드/브랜드 분석 옆)에 신규 메뉴·페이지 추가
-- 상태: **브레인스토밍 중 세션 종료 — 스펙 문서 저장·git commit·브랜치 생성 전 단계.** 아래 내용은 대화 기록을 그대로 재구성한 것이며, 사용자의 최종 전체 승인(스펙 문서화 확정)은 받지 못한 상태다.
+- 상태: 스펙 문서 커밋 완료(`margin-analysis-2`). Supabase 프로젝트 불일치·`target_margin` 컬럼 가정은 2026-08-11 재개 세션에서 검증 완료(아래 "미해결 이슈" 참고). 전체 설계 최종 승인·브랜치 생성은 아직 남아있음.
 
 ## 배경 / 목적
 
@@ -35,6 +35,7 @@
 - TPS는 `tps_pnl` 테이블(Redash Query 4405가 이미 동기화)에 `sales`/`bad_debt`/`target_margin`과 실제 지원금 필드(`total_subsidy`/`coupon_amount`/`tv_subsidy`/`layer3_subsidy`)가 모두 있어 **신규 동기화 파이프라인 없이 바로 계산 가능**.
 - 가전은 `raw_orders`/`raw_contracts`에 `sales`/`sales_incentive`/`bad_debt`는 있지만 `target_margin`이 없어(최종 `contribution_margin`만 존재) 위 4단계가 필요.
 - Redash 쿼리 수정 시 가정 하나: `settle_prop_item` 테이블에도 `target_margin` 컬럼이 있다고 가정(다른 필드들이 같은 패턴이라 유추). 없으면 Redash가 "Unknown column" 에러로 즉시 드러나므로 안전.
+  - **✅ 검증 완료(2026-08-11)**: Redash Query 4405(TPS_PNL, 이미 운영 중)가 정확히 같은 두 테이블(`s`=`settle_prop_item`, `pnl`=`prop_item_pnl`)에 `COALESCE(s.target_margin, pnl.target_margin) AS 공헌이익_타겟마진`를 이미 쓰고 있고, 실제로 `tps_pnl.target_margin`에 값이 들어오고 있다(Supabase에서 직접 확인). 즉 4441/4445에 같은 패턴을 추가해도 안전하다는 게 가정이 아니라 사실로 확인됨.
 
 ## 참고 발견 (설계에 영향)
 
@@ -56,7 +57,7 @@
 
 ## 미해결 이슈 / 다음 세션에서 반드시 확인할 것
 
-- **Supabase 프로젝트 불일치**: 현재 연결된 Supabase 프로젝트(`kellyzzang's Project`, `wlwbllsokmrmifhptzbx`)에는 `raw_orders`/`raw_contracts`/`tps_pnl` 테이블이 **없다** — `products`, `competitor_subsidies` 등 tps-dashboard에서 이관된 테이블만 존재한다. 즉 analytics-dashboard가 실제 운영 중 쓰는 Supabase 프로젝트가 이것과 다른 것으로 보이며, 어느 프로젝트가 맞는지 확인 후 `ALTER TABLE`을 직접 실행해야 한다.
-- `settle_prop_item.target_margin` 컬럼 존재 가정이 검증 전이다(Redash에 쿼리 반영 후 바로 확인 가능).
+- ~~**Supabase 프로젝트 불일치**~~ → **해결(2026-08-11)**: analytics-dashboard가 실제로 쓰는 Supabase 프로젝트는 `hfvbozipidhxosrjwcrh`(별도 계정, MCP에 연결된 `kellyzzang's Project`와 다름)이다. 이 프로젝트에 `tps_pnl`/`raw_orders`/`raw_contracts` 테이블이 모두 존재함을 REST API로 직접 확인했다(`raw_orders`/`raw_contracts`는 `target_margin` 컬럼만 없는 상태로, 설계 가정과 일치). `.env.local`(gitignore 처리됨)에 접속 정보 저장해둠.
+- ~~`settle_prop_item.target_margin` 컬럼 존재 가정~~ → **검증 완료**: 위 "데이터 흐름" 섹션 참고.
 - 위 결정 사항은 요약카드 3개까지만 사용자가 직접 승인했고, 데이터 흐름 ①~④·페이지 구조·계산 로직·화면 3단 구성 전체에 대한 최종 "네, 이대로 진행" 확답은 세션 종료 시점까지 받지 못했다 — 재개 시 전체 설계를 한 번 더 읽고 승인 여부를 확인할 것.
-- 브랜치(`operation-efficiency` 등 가칭)는 **아직 생성되지 않았다**. 스펙 문서 저장 확정 → git commit → 신규 브랜치 생성 순으로 남아있다(원래 저장 위치는 analytics-dashboard 저장소의 `docs/superpowers/specs/`였으나, 이번엔 `rentre-project`에 우선 저장).
+- 브랜치(`operation-efficiency` 등 가칭)는 **아직 생성되지 않았다**. 남은 순서: 전체 설계 최종 승인 → Redash 4441/4445 쿼리 수정 적용 → Supabase `ALTER TABLE`(직접 실행 필요, DDL은 REST API로 불가) → 신규 브랜치 생성 → 구현.
