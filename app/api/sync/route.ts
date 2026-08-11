@@ -30,6 +30,7 @@ interface RedashContractRow {
   매출원가: number | null;
   금융비용: number | null;
   대손비: number | null;
+  타겟마진: number | null;
 }
 
 interface RedashOrderRow {
@@ -54,6 +55,7 @@ interface RedashOrderRow {
   매출원가: number | null;
   금융비용: number | null;
   대손비: number | null;
+  타겟마진: number | null;
   공헌이익: number | null;
 }
 
@@ -287,6 +289,7 @@ export async function POST(req: Request) {
           cost_of_goods: r.매출원가 ?? null,
           financial_cost: r.금융비용 ?? null,
           bad_debt: r.대손비 ?? null,
+          target_margin: r.타겟마진 ?? null,
           contribution_margin: r.공헌이익 ?? null,
           synced_at: new Date().toISOString(),
         }));
@@ -327,6 +330,7 @@ export async function POST(req: Request) {
         cost_of_goods: r.매출원가 ?? null,
         financial_cost: r.금융비용 ?? null,
         bad_debt: r.대손비 ?? null,
+        target_margin: r.타겟마진 ?? null,
         order_confirmed_at: r.주문확정일 ? r.주문확정일.slice(0, 10) : null,
         synced_at: new Date().toISOString(),
       }));
