@@ -81,13 +81,25 @@ export type SummaryTotals = {
 
 // ─── Date range ──────────────────────────────────────────────────────────────
 
-function getDateRange(monthsBack: number): { start: string; end: string } {
+function getDefaultDateRange(monthsBack: number): { start: string; end: string } {
   const today = new Date();
   const start = new Date(today.getFullYear(), today.getMonth() - monthsBack, 1);
   return {
     start: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-01`,
     end: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`,
   };
+}
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function resolveDateRange(
+  searchStart: string | undefined,
+  searchEnd: string | undefined,
+): { start: string; end: string } {
+  const fallback = getDefaultDateRange(MONTHS_BACK);
+  const start = searchStart && DATE_RE.test(searchStart) ? searchStart : fallback.start;
+  const end = searchEnd && DATE_RE.test(searchEnd) ? searchEnd : fallback.end;
+  return start <= end ? { start, end } : fallback;
 }
 
 // ─── Data fetching ───────────────────────────────────────────────────────────
@@ -246,8 +258,13 @@ function buildCategoryBrandSummary(rows: OpEfficiencyRow[]): CategoryBrandSummar
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
-export default async function OperationEfficiencyPage() {
-  const { start, end } = getDateRange(MONTHS_BACK);
+export default async function OperationEfficiencyPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ start?: string; end?: string }>;
+}) {
+  const { start: rawStart, end: rawEnd } = await searchParams;
+  const { start, end } = resolveDateRange(rawStart, rawEnd);
 
   const [tpsRows, orderRows, contractRows] = await Promise.all([
     fetchTpsPnl(start, end),
@@ -270,6 +287,7 @@ export default async function OperationEfficiencyPage() {
         </p>
       </div>
       <OperationEfficiencyClient
+        dateRange={{ start, end }}
         summaryTotals={summaryTotals}
         categoryBrandSummary={categoryBrandSummary}
         rows={validRows}

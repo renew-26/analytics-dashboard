@@ -14,12 +14,14 @@ import {
 import type { CategoryBrandSummary, OpEfficiencyRow, SummaryTotals } from "./page";
 
 type Props = {
+  dateRange: { start: string; end: string };
   summaryTotals: SummaryTotals;
   categoryBrandSummary: CategoryBrandSummary[];
   rows: OpEfficiencyRow[];
 };
 
 export default function OperationEfficiencyClient({
+  dateRange,
   summaryTotals,
   categoryBrandSummary,
   rows,
@@ -48,6 +50,8 @@ export default function OperationEfficiencyClient({
 
   return (
     <div className="space-y-6">
+      <DateRangeFilter dateRange={dateRange} />
+
       <SummaryCards summary={summaryTotals} />
 
       <CategoryFilter
@@ -60,6 +64,43 @@ export default function OperationEfficiencyClient({
 
       <DrillDownTable rows={filteredRows} />
     </div>
+  );
+}
+
+// ─── 0. Date range filter ─────────────────────────────────────────────────────
+
+function DateRangeFilter({ dateRange }: { dateRange: { start: string; end: string } }) {
+  return (
+    <form
+      method="get"
+      className="flex items-end gap-3 bg-white border border-[#ebebe9] rounded-xl p-4"
+    >
+      <label className="flex flex-col gap-1">
+        <span className="text-xs font-medium text-[#788093]">시작일</span>
+        <input
+          type="date"
+          name="start"
+          defaultValue={dateRange.start}
+          className="border border-[#e2e6ec] rounded-lg px-3 py-1.5 text-sm text-[#222222]"
+        />
+      </label>
+      <label className="flex flex-col gap-1">
+        <span className="text-xs font-medium text-[#788093]">종료일</span>
+        <input
+          type="date"
+          name="end"
+          defaultValue={dateRange.end}
+          className="border border-[#e2e6ec] rounded-lg px-3 py-1.5 text-sm text-[#222222]"
+        />
+      </label>
+      <button
+        type="submit"
+        className="px-4 py-1.5 rounded-lg text-sm font-semibold text-white"
+        style={{ backgroundColor: "var(--color-primary)" }}
+      >
+        조회
+      </button>
+    </form>
   );
 }
 
