@@ -10,6 +10,9 @@ const supabase = createClient(
 );
 
 const PAGE = 50000;
+// raw_orders/raw_contracts는 상품 상세 컬럼(모델명/관리방식 등)까지 select하면
+// 6개월치 기본 범위에서 50,000건 단위 조회가 DB statement timeout에 걸릴 수 있어 더 작게 나눈다.
+const APPLIANCE_PAGE = 10000;
 const MONTHS_BACK = 6;
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -17,6 +20,7 @@ const MONTHS_BACK = 6;
 type TpsPnlRow = {
   prop_item_usid: number;
   brand: string | null;
+  model_code: string | null;
   order_confirmed_at: string | null;
   contract_completed_at: string | null;
   sales: number | null;
@@ -33,6 +37,12 @@ type RawOrderRow = {
   order_confirmed_at: string | null;
   category: string | null;
   brand: string | null;
+  product_name: string | null;
+  model_name: string | null;
+  management_type: string | null;
+  management_cycle: string | null;
+  contract_months: number | null;
+  monthly_fee: number | null;
   partner_company: string | null;
   sales: number | null;
   bad_debt: number | null;
@@ -45,6 +55,12 @@ type RawContractRow = {
   contract_date: string | null;
   category: string | null;
   brand: string | null;
+  product_name: string | null;
+  model_name: string | null;
+  management_type: string | null;
+  management_cycle: string | null;
+  contract_months: number | null;
+  monthly_fee: number | null;
   partner_company: string | null;
   sales: number | null;
   bad_debt: number | null;
@@ -56,6 +72,12 @@ export type OpEfficiencyRow = {
   propItemUsid: number;
   category: string;
   brand: string;
+  productName: string;
+  modelName?: string;
+  managementType?: string;
+  managementCycle?: string;
+  contractMonths?: number;
+  monthlyFee?: number;
   date: string;
   sales: number;
   badDebt: number;
@@ -111,7 +133,7 @@ async function fetchTpsPnl(start: string, end: string): Promise<TpsPnlRow[]> {
     const { data, error } = await supabase
       .from("tps_pnl")
       .select(
-        "prop_item_usid, brand, order_confirmed_at, contract_completed_at, sales, bad_debt, target_margin, total_subsidy, coupon_amount, tv_subsidy, layer3_subsidy",
+        "prop_item_usid, brand, model_code, order_confirmed_at, contract_completed_at, sales, bad_debt, target_margin, total_subsidy, coupon_amount, tv_subsidy, layer3_subsidy",
       )
       .gte("order_confirmed_at", start)
       .lte("order_confirmed_at", end)
@@ -132,17 +154,17 @@ async function fetchRawOrders(start: string, end: string): Promise<RawOrderRow[]
     const { data, error } = await supabase
       .from("raw_orders")
       .select(
-        "prop_item_usid, order_confirmed_at, category, brand, partner_company, sales, bad_debt, target_margin, sales_incentive",
+        "prop_item_usid, order_confirmed_at, category, brand, product_name, model_name, management_type, management_cycle, contract_months, monthly_fee, partner_company, sales, bad_debt, target_margin, sales_incentive",
       )
       .neq("category", "인터넷")
       .gte("order_confirmed_at", start)
       .lte("order_confirmed_at", end)
-      .range(from, from + PAGE - 1);
+      .range(from, from + APPLIANCE_PAGE - 1);
     if (error) throw new Error(JSON.stringify(error));
     if (!data || data.length === 0) break;
     all.push(...(data as RawOrderRow[]));
-    if (data.length < PAGE) break;
-    from += PAGE;
+    if (data.length < APPLIANCE_PAGE) break;
+    from += APPLIANCE_PAGE;
   }
   return all;
 }
@@ -154,17 +176,17 @@ async function fetchRawContracts(start: string, end: string): Promise<RawContrac
     const { data, error } = await supabase
       .from("raw_contracts")
       .select(
-        "prop_item_usid, contract_date, category, brand, partner_company, sales, bad_debt, target_margin, sales_incentive",
+        "prop_item_usid, contract_date, category, brand, product_name, model_name, management_type, management_cycle, contract_months, monthly_fee, partner_company, sales, bad_debt, target_margin, sales_incentive",
       )
       .neq("category", "인터넷")
       .gte("contract_date", start)
       .lte("contract_date", end)
-      .range(from, from + PAGE - 1);
+      .range(from, from + APPLIANCE_PAGE - 1);
     if (error) throw new Error(JSON.stringify(error));
     if (!data || data.length === 0) break;
     all.push(...(data as RawContractRow[]));
-    if (data.length < PAGE) break;
-    from += PAGE;
+    if (data.length < APPLIANCE_PAGE) break;
+    from += APPLIANCE_PAGE;
   }
   return all;
 }
@@ -181,6 +203,7 @@ function tpsToRow(r: TpsPnlRow): OpEfficiencyRow {
     propItemUsid: r.prop_item_usid,
     category: "인터넷",
     brand: r.brand ?? "기타",
+    productName: r.model_code ?? "-",
     date: (r.order_confirmed_at ?? r.contract_completed_at ?? "-").slice(0, 10),
     sales,
     badDebt,
@@ -201,6 +224,12 @@ function mergeApplianceRows(orders: RawOrderRow[], contracts: RawContractRow[]):
       propItemUsid: r.prop_item_usid,
       category: r.category ?? "기타",
       brand: r.brand ?? "기타",
+      productName: r.product_name ?? r.model_name ?? "-",
+      modelName: r.model_name ?? undefined,
+      managementType: r.management_type ?? undefined,
+      managementCycle: r.management_cycle ?? undefined,
+      contractMonths: r.contract_months ?? undefined,
+      monthlyFee: r.monthly_fee ?? undefined,
       date: (date ?? "-").slice(0, 10),
       sales,
       badDebt: r.bad_debt ?? 0,
@@ -284,6 +313,8 @@ export default async function OperationEfficiencyPage({
         <h1 className="text-2xl font-bold text-[#222222]">운영효율뷰</h1>
         <p className="text-sm text-[#788093] mt-1">
           산식대로 계산한 최대지원금 대비 실제 지급지원금의 차이(여력/초과지급)를 확인합니다
+          <br />
+          운영효율 = 매출 − 대손 − 타겟마진 − 지원금 (= 최대지원금 − 지원금)
         </p>
       </div>
       <OperationEfficiencyClient

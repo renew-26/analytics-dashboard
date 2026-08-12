@@ -40,14 +40,6 @@ export default function OperationEfficiencyClient({
     [categoryBrandSummary, category],
   );
 
-  const filteredRows = useMemo(
-    () =>
-      (category === "전체" ? rows : rows.filter((r) => r.category === category))
-        .slice()
-        .sort((a, b) => a.opEfficiency - b.opEfficiency),
-    [rows, category],
-  );
-
   return (
     <div className="space-y-6">
       <DateRangeFilter dateRange={dateRange} />
@@ -62,7 +54,7 @@ export default function OperationEfficiencyClient({
 
       <RankingChart summary={filteredSummary} />
 
-      <DrillDownTable rows={filteredRows} />
+      <DrillDownTable rows={rows} categories={categories} />
     </div>
   );
 }
@@ -161,26 +153,17 @@ function CategoryFilter({
   onSelect: (c: string) => void;
 }) {
   return (
-    <div className="flex items-center gap-2">
+    <select
+      value={selected}
+      onChange={(e) => onSelect(e.target.value)}
+      className="border border-[#e2e6ec] rounded-lg px-3 py-1.5 text-sm text-[#222222] bg-white"
+    >
       {["전체", ...categories].map((c) => (
-        <button
-          key={c}
-          onClick={() => onSelect(c)}
-          className={`px-3 py-1.5 rounded-lg text-sm transition ${
-            selected === c
-              ? "font-semibold"
-              : "text-[#586177] hover:bg-[#f3f5f9]"
-          }`}
-          style={
-            selected === c
-              ? { backgroundColor: "var(--color-tint-sky)", color: "var(--color-ink)" }
-              : {}
-          }
-        >
+        <option key={c} value={c}>
           {c}
-        </button>
+        </option>
       ))}
-    </div>
+    </select>
   );
 }
 
@@ -197,7 +180,8 @@ function RankingChart({ summary }: { summary: CategoryBrandSummary[] }) {
     <section>
       <h2 className="text-lg font-bold text-[#222222] mb-1">카테고리 × 브랜드 랭킹</h2>
       <p className="text-xs text-[#a1a5ac] mb-4">
-        운영효율 총액 기준 상위 15개 (플러스=여력, 마이너스=초과지급)
+        카테고리·브랜드 조합별로 운영효율이 어디에 가장 많이 쌓여 있는지 보여주는 랭킹입니다.
+        총액 기준 상위 15개 — 플러스가 클수록 산식보다 덜 지급된 여력, 마이너스가 클수록 초과 지급된 조합입니다.
       </p>
 
       <div className="bg-white border border-[#ebebe9] rounded-xl p-5">
@@ -239,15 +223,64 @@ function RankingChart({ summary }: { summary: CategoryBrandSummary[] }) {
 
 const TABLE_PAGE = 50;
 
-function DrillDownTable({ rows }: { rows: OpEfficiencyRow[] }) {
+function DrillDownTable({
+  rows,
+  categories,
+}: {
+  rows: OpEfficiencyRow[];
+  categories: string[];
+}) {
+  const [category, setCategory] = useState<string>("전체");
+  const [brand, setBrand] = useState<string>("전체");
   const [visibleCount, setVisibleCount] = useState(TABLE_PAGE);
-  const visibleRows = rows.slice(0, visibleCount);
+
+  const categoryRows = useMemo(
+    () => (category === "전체" ? rows : rows.filter((r) => r.category === category)),
+    [rows, category],
+  );
+
+  const brands = useMemo(
+    () => Array.from(new Set(categoryRows.map((r) => r.brand))).sort(),
+    [categoryRows],
+  );
+
+  const filteredRows = useMemo(
+    () =>
+      (brand === "전체" ? categoryRows : categoryRows.filter((r) => r.brand === brand))
+        .slice()
+        .sort((a, b) => a.opEfficiency - b.opEfficiency),
+    [categoryRows, brand],
+  );
+  const visibleRows = filteredRows.slice(0, visibleCount);
 
   return (
     <section>
-      <h2 className="text-lg font-bold text-[#222222] mb-1">상품 드릴다운</h2>
+      <div className="flex items-center justify-between mb-1">
+        <h2 className="text-lg font-bold text-[#222222]">상품 드릴다운</h2>
+        <div className="flex items-center gap-2">
+          <CategoryFilter
+            categories={categories}
+            selected={category}
+            onSelect={(c) => {
+              setCategory(c);
+              setBrand("전체");
+              setVisibleCount(TABLE_PAGE);
+            }}
+          />
+          <CategoryFilter
+            categories={brands}
+            selected={brand}
+            onSelect={(b) => {
+              setBrand(b);
+              setVisibleCount(TABLE_PAGE);
+            }}
+          />
+        </div>
+      </div>
       <p className="text-xs text-[#a1a5ac] mb-4">
-        초과지급(마이너스)이 큰 순서로 정렬됩니다 — 총 {rows.length.toLocaleString("ko-KR")}건
+        위 랭킹에서 포착한 신호가 실제로 어떤 건에서 발생했는지 개별 거래 단위로 확인하는 표입니다.
+        초과지급(마이너스)이 큰 순서로 정렬됩니다 — 총 {filteredRows.length.toLocaleString("ko-KR")}건.
+        특정 상품·시점에 규정 초과 지급이 반복되는지, 예외승인이 정당했는지를 개별 건 단위로 점검할 때 활용하세요.
       </p>
 
       <div className="bg-white border border-[#ebebe9] rounded-xl overflow-hidden">
@@ -257,6 +290,12 @@ function DrillDownTable({ rows }: { rows: OpEfficiencyRow[] }) {
               <tr className="bg-[#f6f6f6] border-b border-[#e2e6ec]">
                 <th className="text-left px-4 py-3 text-xs font-bold text-[#586177]">카테고리</th>
                 <th className="text-left px-4 py-3 text-xs font-bold text-[#586177]">브랜드</th>
+                <th className="text-left px-4 py-3 text-xs font-bold text-[#586177]">상품명</th>
+                <th className="text-left px-4 py-3 text-xs font-bold text-[#586177]">모델명</th>
+                <th className="text-left px-4 py-3 text-xs font-bold text-[#586177]">관리방식</th>
+                <th className="text-left px-4 py-3 text-xs font-bold text-[#586177]">계약기간</th>
+                <th className="text-left px-4 py-3 text-xs font-bold text-[#586177]">관리주기</th>
+                <th className="text-right px-4 py-3 text-xs font-bold text-[#586177]">월 요금</th>
                 <th className="text-left px-4 py-3 text-xs font-bold text-[#586177]">날짜</th>
                 <th className="text-right px-4 py-3 text-xs font-bold text-[#586177]">매출</th>
                 <th className="text-right px-4 py-3 text-xs font-bold text-[#586177]">대손비</th>
@@ -273,6 +312,16 @@ function DrillDownTable({ rows }: { rows: OpEfficiencyRow[] }) {
                 >
                   <td className="px-4 py-3 text-[#586177]">{r.category}</td>
                   <td className="px-4 py-3 text-[#586177]">{r.brand}</td>
+                  <td className="px-4 py-3 text-[#586177]">{r.productName}</td>
+                  <td className="px-4 py-3 text-[#586177]">{r.modelName ?? "-"}</td>
+                  <td className="px-4 py-3 text-[#586177]">{r.managementType ?? "-"}</td>
+                  <td className="px-4 py-3 text-[#586177]">
+                    {r.contractMonths ? `${r.contractMonths}개월` : "-"}
+                  </td>
+                  <td className="px-4 py-3 text-[#586177]">{r.managementCycle ?? "-"}</td>
+                  <td className="px-4 py-3 text-right text-[#222222]">
+                    {r.monthlyFee ? formatKRW(r.monthlyFee) : "-"}
+                  </td>
                   <td className="px-4 py-3 text-[#586177]">{r.date}</td>
                   <td className="px-4 py-3 text-right text-[#222222]">{formatKRW(r.sales)}</td>
                   <td className="px-4 py-3 text-right text-[#222222]">{formatKRW(r.badDebt)}</td>
@@ -290,13 +339,13 @@ function DrillDownTable({ rows }: { rows: OpEfficiencyRow[] }) {
             </tbody>
           </table>
         </div>
-        {visibleCount < rows.length && (
+        {visibleCount < filteredRows.length && (
           <div className="flex justify-center py-3 border-t border-[#f3f5f9]">
             <button
               onClick={() => setVisibleCount((v) => v + TABLE_PAGE)}
               className="text-sm text-[#3531FF] hover:underline"
             >
-              더 보기 ({rows.length - visibleCount}건 남음)
+              더 보기 ({filteredRows.length - visibleCount}건 남음)
             </button>
           </div>
         )}
