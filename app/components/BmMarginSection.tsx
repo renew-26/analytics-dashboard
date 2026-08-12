@@ -29,12 +29,12 @@ function fmt(n: number) {
 }
 
 function formatAmount(v: number | null): CellFormat {
-  return { text: `${fmt(v ?? 0)}원`, color: "#393939" };
+  return { text: fmt(v ?? 0), color: "#393939" };
 }
 
 function formatPerTx(v: number | null): CellFormat {
   if (v === null) return { text: "-", color: "#d1d5db" };
-  return { text: `${fmt(Math.round(v))}원`, color: "#393939" };
+  return { text: fmt(Math.round(v)), color: "#393939" };
 }
 
 function formatChange(v: number | null): CellFormat {
