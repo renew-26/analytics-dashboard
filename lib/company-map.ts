@@ -67,6 +67,14 @@ export const MAIN_RENTAL_COMPANIES: { label: string; dbName: string }[] = [
   { label: "KT렌탈", dbName: "KT" },
 ];
 
+// 렌트리 자체 판매 채널 (BM2/BM3 중에서도 렌트리 브랜드인 것만 — 일반 공식제휴사(BM2)와 구분)
+export const RENTRE_PARTNER_NAMES = new Set([
+  "더블체크파트너스",
+  "렌트리 안심구독(렌탈)",
+  "렌트리 안심구독(타이어)",
+  "렌트리 안심구독(TPS)",
+]);
+
 // BM 분류 (partner_company 기준)
 export const BM3_COMPANIES = new Set([
   "렌트리 안심구독(렌탈)",
