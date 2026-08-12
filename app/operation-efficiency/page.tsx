@@ -48,6 +48,8 @@ type RawOrderRow = {
   bad_debt: number | null;
   target_margin: number | null;
   sales_incentive: number | null;
+  contribution_margin: number | null;
+  total_rental_fee: number | null;
 };
 
 type RawContractRow = {
@@ -66,6 +68,8 @@ type RawContractRow = {
   bad_debt: number | null;
   target_margin: number | null;
   sales_incentive: number | null;
+  contribution_margin: number | null;
+  total_rental_fee: number | null;
 };
 
 export type OpEfficiencyRow = {
@@ -82,7 +86,9 @@ export type OpEfficiencyRow = {
   sales: number;
   badDebt: number;
   targetMargin: number;
-  actualSubsidy: number;
+  actualSubsidy?: number;
+  contributionMargin?: number;
+  totalRentalFee?: number;
   opEfficiency: number;
 };
 
@@ -154,7 +160,7 @@ async function fetchRawOrders(start: string, end: string): Promise<RawOrderRow[]
     const { data, error } = await supabase
       .from("raw_orders")
       .select(
-        "prop_item_usid, order_confirmed_at, category, brand, product_name, model_name, management_type, management_cycle, contract_months, monthly_fee, partner_company, sales, bad_debt, target_margin, sales_incentive",
+        "prop_item_usid, order_confirmed_at, category, brand, product_name, model_name, management_type, management_cycle, contract_months, monthly_fee, partner_company, sales, bad_debt, target_margin, sales_incentive, contribution_margin, total_rental_fee",
       )
       .neq("category", "인터넷")
       .gte("order_confirmed_at", start)
@@ -176,7 +182,7 @@ async function fetchRawContracts(start: string, end: string): Promise<RawContrac
     const { data, error } = await supabase
       .from("raw_contracts")
       .select(
-        "prop_item_usid, contract_date, category, brand, product_name, model_name, management_type, management_cycle, contract_months, monthly_fee, partner_company, sales, bad_debt, target_margin, sales_incentive",
+        "prop_item_usid, contract_date, category, brand, product_name, model_name, management_type, management_cycle, contract_months, monthly_fee, partner_company, sales, bad_debt, target_margin, sales_incentive, contribution_margin, total_rental_fee",
       )
       .neq("category", "인터넷")
       .gte("contract_date", start)
@@ -215,11 +221,17 @@ function tpsToRow(r: TpsPnlRow): OpEfficiencyRow {
 
 // 가전 등(비 인터넷) 카테고리: raw_orders/raw_contracts를 prop_item_usid로 합치되,
 // 계약완료 데이터가 더 확정된 값이므로 raw_contracts를 우선한다(기존 settle > pnl 관례와 동일).
+//
+// 가전은 TPS와 달리 "지원금"이 개별 지급 항목으로 존재하지 않는다(현금성 지원금 지급 구조 자체가 없음).
+// 실제 검증된 운영효율 정의(Redash #4678 "RAW 견적신청&주문확정&계약완료_상세 상태값" 쿼리 기준):
+//   운영효율 = 매출 − 판매장려금 − 프로모션 − 매출원가 − 금융비용 − 대손비 − 타겟마진 = 공헌이익 − 타겟마진
 function mergeApplianceRows(orders: RawOrderRow[], contracts: RawContractRow[]): OpEfficiencyRow[] {
   const byId = new Map<number, OpEfficiencyRow>();
 
   function toRow(r: RawOrderRow | RawContractRow, date: string | null): OpEfficiencyRow {
     const sales = r.sales ?? 0;
+    const contributionMargin = r.contribution_margin ?? 0;
+    const targetMargin = r.target_margin ?? 0;
     return {
       propItemUsid: r.prop_item_usid,
       category: r.category ?? "기타",
@@ -233,9 +245,10 @@ function mergeApplianceRows(orders: RawOrderRow[], contracts: RawContractRow[]):
       date: (date ?? "-").slice(0, 10),
       sales,
       badDebt: r.bad_debt ?? 0,
-      targetMargin: r.target_margin ?? 0,
-      actualSubsidy: r.sales_incentive ?? 0,
-      opEfficiency: sales - (r.bad_debt ?? 0) - (r.target_margin ?? 0) - (r.sales_incentive ?? 0),
+      targetMargin,
+      contributionMargin,
+      totalRentalFee: r.total_rental_fee ?? undefined,
+      opEfficiency: contributionMargin - targetMargin,
     };
   }
 
@@ -295,33 +308,43 @@ export default async function OperationEfficiencyPage({
   const { start: rawStart, end: rawEnd } = await searchParams;
   const { start, end } = resolveDateRange(rawStart, rawEnd);
 
-  const [tpsRows, orderRows, contractRows] = await Promise.all([
+  const [tpsPnlRows, orderRows, contractRows] = await Promise.all([
     fetchTpsPnl(start, end),
     fetchRawOrders(start, end),
     fetchRawContracts(start, end),
   ]);
 
-  const allRows = [...tpsRows.map(tpsToRow), ...mergeApplianceRows(orderRows, contractRows)];
-  const validRows = allRows.filter((r) => r.sales > 0);
+  const tpsAllRows = tpsPnlRows.map(tpsToRow);
+  const applianceAllRows = mergeApplianceRows(orderRows, contractRows);
+  const tpsValidRows = tpsAllRows.filter((r) => r.sales > 0);
+  const applianceValidRows = applianceAllRows.filter((r) => r.sales > 0);
 
-  const summaryTotals = buildSummaryTotals(allRows, validRows);
-  const categoryBrandSummary = buildCategoryBrandSummary(validRows);
+  const tpsSummaryTotals = buildSummaryTotals(tpsAllRows, tpsValidRows);
+  const applianceSummaryTotals = buildSummaryTotals(applianceAllRows, applianceValidRows);
+  const tpsCategoryBrandSummary = buildCategoryBrandSummary(tpsValidRows);
+  const applianceCategoryBrandSummary = buildCategoryBrandSummary(applianceValidRows);
 
   return (
     <div className="px-12 py-6 mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-[#222222]">운영효율뷰</h1>
         <p className="text-sm text-[#788093] mt-1">
-          산식대로 계산한 최대지원금 대비 실제 지급지원금의 차이(여력/초과지급)를 확인합니다
-          <br />
-          운영효율 = 매출 − 대손 − 타겟마진 − 지원금 (= 최대지원금 − 지원금)
+          목표(타겟마진) 대비 실제로 얼마나 여유/부족했는지를 TPS·가전 섹션으로 나누어 확인합니다
+          (두 채널은 산식이 달라 합산하지 않습니다 — 섹션별 산식은 각 섹션 상단 참고)
         </p>
       </div>
       <OperationEfficiencyClient
         dateRange={{ start, end }}
-        summaryTotals={summaryTotals}
-        categoryBrandSummary={categoryBrandSummary}
-        rows={validRows}
+        tps={{
+          summaryTotals: tpsSummaryTotals,
+          categoryBrandSummary: tpsCategoryBrandSummary,
+          rows: tpsValidRows,
+        }}
+        appliance={{
+          summaryTotals: applianceSummaryTotals,
+          categoryBrandSummary: applianceCategoryBrandSummary,
+          rows: applianceValidRows,
+        }}
       />
     </div>
   );
