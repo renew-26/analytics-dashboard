@@ -25,6 +25,14 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
+// 렌트리 자체 판매 채널 (BM2/BM3 중에서도 렌트리 브랜드인 것만 — 일반 공식제휴사(BM2)와 구분)
+const RENTRE_PARTNER_NAMES = new Set([
+  "더블체크파트너스",
+  "렌트리 안심구독(렌탈)",
+  "렌트리 안심구독(타이어)",
+  "렌트리 안심구독(TPS)",
+]);
+
 // OKR 정의 카테고리 — 이 외는 모두 "그외"로 표시
 const OKR_CATEGORIES = new Set([
   "정수기",
@@ -671,6 +679,9 @@ export default async function CompanyPage({
       model_name: string | null;
       management_type: string | null;
       contract_months: number | null;
+      partner_company: string | null;
+      sales_incentive: number | null;
+      total_rental_fee: number | null;
     }[] = [];
     // 상단 토글(주문확정/계약완료)에 따라 소스 전환
     const growthTable = view === "order" ? "raw_orders" : "raw_contracts";
@@ -681,7 +692,7 @@ export default async function CompanyPage({
       let q = supabase
         .from(growthTable)
         .select(
-          "rental_company, category, product_name, model_name, management_type, contract_months",
+          "rental_company, category, product_name, model_name, management_type, contract_months, partner_company, sales_incentive, total_rental_fee",
         )
         .in("category", positionCategories)
         .gte(growthDateCol, "2026-01-01");
@@ -862,6 +873,39 @@ export default async function CompanyPage({
                 })
                 .filter((pr) => pr.companies.length > 0);
             }
+          }
+        }
+
+        // 파트너사별 실지급 판매장려금 비교 (실거래 기준 — 렌트리 채널(BM2/BM3) vs BM1 파트너사)
+        const partnerMap = new Map<
+          string,
+          Map<string, { count: number; feeSum: number; incentiveSum: number }>
+        >();
+        for (const r of allGrowthRows) {
+          if (!r.model_name || !topModelNames.has(r.model_name) || !r.partner_company)
+            continue;
+          if (!partnerMap.has(r.model_name)) partnerMap.set(r.model_name, new Map());
+          const pm = partnerMap.get(r.model_name)!;
+          const cur = pm.get(r.partner_company) ?? { count: 0, feeSum: 0, incentiveSum: 0 };
+          cur.count += 1;
+          cur.feeSum += r.total_rental_fee ?? 0;
+          cur.incentiveSum += r.sales_incentive ?? 0;
+          pm.set(r.partner_company, cur);
+        }
+
+        for (const products of Object.values(competitiveProductsByCategory)) {
+          for (const product of products) {
+            const pm = partnerMap.get(product.model_name);
+            if (!pm) continue;
+            product.partnerIncentive = Array.from(pm.entries())
+              .map(([partner, v]) => ({
+                partner,
+                isRentre: RENTRE_PARTNER_NAMES.has(partner),
+                count: v.count,
+                avgTotalRentalFee: Math.round(v.feeSum / v.count),
+                avgIncentive: Math.round(v.incentiveSum / v.count),
+              }))
+              .sort((a, b) => b.count - a.count);
           }
         }
       }
