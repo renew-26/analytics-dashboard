@@ -125,6 +125,11 @@ export default function Sidebar() {
         {/* 상품 전략 섹션 */}
         <SectionHeader label="상품 전략" />
         <NavItem
+          href="/operation-efficiency"
+          label="운영효율뷰"
+          active={pathname === "/operation-efficiency"}
+        />
+        <NavItem
           href="/category-trends"
           label="카테고리 트렌드"
           active={pathname === "/category-trends"}

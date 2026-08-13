@@ -19,6 +19,13 @@ export interface CompetitiveProduct {
   totalCount: number;
   byCompany: { company: string; count: number; isMe: boolean }[];
   pricing: PricingTerm[];
+  partnerIncentive?: {
+    partner: string;
+    isRentre: boolean;
+    count: number;
+    avgTotalRentalFee: number;
+    avgIncentive: number;
+  }[];
 }
 
 function fmt(n: number) {
@@ -197,6 +204,85 @@ function PricingPanel({
   );
 }
 
+function PartnerIncentivePanel({
+  data,
+}: {
+  data: {
+    partner: string;
+    isRentre: boolean;
+    count: number;
+    avgTotalRentalFee: number;
+    avgIncentive: number;
+  }[];
+}) {
+  return (
+    <div>
+      <p className="text-[10px] font-semibold text-[#a1a5ac] uppercase tracking-wider mb-2.5">
+        파트너사별 판매장려금 비교 (실거래 평균, 건수 많은 순)
+      </p>
+      <table className="w-full text-[11px]">
+        <thead>
+          <tr>
+            <th className="text-[11px] font-semibold text-[#788093] text-left pb-1.5 w-[34%]">
+              파트너사
+            </th>
+            <th className="text-[11px] font-semibold text-[#788093] text-center pb-1.5 w-[18%]">
+              건수
+            </th>
+            <th className="text-[11px] font-semibold text-[#788093] text-center pb-1.5 w-[24%]">
+              평균 총렌탈료
+            </th>
+            <th className="text-[11px] font-semibold text-[#788093] text-center pb-1.5 w-[24%]">
+              평균 판매장려금
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((d, k) => (
+            <tr
+              key={k}
+              style={d.isRentre ? { backgroundColor: "var(--color-success-100)" } : undefined}
+            >
+              <td
+                className="py-1 px-1 rounded-l truncate"
+                style={{
+                  color: d.isRentre ? "var(--color-success)" : "var(--color-gray-400)",
+                  fontWeight: d.isRentre ? 700 : 400,
+                }}
+              >
+                {d.partner}
+                {d.isRentre && (
+                  <span
+                    className="ml-1 text-[9px] px-1 py-0.5 rounded"
+                    style={{ backgroundColor: "var(--color-success)", color: "#fff" }}
+                  >
+                    렌트리
+                  </span>
+                )}
+              </td>
+              <td className="py-1 px-1 text-center tabular-nums text-[#a1a5ac]">
+                {fmt(d.count)}
+              </td>
+              <td className="py-1 px-1 text-center tabular-nums text-[#586177]">
+                {fmt(d.avgTotalRentalFee)}
+              </td>
+              <td
+                className="py-1 px-1 rounded-r text-center tabular-nums"
+                style={{
+                  color: d.isRentre ? "var(--color-success)" : "var(--color-gray-700)",
+                  fontWeight: d.isRentre ? 600 : 400,
+                }}
+              >
+                {fmt(d.avgIncentive)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default function CategoryCompetitiveSection({
   categories,
   productsByCategory,
@@ -322,6 +408,13 @@ export default function CategoryCompetitiveSection({
                     />
                   </div>
                 </div>
+
+                {/* 파트너사별 판매장려금 비교 (실거래 기준) */}
+                {product.partnerIncentive && product.partnerIncentive.length > 0 && (
+                  <div className="px-4 py-3 border-t border-[#ebebe9]">
+                    <PartnerIncentivePanel data={product.partnerIncentive} />
+                  </div>
+                )}
               </div>
             );
           })}
