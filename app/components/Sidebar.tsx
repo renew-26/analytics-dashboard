@@ -169,6 +169,11 @@ export default function Sidebar() {
           active={pathname === "/products"}
         />
         <NavItem
+          href="/product-lookup"
+          label="상품 지원금 조회"
+          active={pathname === "/product-lookup"}
+        />
+        <NavItem
           href="/survey-selection/appliance"
           label="조사 상품 선정 - 가전"
           active={pathname === "/survey-selection/appliance"}
