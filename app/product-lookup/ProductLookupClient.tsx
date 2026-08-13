@@ -10,6 +10,8 @@ type Props = {
   selectedInfo: ModelOption | null;
   partnerRows: PartnerRow[];
   partnerProfiles: PartnerProfile[];
+  initialCategory?: string;
+  initialBrand?: string;
 };
 
 function fmt(n: number): string {
@@ -22,10 +24,17 @@ export default function ProductLookupClient({
   selectedInfo,
   partnerRows,
   partnerProfiles,
+  initialCategory,
+  initialBrand,
 }: Props) {
   return (
     <div className="space-y-6">
-      <ModelSearch modelOptions={modelOptions} selectedModel={selectedModel} />
+      <ModelSearch
+        modelOptions={modelOptions}
+        selectedModel={selectedModel}
+        initialCategory={initialCategory}
+        initialBrand={initialBrand}
+      />
 
       {selectedModel && selectedInfo && (
         <>
@@ -43,26 +52,58 @@ export default function ProductLookupClient({
 function ModelSearch({
   modelOptions,
   selectedModel,
+  initialCategory,
+  initialBrand,
 }: {
   modelOptions: ModelOption[];
   selectedModel: string | null;
+  initialCategory?: string;
+  initialBrand?: string;
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const [category, setCategory] = useState(initialCategory ?? "");
+  const [brand, setBrand] = useState(initialBrand ?? "");
+  const [managementType, setManagementType] = useState("");
+  const [managementCycle, setManagementCycle] = useState("");
+
+  const categories = useMemo(
+    () => Array.from(new Set(modelOptions.map((m) => m.category))).sort(),
+    [modelOptions],
+  );
+
+  const brands = useMemo(() => {
+    const pool = category ? modelOptions.filter((m) => m.category === category) : modelOptions;
+    return Array.from(new Set(pool.map((m) => m.brand))).sort();
+  }, [modelOptions, category]);
+
+  const managementTypes = useMemo(
+    () => Array.from(new Set(modelOptions.map((m) => m.managementType).filter(Boolean))).sort(),
+    [modelOptions],
+  );
+
+  const managementCycles = useMemo(
+    () => Array.from(new Set(modelOptions.map((m) => m.managementCycle).filter(Boolean))).sort(),
+    [modelOptions],
+  );
 
   const filtered = useMemo(() => {
-    if (!query.trim()) return modelOptions.slice(0, 20);
     const q = query.trim().toLowerCase();
     return modelOptions
+      .filter((m) => !category || m.category === category)
+      .filter((m) => !brand || m.brand === brand)
+      .filter((m) => !managementType || m.managementType === managementType)
+      .filter((m) => !managementCycle || m.managementCycle === managementCycle)
       .filter(
         (m) =>
+          !q ||
           m.model_name.toLowerCase().includes(q) ||
           m.product_name.toLowerCase().includes(q) ||
           m.brand.toLowerCase().includes(q),
       )
       .slice(0, 20);
-  }, [modelOptions, query]);
+  }, [modelOptions, query, category, brand, managementType, managementCycle]);
 
   const selectedLabel = selectedModel
     ? (modelOptions.find((m) => m.model_name === selectedModel)?.product_name ??
@@ -77,6 +118,81 @@ function ModelSearch({
 
   return (
     <div className="relative bg-white border border-[#ebebe9] rounded-xl p-4">
+      <div className="flex gap-2 mb-3">
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-[#788093]">카테고리</span>
+          <select
+            value={category}
+            onChange={(e) => {
+              setCategory(e.target.value);
+              setBrand("");
+              setOpen(true);
+            }}
+            className="border border-[#e2e6ec] rounded-lg px-3 py-2 text-sm text-[#222222]"
+          >
+            <option value="">전체</option>
+            {categories.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-[#788093]">브랜드</span>
+          <select
+            value={brand}
+            onChange={(e) => {
+              setBrand(e.target.value);
+              setOpen(true);
+            }}
+            className="border border-[#e2e6ec] rounded-lg px-3 py-2 text-sm text-[#222222]"
+          >
+            <option value="">전체</option>
+            {brands.map((b) => (
+              <option key={b} value={b}>
+                {b}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-[#788093]">관리방식</span>
+          <select
+            value={managementType}
+            onChange={(e) => {
+              setManagementType(e.target.value);
+              setOpen(true);
+            }}
+            className="border border-[#e2e6ec] rounded-lg px-3 py-2 text-sm text-[#222222]"
+          >
+            <option value="">전체</option>
+            {managementTypes.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-[#788093]">관리주기</span>
+          <select
+            value={managementCycle}
+            onChange={(e) => {
+              setManagementCycle(e.target.value);
+              setOpen(true);
+            }}
+            className="border border-[#e2e6ec] rounded-lg px-3 py-2 text-sm text-[#222222]"
+          >
+            <option value="">전체</option>
+            {managementCycles.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
       <label className="flex flex-col gap-1.5">
         <span className="text-xs font-medium text-[#788093]">
           모델명 · 상품명 · 브랜드로 검색
@@ -162,6 +278,9 @@ function PartnerComparisonTable({ rows }: { rows: PartnerRow[] }) {
       <p className="text-xs text-[#a1a5ac] mb-4">
         동일 모델 실거래 기준 — 렌트리 채널(더블체크파트너스/렌트리 안심구독)은 초록색으로
         표시됩니다
+        <br />
+        공헌이익은 매출에서 판매장려금·프로모션·원가·금융비용·대손비를 뺀, 실제로 남긴 돈입니다
+        — 판매장려금 비율이 높을수록 공헌이익률은 낮아지는 경향이 있습니다
       </p>
       <div className="bg-white border border-[#ebebe9] rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
@@ -178,6 +297,12 @@ function PartnerComparisonTable({ rows }: { rows: PartnerRow[] }) {
                 </th>
                 <th className="text-right px-4 py-3 text-xs font-bold text-[#586177]">
                   판매장려금 비율
+                </th>
+                <th className="text-right px-4 py-3 text-xs font-bold text-[#586177]">
+                  평균 공헌이익
+                </th>
+                <th className="text-right px-4 py-3 text-xs font-bold text-[#586177]">
+                  공헌이익률
                 </th>
               </tr>
             </thead>
@@ -230,6 +355,15 @@ function PartnerComparisonTable({ rows }: { rows: PartnerRow[] }) {
                     ) : (
                       `${r.incentiveRate.toFixed(1)}%`
                     )}
+                  </td>
+                  <td className="px-4 py-3 text-right text-[#222222]">
+                    {fmt(r.avgContributionMargin)}원
+                  </td>
+                  <td
+                    className="px-4 py-3 text-right font-semibold"
+                    style={{ color: r.isRentre ? "var(--color-success)" : "#222222" }}
+                  >
+                    {r.marginRate.toFixed(1)}%
                   </td>
                 </tr>
               ))}

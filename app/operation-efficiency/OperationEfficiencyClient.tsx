@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import {
   ResponsiveContainer,
   BarChart,
@@ -94,7 +95,11 @@ function OperationEfficiencySection({
 
       {showTargetMarginSimulation && <TargetMarginSimulation rows={rows} />}
 
-      <DrillDownTable rows={rows} categories={categories} />
+      <DrillDownTable
+        rows={rows}
+        categories={categories}
+        productLookupLink={showTargetMarginSimulation}
+      />
     </section>
   );
 }
@@ -415,9 +420,11 @@ const TABLE_PAGE = 50;
 function DrillDownTable({
   rows,
   categories,
+  productLookupLink,
 }: {
   rows: OpEfficiencyRow[];
   categories: string[];
+  productLookupLink?: boolean;
 }) {
   const [category, setCategory] = useState<string>("전체");
   const [brand, setBrand] = useState<string>("전체");
@@ -464,6 +471,15 @@ function DrillDownTable({
               setVisibleCount(TABLE_PAGE);
             }}
           />
+          {productLookupLink && category !== "전체" && brand !== "전체" && (
+            <Link
+              href={`/product-lookup?category=${encodeURIComponent(category)}&brand=${encodeURIComponent(brand)}`}
+              className="text-xs font-semibold whitespace-nowrap"
+              style={{ color: "var(--color-primary)" }}
+            >
+              지원금 비교 →
+            </Link>
+          )}
         </div>
       </div>
       <p className="text-xs text-[#a1a5ac] mb-4">
