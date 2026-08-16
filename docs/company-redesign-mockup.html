@@ -1,0 +1,644 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>*{margin:0;padding:0;box-sizing:border-box}html,body{height:100%}</style>
+<title>렌트리 애널리틱스 — 렌탈사 상세 개선안</title>
+</head>
+<body>
+
+<style>
+  .rt {
+    color-scheme: light;
+    --page:#f6f7f9; --card:#fff; --surface:#f3f5f9; --surface-2:#f9fafb;
+    --ink:#222; --ink-2:#586177; --ink-3:#788093; --ink-4:#a1a5ac;
+    --line:#e2e6ec; --line-2:#eef0f4;
+    --brand:#4338ca; --brand-600:#4f46e5; --brand-tint:#eef2ff;
+    --up:#e03131; --up-tint:#fee2e2; --down:#2563eb; --down-tint:#dbeafe;
+    --sev-warn:#d97706; --sev-warn-t:#fef3c7; --sev-crit:#dc2626; --sev-crit-t:#fee2e2;
+    --c1:#2a78d6; --c2:#eb6834; --c3:#1baf7a; --c4:#eda100; --c5:#e87ba4;
+    --r-4:4px; --r-6:6px; --r-8:8px; --r-12:12px; --r-full:9999px;
+    --sh:0 1px 2px rgba(28,35,56,.04), 0 2px 8px rgba(28,35,56,.05);
+    --font:"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
+           "Apple SD Gothic Neo", system-ui, sans-serif;
+    --mono:ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+    font-family:var(--font); background:var(--page); color:var(--ink);
+    -webkit-font-smoothing:antialiased; display:block; min-height:100vh;
+    word-break:keep-all; line-break:strict;
+  }
+  .rt *, .rt *::before, .rt *::after { box-sizing:border-box; }
+  .rt p,.rt h1,.rt h2,.rt h3,.rt h4,.rt ul,.rt ol,.rt figure { margin:0; }
+  .rt ul,.rt ol { padding:0; list-style:none; }
+  .rt button { font:inherit; color:inherit; background:none; border:0; cursor:pointer; }
+  .rt :focus-visible { outline:2px solid var(--brand); outline-offset:2px; border-radius:var(--r-6); }
+  .rt table { border-collapse:collapse; }
+  .num { font-variant-numeric:tabular-nums; }
+  .up{color:var(--up)} .down{color:var(--down)} .flat{color:var(--ink-4)}
+
+  .shell { display:grid; grid-template-columns:216px minmax(0,1fr); min-height:100vh; }
+  .side { background:var(--card); border-right:1px solid var(--line); padding:18px 10px;
+          position:sticky; top:0; align-self:start; height:100vh; overflow-y:auto; }
+  .side-logo { display:flex; align-items:baseline; gap:5px; padding:0 10px 18px; }
+  .side-logo b { font-size:17px; font-weight:800; letter-spacing:-.4px; color:var(--brand); }
+  .side-logo span { font-size:11px; color:var(--ink-4); }
+  .nav-h { padding:16px 10px 6px; font-size:10px; font-weight:700; letter-spacing:.07em;
+           text-transform:uppercase; color:var(--ink-4); }
+  .nav-i { display:block; padding:7px 10px; border-radius:var(--r-8); font-size:13px;
+           color:var(--ink-2); text-decoration:none; margin-bottom:1px; }
+  .nav-i:hover { background:var(--surface); color:var(--ink); }
+  .nav-i.on { background:var(--brand-tint); color:var(--brand); font-weight:700; }
+
+  .top { position:sticky; top:0; z-index:30; background:rgba(255,255,255,.93);
+         backdrop-filter:blur(8px); border-bottom:1px solid var(--line);
+         padding:11px 28px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  .crumb { font-size:12px; color:var(--ink-4); display:flex; align-items:center; gap:7px; }
+  .crumb a { color:var(--brand); text-decoration:none; font-weight:600; }
+  .crumb a:hover { text-decoration:underline; }
+  .top h1 { font-size:18px; font-weight:800; letter-spacing:-.4px; }
+  .top-sp { flex:1 1 auto; }
+  .seg { display:flex; background:var(--surface); border-radius:var(--r-8); padding:2px; }
+  .seg button { font-size:12px; font-weight:600; color:var(--ink-3); padding:5px 12px; border-radius:var(--r-6); }
+  .seg button[aria-pressed="true"] { background:var(--card); color:var(--ink); box-shadow:var(--sh); }
+
+  .main { padding:20px 28px 72px; display:flex; flex-direction:column; gap:24px; }
+
+  .lay { display:flex; align-items:baseline; gap:10px; margin-bottom:11px; flex-wrap:wrap; }
+  .lay h2 { font-size:15px; font-weight:800; letter-spacing:-.3px; }
+  .lay .sub { font-size:12px; color:var(--ink-3); }
+  .step { font-size:10px; font-weight:800; font-family:var(--mono); color:var(--brand);
+          background:var(--brand-tint); border-radius:var(--r-4); padding:2px 6px; }
+
+  .an { display:inline-flex; align-items:center; justify-content:center; min-width:17px; height:17px;
+        padding:0 4px; border-radius:var(--r-full); background:var(--brand); color:#fff;
+        font-size:10px; font-weight:700; font-family:var(--mono); vertical-align:middle; margin-left:5px; }
+  .note { font-size:11.5px; line-height:1.6; color:var(--brand); background:var(--brand-tint);
+          border-left:2px solid var(--brand); border-radius:0 var(--r-6) var(--r-6) 0;
+          padding:7px 11px; margin-top:10px; }
+
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:var(--r-12); box-shadow:var(--sh); }
+  .panel-h { padding:14px 17px 11px; display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
+  .panel-h h3 { font-size:13.5px; font-weight:800; letter-spacing:-.2px; }
+  .panel-h .m { font-size:11px; color:var(--ink-4); }
+  .panel-b { padding:0 17px 16px; }
+
+  /* ── ① 진단 배너 — 홈에서 온 맥락을 잃지 않는다 ────── */
+  .diag { background:var(--card); border:1px solid var(--line); border-left:3px solid var(--sev-crit);
+          border-radius:var(--r-12); box-shadow:var(--sh); overflow:hidden; }
+  .diag-top { padding:18px 22px 16px; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:22px; align-items:start; }
+  @media (max-width:900px){ .diag-top{ grid-template-columns:1fr; } }
+  .diag-from { font-size:11px; color:var(--ink-3); margin-bottom:9px; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .diag-from b { color:var(--sev-crit); font-weight:700; }
+  .diag-from code { font-family:var(--mono); font-size:10.5px; color:var(--ink-4); }
+  .diag-q { font-size:20px; font-weight:800; letter-spacing:-.5px; line-height:1.45; text-wrap:balance; }
+  .diag-a { margin-top:10px; font-size:12.5px; line-height:1.7; color:var(--ink-2); max-width:60ch; }
+  .diag-a b { color:var(--ink); }
+  .diag-num { text-align:right; }
+  .diag-num .n { font-size:34px; font-weight:800; letter-spacing:-1.4px; line-height:1; color:var(--down); }
+  .diag-num .l { font-size:11px; color:var(--ink-3); margin-top:6px; }
+
+  /* ── ② 원인 카드 3장 ─────────────────────────────── */
+  .causes { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:1px;
+            background:var(--line-2); border-top:1px solid var(--line); }
+  .cause { background:var(--card); padding:15px 18px 16px; }
+  .cause-r { font-size:10px; font-weight:800; font-family:var(--mono); color:var(--ink-4); margin-bottom:7px; }
+  .cause-t { font-size:13px; font-weight:800; letter-spacing:-.2px; margin-bottom:9px; }
+  .cause-cmp { display:flex; align-items:baseline; gap:8px; margin-bottom:4px; }
+  .cause-cmp .mine { font-size:19px; font-weight:800; letter-spacing:-.5px; }
+  .cause-cmp .vs { font-size:11px; color:var(--ink-4); }
+  .cause-cmp .peer { font-size:13px; font-weight:600; color:var(--ink-3); }
+  .cause-gap { font-size:11.5px; font-weight:700; margin-top:7px; }
+  .cause-bar { margin-top:9px; }
+
+  /* ── 워터폴 / 차트 ───────────────────────────────── */
+  .l2 { display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,1fr); gap:16px; }
+  @media (max-width:1080px){ .l2{ grid-template-columns:1fr; } }
+
+  /* ── 카테고리 표 ─────────────────────────────────── */
+  .tbl-wrap { overflow-x:auto; border:1px solid var(--line); border-radius:var(--r-8); }
+  .tbl { width:100%; font-size:12.5px; background:var(--card); min-width:660px; }
+  .tbl th,.tbl td { padding:9px 12px; text-align:right; white-space:nowrap; }
+  .tbl thead th { font-size:10.5px; font-weight:700; color:var(--ink-4); background:var(--surface-2);
+                  border-bottom:1px solid var(--line); text-align:right; }
+  .tbl tbody tr + tr td { border-top:1px solid var(--line-2); }
+  .tbl td:first-child,.tbl th:first-child { text-align:left; font-weight:700; color:var(--ink-2); }
+  .tbl tbody tr:hover td { background:var(--surface-2); }
+  .tbl .lead td { background:var(--sev-crit-t) !important; }
+  .bar-cell { display:flex; align-items:center; gap:7px; justify-content:flex-end; }
+  .bar-cell i { display:block; height:7px; border-radius:2px; flex:none; }
+
+  /* ── 접힘 ────────────────────────────────────────── */
+  .det { background:var(--card); border:1px solid var(--line); border-radius:var(--r-12); box-shadow:var(--sh); overflow:hidden; }
+  .det > summary { list-style:none; cursor:pointer; padding:14px 18px; display:flex; align-items:center;
+                   gap:9px; font-size:13.5px; font-weight:800; letter-spacing:-.2px; }
+  .det > summary::-webkit-details-marker { display:none; }
+  .det > summary::before { content:"▸"; color:var(--ink-4); font-size:11px; transition:transform .15s; }
+  .det[open] > summary::before { transform:rotate(90deg); }
+  .det > summary .m { font-size:11.5px; font-weight:500; color:var(--ink-4); margin-left:auto; }
+  .det-b { padding:14px 18px 20px; border-top:1px solid var(--line-2); }
+
+  .goto { display:inline-flex; align-items:center; gap:4px; font-family:var(--mono); font-size:10px;
+          font-weight:600; color:var(--ink-4); white-space:nowrap; }
+  .goto::before { content:"↗"; font-family:var(--font); font-size:9px; }
+  a:hover .goto { color:var(--brand); }
+
+  .tip { position:fixed; z-index:90; pointer-events:none; opacity:0; transition:opacity .1s;
+         background:var(--ink); color:#fff; border-radius:var(--r-8); padding:7px 10px;
+         font-size:11.5px; line-height:1.5; box-shadow:0 6px 20px rgba(0,0,0,.22); max-width:250px; }
+  .tip.on { opacity:1; }
+  .tip .t-h { font-weight:700; margin-bottom:3px; }
+  .tip .t-row { display:flex; align-items:center; gap:6px; white-space:nowrap; }
+  .tip .t-row i { width:7px; height:7px; border-radius:2px; flex:none; }
+
+  .chg { background:var(--card); border:1px solid var(--line); border-radius:var(--r-12); padding:18px 20px; }
+  .chg h3 { font-size:13.5px; font-weight:800; margin-bottom:12px; letter-spacing:-.2px; }
+  .chg-g { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:16px; }
+  .chg-c h4 { font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; margin-bottom:7px; }
+  .chg-c.out h4 { color:var(--down); } .chg-c.in h4 { color:var(--up); } .chg-c.keep h4 { color:var(--ink-4); }
+  .chg-c li { font-size:12px; line-height:1.65; color:var(--ink-2); padding-left:13px; position:relative; }
+  .chg-c li::before { content:"—"; position:absolute; left:0; color:var(--ink-4); }
+  .chg code { font-family:var(--mono); font-size:11px; }
+
+  .legend { display:flex; flex-wrap:wrap; gap:4px 14px; margin-top:9px; }
+  .legend span { display:inline-flex; align-items:center; gap:5px; font-size:10.5px; color:var(--ink-2); }
+  .legend i { width:9px; height:9px; border-radius:2px; flex:none; }
+</style>
+
+<div class="rt" id="rt">
+<div class="shell">
+
+  <aside class="side">
+    <div class="side-logo"><b>렌트리</b><span>애널리틱스</span></div>
+    <div class="nav-h">매일 보는 것</div>
+    <a class="nav-i" href="#">이달의 요약</a>
+    <a class="nav-i" href="#">매출 분석</a>
+    <a class="nav-i" href="#">주문 → 계약 전환</a>
+    <div class="nav-h">렌탈사</div>
+    <a class="nav-i on" href="#">가전 &amp; 상조</a>
+    <a class="nav-i" href="#">정수기</a>
+    <a class="nav-i" href="#">통신</a>
+    <a class="nav-i" href="#">렌탈사 비교</a>
+    <div class="nav-h">상품 · 수익성</div>
+    <a class="nav-i" href="#">상품 수익성</a>
+    <a class="nav-i" href="#">카테고리 트렌드</a>
+    <a class="nav-i" href="#">브랜드 분석</a>
+    <a class="nav-i" href="#">예외승인 손익</a>
+  </aside>
+
+  <div>
+    <header class="top">
+      <div class="crumb"><a href="#">이달의 요약</a><span>›</span><span>가전 &amp; 상조</span><span>›</span></div>
+      <h1>BS렌탈</h1>
+      <div class="top-sp"></div>
+      <div class="seg">
+        <button aria-pressed="false">주문확정</button>
+        <button aria-pressed="true">계약완료</button>
+      </div>
+    </header>
+
+    <main class="main">
+
+      <!-- ═══ ① 진단 배너 ═══════════════════════════ -->
+      <section>
+        <div class="lay">
+          <span class="step">STEP 1</span>
+          <h2>무엇이 문제인가</h2>
+          <span class="sub">홈이 짚어준 신호를 페이지가 이어받는다</span>
+        </div>
+
+        <div class="diag">
+          <div class="diag-top">
+            <div>
+              <div class="diag-from">
+                <span>홈에서 이동:</span>
+                <b>이상 — 거래건수가 평소의 67% 수준</b>
+                <code>/company/BS렌탈</code>
+              </div>
+              <p class="diag-q">
+                8월 BS렌탈은 <span class="down">62건</span> 줄었습니다.
+                그중 <span class="down">45건</span>이 세탁기+건조기·냉장고 두 카테고리에서 나왔습니다.
+              </p>
+              <p class="diag-a">
+                원인은 세 겹입니다 — <b>가격이 타사보다 10.4% 비싸고</b>,
+                <b>취급 모델이 33% 적으며</b>, <b>주문을 받고도 계약까지 못 가는 비율이 타사의 2배</b>입니다.
+                셋 중 전환율 하락이 8월에 새로 생긴 문제이고, 나머지 둘은 6월부터 이어져 왔습니다.
+              </p>
+            </div>
+            <div class="diag-num">
+              <div class="n num">−62<span style="font-size:15px">건</span></div>
+              <div class="l">전월 동기간 214건 → 152건</div>
+              <div class="l" style="margin-top:3px">평소 페이스 226건 대비 <b class="num" style="color:var(--sev-crit)">67%</b></div>
+            </div>
+          </div>
+
+          <!-- ② 원인 카드 -->
+          <div class="causes">
+            <div class="cause">
+              <div class="cause-r">원인 1 · 가격</div>
+              <div class="cause-t">월렌탈료가 타사보다 비쌈</div>
+              <div class="cause-cmp">
+                <span class="mine num">38,200<span style="font-size:11px">원</span></span>
+                <span class="vs">vs</span>
+                <span class="peer num">34,600원</span>
+              </div>
+              <div class="cause-bar" data-cmp="38200,34600"></div>
+              <div class="cause-gap down">타사 평균 대비 +10.4% 비쌈</div>
+            </div>
+            <div class="cause">
+              <div class="cause-r">원인 2 · 구색</div>
+              <div class="cause-t">취급 모델 수가 적음</div>
+              <div class="cause-cmp">
+                <span class="mine num">18<span style="font-size:11px">개</span></span>
+                <span class="vs">vs</span>
+                <span class="peer num">27개</span>
+              </div>
+              <div class="cause-bar" data-cmp="18,27"></div>
+              <div class="cause-gap down">타사 평균 대비 9개 부족 (−33%)</div>
+            </div>
+            <div class="cause">
+              <div class="cause-r">원인 3 · 전환</div>
+              <div class="cause-t">주문을 받고 계약으로 못 감</div>
+              <div class="cause-cmp">
+                <span class="mine num">76.8<span style="font-size:11px">%</span></span>
+                <span class="vs">vs</span>
+                <span class="peer num">88.5%</span>
+              </div>
+              <div class="cause-bar" data-cmp="76.8,88.5"></div>
+              <div class="cause-gap down">−11.7%p · 8월에 새로 생긴 문제</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="note">
+          <b>①</b> 지금 페이지의 첫 화면은 "이번 달 매출 / 전월 대비 / 건당 공헌이익" 카드 3장입니다.
+          전부 <b>홈 카드에서 이미 본 숫자</b>라, 상세로 들어온 이유(왜?)에 아무 답을 못 합니다.
+          <br><b>②</b> "성과 원인 분석"은 지금 <b>페이지 맨 아래 11번째 섹션</b>에 있습니다 —
+          가장 결정적인 정보가 가장 멀리 있습니다. 맨 위로 올렸습니다.
+        </div>
+      </section>
+
+      <!-- ═══ ③ 어디서 빠졌나 ═══════════════════════ -->
+      <section>
+        <div class="lay">
+          <span class="step">STEP 2</span>
+          <h2>어디서 빠졌나</h2>
+          <span class="sub">−62건을 카테고리로 분해한다</span>
+        </div>
+
+        <div class="l2">
+          <div class="panel">
+            <div class="panel-h">
+              <h3>카테고리별 기여도 <span class="an">③</span></h3>
+              <span class="m">전월 동기간 → 이번 달</span>
+            </div>
+            <div class="panel-b">
+              <div id="waterfall"></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-h">
+              <h3>주문 → 계약 퍼널 <span class="an">④</span></h3>
+              <span class="m">8월 누계 · 타사 평균과 비교</span>
+            </div>
+            <div class="panel-b">
+              <div id="funnel"></div>
+              <div class="note" style="margin-top:12px">
+                주문은 198건으로 <b>전월(224건)보다 12% 줄었을 뿐</b>인데
+                계약은 29% 줄었습니다. 즉 <b>수요 문제가 아니라 전환 문제</b>입니다 —
+                46건이 주문 후 계약까지 가지 못했습니다.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══ ⑤ 카테고리별 현황 ═════════════════════ -->
+      <section>
+        <div class="lay">
+          <span class="step">STEP 3</span>
+          <h2>카테고리별 현황</h2>
+          <span class="sub">하락 주도 카테고리를 강조 표시</span>
+        </div>
+        <div class="panel">
+          <div class="panel-b" style="padding-top:16px">
+            <div class="tbl-wrap">
+              <table class="tbl">
+                <thead>
+                  <tr>
+                    <th>카테고리</th>
+                    <th>이번 달</th>
+                    <th>전월 동기간</th>
+                    <th>증감</th>
+                    <th>구성비</th>
+                    <th>월렌탈료 (타사 대비)</th>
+                    <th>취급 모델</th>
+                  </tr>
+                </thead>
+                <tbody id="catTbl"></tbody>
+              </table>
+            </div>
+            <div class="note">
+              <b>⑤</b> 현재 표에는 <b>전월 동기간 열도, 타사 비교 열도 없습니다.</b>
+              절대 건수만 있어서 "이 카테고리가 문제다"를 표에서 읽어낼 수 없습니다.
+              증감·타사 대비를 같은 행에 놓으면 원인이 표 안에서 바로 보입니다.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══ ⑥ 접힌 원본 ═══════════════════════════ -->
+      <section>
+        <div class="lay">
+          <span class="step">STEP 4</span>
+          <h2>원본 데이터</h2>
+          <span class="sub">숫자를 직접 확인할 때만 편다</span>
+        </div>
+
+        <details class="det" style="margin-bottom:12px">
+          <summary>월별 매출 현황 <span class="m">차트 + 월별 격자 (현재 2·3번째 섹션)</span></summary>
+          <div class="det-b">
+            <div style="max-width:640px">
+              <div id="monthly"></div>
+              <div class="legend"><span><i style="background:var(--c1)"></i>총렌탈료 (억)</span></div>
+            </div>
+          </div>
+        </details>
+
+        <details class="det" style="margin-bottom:12px">
+          <summary>주차별 현황 <span class="m">지표 × 주차 격자 (현재 4·5번째 섹션)</span></summary>
+          <div class="det-b">
+            <div class="tbl-wrap">
+              <table class="tbl">
+                <thead>
+                  <tr><th>지표</th><th>7/21 주</th><th>7/28 주</th><th>8/04 주</th><th>8/11 주</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>주문건수</td><td class="num">62</td><td class="num">58</td><td class="num">54</td><td class="num">44</td></tr>
+                  <tr><td>계약건수</td><td class="num">54</td><td class="num">49</td><td class="num">42</td><td class="num">32</td></tr>
+                  <tr><td>매출 (총렌탈료)</td><td class="num">1.7억</td><td class="num">1.5억</td><td class="num">1.3억</td><td class="num">1.0억</td></tr>
+                  <tr><td>공헌이익</td><td class="num">2,580만</td><td class="num">2,240만</td><td class="num">1,910만</td><td class="num">1,420만</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </details>
+
+        <details class="det">
+          <summary>경쟁 분석 · 상위 상품 <span class="m">카테고리별 경쟁 모델 · 점유율 (현재 8·9·10번째 섹션)</span></summary>
+          <div class="det-b">
+            <p style="font-size:12px;color:var(--ink-2);line-height:1.7">
+              현재의 <b>카테고리별 경쟁 분석 · 카테고리별 상위 상품 · 카테고리 × 렌탈사 점유율</b>
+              세 섹션은 내용은 좋지만 서로 겹칩니다 — 셋 다 "우리 모델 vs 남의 모델"을 봅니다.
+              하나로 합치고, 위 STEP 1의 원인 카드에서 <b>필요할 때만</b> 펼치도록 연결하는 것을 제안합니다.
+            </p>
+          </div>
+        </details>
+      </section>
+
+      <!-- ═══ Changelog ═════════════════════════════ -->
+      <section class="chg">
+        <h3>현재 렌탈사 상세 대비 무엇이 달라지나</h3>
+        <div class="chg-g">
+          <div class="chg-c out">
+            <h4>순서가 바뀐 것</h4>
+            <ul>
+              <li>"성과 원인 분석" 11번째 → <b>1번째</b>. 가장 결정적인 정보가 가장 멀리 있었습니다</li>
+              <li>월별·주차별 차트/표 4블록 (2~5번째) → 접힌 아코디언. 같은 데이터를 4번 보여주고 있었습니다</li>
+              <li>KPI 카드 3장 → 진단 배너 1개. 홈에서 이미 본 숫자를 다시 보여주지 않습니다</li>
+            </ul>
+          </div>
+          <div class="chg-c in">
+            <h4>넣은 것</h4>
+            <ul>
+              <li>홈에서 온 맥락 유지 — "이상으로 표시됨"을 페이지가 이어받음 (①)</li>
+              <li>원인 카드 3장 — 가격 · 구색 · 전환을 타사 평균과 나란히 (②)</li>
+              <li>−62건 카테고리 분해 워터폴 (③)</li>
+              <li>주문 → 계약 퍼널 — 수요 문제인지 전환 문제인지 가름 (④)</li>
+              <li>카테고리 표에 증감 · 타사 대비 열 추가 (⑤)</li>
+            </ul>
+          </div>
+          <div class="chg-c keep">
+            <h4>그대로 둔 것</h4>
+            <ul>
+              <li>주문확정 / 계약완료 토글 — 위치만 헤더로 고정</li>
+              <li>월별·주차별·경쟁분석 섹션 전부 — 접었을 뿐 삭제 아님</li>
+              <li><code>MonthlyRevenueChart</code>, <code>CategoryTable</code>, <code>CategoryCompetitiveSection</code> 등 기존 컴포넌트 재사용</li>
+              <li>기존 색·폰트·라운딩 토큰 전부 승계</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+<div class="tip" id="tip" role="status" aria-live="polite"></div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var root=document.getElementById("rt"), tip=document.getElementById("tip");
+  var NS="http://www.w3.org/2000/svg", CSS=getComputedStyle(root);
+  function tok(n){return CSS.getPropertyValue(n).trim();}
+  var UP=tok("--up"),DOWN=tok("--down"),INK=tok("--ink"),INK2=tok("--ink-2"),INK3=tok("--ink-3"),
+      INK4=tok("--ink-4"),LINE=tok("--line"),LINE2=tok("--line-2"),BRAND=tok("--brand"),
+      CARD=tok("--card"),SURF=tok("--surface"),CRIT=tok("--sev-crit"),C1=tok("--c1");
+
+  function el(t,a,p){var n=document.createElementNS(NS,t);for(var k in a)n.setAttribute(k,a[k]);if(p)p.appendChild(n);return n;}
+  function svg(w,h,p){var s=el("svg",{viewBox:"0 0 "+w+" "+h,width:"100%",height:h,
+    preserveAspectRatio:"xMidYMid meet",role:"img"});s.style.display="block";s.style.overflow="visible";
+    if(p)p.appendChild(s);return s;}
+  function nf(n,d){return Number(n).toLocaleString("ko-KR",{minimumFractionDigits:d||0,maximumFractionDigits:d||0});}
+
+  function showTip(h,e){tip.innerHTML=h;tip.classList.add("on");
+    var r=tip.getBoundingClientRect(),x=e.clientX+14,y=e.clientY-r.height-10;
+    if(x+r.width>window.innerWidth-10)x=e.clientX-r.width-14;
+    if(y<8)y=e.clientY+18;tip.style.left=x+"px";tip.style.top=y+"px";}
+  function hideTip(){tip.classList.remove("on");}
+
+  // ── ② 우리 vs 타사 평균 — 벤치마크는 중립 회색 (계열이 아니라 기준선)
+  document.querySelectorAll("[data-cmp]").forEach(function(n){
+    var v=n.getAttribute("data-cmp").split(",").map(Number);
+    var W=230,H=30,max=Math.max(v[0],v[1])*1.05;
+    var s=svg(W,H,n); s.setAttribute("preserveAspectRatio","none");
+    [{val:v[0],y:2,c:CRIT,lab:"BS렌탈"},{val:v[1],y:17,c:INK4,lab:"타사 평균"}].forEach(function(d){
+      el("rect",{x:0,y:d.y,width:Math.max(3,(d.val/max)*W),height:11,rx:3,fill:d.c},s);
+    });
+  });
+
+  // ── ③ 워터폴
+  var WF=[{l:"전월 동기간",t:"total",v:214},
+          {l:"세탁기+건조기",t:"d",v:-28},{l:"냉장고",t:"d",v:-14},{l:"TV",t:"d",v:-11},
+          {l:"에어컨",t:"d",v:-6},{l:"기타",t:"d",v:-3},{l:"이번 달",t:"total",v:152}];
+  (function(){
+    var host=document.getElementById("waterfall");
+    var W=540,H=240,padL=36,padR=10,padT=26,padB=44;
+    var n=WF.length,slot=(W-padL-padR)/n,bw=Math.min(46,slot*0.6);
+    var run=0,bars=[];
+    WF.forEach(function(d){
+      if(d.t==="total"){bars.push({d:d,y0:0,y1:d.v});run=d.v;}
+      else{bars.push({d:d,y0:run,y1:run+d.v});run+=d.v;}
+    });
+    var lo=120,hi=230,floor=H-padB;
+    var Y=function(v){return padT+(1-(v-lo)/(hi-lo))*(H-padT-padB);};
+    var s=svg(W,H,host);
+    s.setAttribute("aria-label","카테고리별 기여도 워터폴");
+    el("line",{x1:padL-6,x2:W-padR,y1:floor,y2:floor,stroke:LINE},s);
+    var z=el("text",{x:padL-8,y:floor+3.5,fill:INK4,"font-size":"9","text-anchor":"end"},s);
+    z.textContent="120↓";
+    [140,160,180,200,220].forEach(function(g){
+      el("line",{x1:padL,x2:W-padR,y1:Y(g),y2:Y(g),stroke:LINE2},s);
+      var t=el("text",{x:padL-8,y:Y(g)+3.5,fill:INK4,"font-size":"9","text-anchor":"end"},s);
+      t.style.fontVariantNumeric="tabular-nums";t.textContent=nf(g);
+    });
+    bars.forEach(function(b,i){
+      var cx=padL+slot*i+slot/2,x=cx-bw/2,isT=b.d.t==="total";
+      var top=isT?Y(b.d.v):Math.min(Y(b.y0),Y(b.y1));
+      var bot=isT?floor:Math.max(Y(b.y0),Y(b.y1));
+      var hgt=Math.max(3,bot-top), col=isT?INK2:(b.d.v>0?UP:DOWN);
+      if(i>0){
+        var pcx=padL+slot*(i-1)+slot/2;
+        var ly=Y(bars[i-1].d.t==="total"?bars[i-1].d.v:bars[i-1].y1);
+        el("line",{x1:pcx+bw/2,x2:x,y1:ly,y2:ly,stroke:LINE,"stroke-dasharray":"3 3"},s);
+      }
+      var r=el("rect",{x:x,y:top,width:bw,height:hgt,rx:4,fill:col,"fill-opacity":isT?"1":".92"},s);
+      r.style.cursor="pointer";
+      var lv=el("text",{x:cx,y:top-6,fill:isT?INK:col,"font-size":"11","font-weight":"700","text-anchor":"middle"},s);
+      lv.style.fontVariantNumeric="tabular-nums";
+      lv.textContent=isT?nf(b.d.v):(b.d.v>0?"+":"")+nf(b.d.v);
+      var lb=b.d.l.length>6?b.d.l.slice(0,4)+"…":b.d.l;
+      var lx=el("text",{x:cx,y:floor+16,fill:isT?INK2:INK3,"font-size":"9.5",
+                        "font-weight":isT?"700":"500","text-anchor":"middle"},s);
+      lx.textContent=lb;
+      if(b.d.l.length>6){var ti=el("title",{},lx);ti.textContent=b.d.l;}
+      r.addEventListener("mousemove",function(e){
+        showTip('<div class="t-h">'+b.d.l+"</div>"+
+          '<div class="t-row"><i style="background:'+col+'"></i>'+
+          (isT?nf(b.d.v)+"건":"<b>"+nf(b.d.v)+"건</b> · 누계 "+nf(b.y1)+"건")+"</div>",e);
+      });
+      r.addEventListener("mouseleave",hideTip);
+    });
+  })();
+
+  // ── ④ 퍼널
+  (function(){
+    var host=document.getElementById("funnel");
+    var W=440,H=200,padL=8,padT=16;
+    var s=svg(W,H,host);
+    s.setAttribute("aria-label","주문에서 계약까지의 전환 퍼널");
+    var rows=[
+      {l:"주문확정",v:198,peer:null,y:padT},
+      {l:"계약완료",v:152,peer:175,y:padT+86}
+    ];
+    var max=198, barW=W-padL-120;
+    rows.forEach(function(r){
+      // 실제
+      el("rect",{x:padL,y:r.y,width:(r.v/max)*barW,height:30,rx:4,fill:r.peer?CRIT:INK2},s);
+      var t=el("text",{x:padL+8,y:r.y+20,fill:"#fff","font-size":"13","font-weight":"700"},s);
+      t.style.fontVariantNumeric="tabular-nums";t.textContent=nf(r.v)+"건";
+      var l=el("text",{x:padL+(r.v/max)*barW+10,y:r.y+20,fill:INK2,"font-size":"11.5","font-weight":"700"},s);
+      l.textContent=r.l;
+      // 타사 평균이었다면
+      if(r.peer){
+        el("rect",{x:padL,y:r.y+36,width:(r.peer/max)*barW,height:14,rx:3,
+                   fill:INK4,"fill-opacity":".45"},s);
+        var p=el("text",{x:padL+(r.peer/max)*barW+8,y:r.y+47,fill:INK3,"font-size":"10"},s);
+        p.textContent="타사 평균 전환율이었다면 "+nf(r.peer)+"건";
+      }
+    });
+    // 손실 표시
+    var gy=padT+30;
+    el("line",{x1:padL+(152/max)*barW,x2:padL+(198/max)*barW,y1:gy+40,y2:gy+40,
+               stroke:CRIT,"stroke-width":"1.5","stroke-dasharray":"4 3"},s);
+    var g=el("text",{x:padL+((152+198)/2/max)*barW,y:gy+34,fill:CRIT,"font-size":"11",
+                     "font-weight":"700","text-anchor":"middle"},s);
+    g.textContent="−46건 이탈";
+    var rate=el("text",{x:padL,y:H-14,fill:INK3,"font-size":"11"},s);
+    rate.textContent="전환율 76.8%  ·  타사 평균 88.5%  ·  격차 −11.7%p";
+  })();
+
+  // ── ⑤ 카테고리 표
+  var CATS=[
+    {n:"세탁기+건조기",cur:40,prev:68,fee:42800,peerFee:37200,mdl:4,peerMdl:8,lead:true},
+    {n:"냉장고",       cur:31,prev:45,fee:39600,peerFee:35100,mdl:3,peerMdl:6,lead:true},
+    {n:"TV",           cur:28,prev:39,fee:33400,peerFee:31800,mdl:4,peerMdl:5},
+    {n:"에어컨",       cur:24,prev:30,fee:36200,peerFee:34400,mdl:3,peerMdl:4},
+    {n:"안마의자",     cur:17,prev:18,fee:51200,peerFee:49800,mdl:2,peerMdl:2},
+    {n:"기타",         cur:12,prev:14,fee:29800,peerFee:29100,mdl:2,peerMdl:2}
+  ];
+  var total=CATS.reduce(function(a,c){return a+c.cur;},0);
+  var tb=document.getElementById("catTbl"), maxCur=40;
+  CATS.forEach(function(c){
+    var diff=c.cur-c.prev, feeGap=(c.fee/c.peerFee-1)*100;
+    var tr=document.createElement("tr");
+    if(c.lead) tr.className="lead";
+    tr.innerHTML=
+      "<td>"+c.n+(c.lead?' <span style="font-size:9px;font-weight:700;color:var(--sev-crit)">하락 주도</span>':"")+"</td>"+
+      '<td class="num"><div class="bar-cell"><b>'+nf(c.cur)+"</b>"+
+        '<i style="width:'+(c.cur/maxCur*46)+"px;background:"+(c.lead?CRIT:INK4)+'"></i></div></td>'+
+      '<td class="num" style="color:var(--ink-3)">'+nf(c.prev)+"</td>"+
+      '<td class="num" style="font-weight:700;color:'+(diff<0?DOWN:UP)+'">'+(diff>0?"+":"")+nf(diff)+"</td>"+
+      '<td class="num" style="color:var(--ink-3)">'+(c.cur/total*100).toFixed(1)+"%</td>"+
+      '<td class="num">'+nf(c.fee)+'원 <span style="color:'+(feeGap>0?DOWN:INK4)+';font-weight:700">('+
+        (feeGap>0?"+":"")+feeGap.toFixed(1)+"%)</span></td>"+
+      '<td class="num">'+c.mdl+' <span style="color:var(--ink-4)">/ 타사 '+c.peerMdl+"</span></td>";
+    tb.appendChild(tr);
+  });
+
+  // ── 월별 차트 (접힘 안)
+  (function(){
+    var host=document.getElementById("monthly");
+    var M=["25.09","25.10","25.11","25.12","26.01","26.02","26.03","26.04","26.05","26.06","26.07","26.08"];
+    var V=[14.8,14.4,14.9,13.9,14.6,13.5,14.2,13.8,14.5,13.9,13.5,4.8];
+    var W=600,H=190,padL=38,padR=14,padT=14,padB=26;
+    var hi=16;
+    var X=function(i){return padL+(i/(M.length-1))*(W-padL-padR);};
+    var Y=function(v){return padT+(1-v/hi)*(H-padT-padB);};
+    var s=svg(W,H,host);
+    s.setAttribute("aria-label","월별 총렌탈료 추이");
+    [0,8,16].forEach(function(g){
+      el("line",{x1:padL,x2:W-padR,y1:Y(g),y2:Y(g),stroke:LINE2},s);
+      var t=el("text",{x:padL-7,y:Y(g)+3.5,fill:INK4,"font-size":"9","text-anchor":"end"},s);
+      t.textContent=g+"억";
+    });
+    M.forEach(function(m,i){
+      if(i%2!==0 && i!==M.length-1)return;
+      var t=el("text",{x:X(i),y:H-padB+15,fill:INK4,"font-size":"9","text-anchor":"middle"},s);
+      t.textContent=m;
+    });
+    el("rect",{x:X(M.length-1)-7,y:padT,width:14,height:H-padT-padB,fill:SURF,"fill-opacity":".8"},s);
+    var d="",a="";
+    V.forEach(function(v,i){d+=(i?"L":"M")+X(i)+" "+Y(v);});
+    a=d+"L"+X(M.length-1)+" "+Y(0)+"L"+X(0)+" "+Y(0)+"Z";
+    var gid="mg"+Math.random().toString(36).slice(2,7);
+    var defs=el("defs",{},s);
+    var lg=el("linearGradient",{id:gid,x1:"0",y1:"0",x2:"0",y2:"1"},defs);
+    el("stop",{offset:"0","stop-color":C1,"stop-opacity":".18"},lg);
+    el("stop",{offset:"1","stop-color":C1,"stop-opacity":"0"},lg);
+    el("path",{d:a,fill:"url(#"+gid+")"},s);
+    el("path",{d:d,fill:"none",stroke:C1,"stroke-width":"2","stroke-linejoin":"round"},s);
+    el("circle",{cx:X(M.length-1),cy:Y(V[V.length-1]),r:"3.4",fill:CARD,stroke:C1,"stroke-width":"2"},s);
+    var note=el("text",{x:X(M.length-1),y:Y(V[V.length-1])-10,fill:INK4,"font-size":"9","text-anchor":"end"},s);
+    note.textContent="8월 진행중";
+
+    var cross=el("line",{x1:0,x2:0,y1:padT,y2:H-padB,stroke:INK4,"stroke-dasharray":"3 3",opacity:"0"},s);
+    var hit=el("rect",{x:padL,y:padT,width:W-padL-padR,height:H-padT-padB,fill:"transparent"},s);
+    hit.style.cursor="crosshair";
+    hit.addEventListener("mousemove",function(e){
+      var box=s.getBoundingClientRect();
+      var rel=(e.clientX-box.left)/box.width*W;
+      var i=Math.round((rel-padL)/((W-padL-padR)/(M.length-1)));
+      i=Math.max(0,Math.min(M.length-1,i));
+      cross.setAttribute("x1",X(i));cross.setAttribute("x2",X(i));cross.setAttribute("opacity","1");
+      showTip('<div class="t-h">'+M[i]+(i===M.length-1?" (14일까지)":"")+"</div>"+
+        '<div class="t-row"><i style="background:'+C1+'"></i>총렌탈료 <b>'+V[i].toFixed(1)+"억</b></div>",e);
+    });
+    hit.addEventListener("mouseleave",function(){cross.setAttribute("opacity","0");hideTip();});
+  })();
+})();
+</script>
+
+</body>
+</html>

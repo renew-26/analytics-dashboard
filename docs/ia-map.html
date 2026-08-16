@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>*{margin:0;padding:0;box-sizing:border-box}html,body{height:100%}</style>
+<title>렌트리 애널리틱스 — 전체 지도와 정리안</title>
+</head>
+<body>
+
+<style>
+  .rt {
+    color-scheme: light;
+    --page:#f6f7f9; --card:#fff; --surface:#f3f5f9; --surface-2:#f9fafb;
+    --ink:#222; --ink-2:#586177; --ink-3:#788093; --ink-4:#a1a5ac;
+    --line:#e2e6ec; --line-2:#eef0f4;
+    --brand:#4338ca; --brand-600:#4f46e5; --brand-tint:#eef2ff;
+    --up:#e03131; --up-tint:#fee2e2; --down:#2563eb; --down-tint:#dbeafe;
+    --safe:#1ea85e; --safe-t:#dff7ea;
+    --sev-warn:#d97706; --sev-warn-t:#fef3c7; --sev-crit:#dc2626; --sev-crit-t:#fee2e2;
+    --r-4:4px; --r-6:6px; --r-8:8px; --r-12:12px; --r-full:9999px;
+    --sh:0 1px 2px rgba(28,35,56,.04), 0 2px 8px rgba(28,35,56,.05);
+    --font:"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
+           "Apple SD Gothic Neo", system-ui, sans-serif;
+    --mono:ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+    font-family:var(--font); background:var(--page); color:var(--ink);
+    -webkit-font-smoothing:antialiased; display:block; min-height:100vh;
+    word-break:keep-all; line-break:strict;
+  }
+  .rt *, .rt *::before, .rt *::after { box-sizing:border-box; }
+  .rt p,.rt h1,.rt h2,.rt h3,.rt h4,.rt ul,.rt ol,.rt figure { margin:0; }
+  .rt ul,.rt ol { padding:0; list-style:none; }
+  .rt table { border-collapse:collapse; }
+  .num { font-variant-numeric:tabular-nums; }
+  .mono, code { font-family:var(--mono); font-size:11.5px; }
+
+  .wrap { max-width:1180px; margin:0 auto; padding:34px 26px 80px;
+          display:flex; flex-direction:column; gap:30px; }
+
+  /* 표지 */
+  .cover { border-bottom:2px solid var(--ink); padding-bottom:22px; }
+  .cover .eyebrow { font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase;
+                    color:var(--brand); margin-bottom:12px; }
+  .cover h1 { font-size:34px; font-weight:800; letter-spacing:-1px; line-height:1.22; text-wrap:balance; }
+  .cover p { margin-top:13px; font-size:14px; line-height:1.75; color:var(--ink-2); max-width:68ch; }
+  .cover .stats { display:flex; gap:30px; margin-top:20px; flex-wrap:wrap; }
+  .cover .st b { display:block; font-size:26px; font-weight:800; letter-spacing:-.7px; line-height:1; }
+  .cover .st span { display:block; font-size:11px; color:var(--ink-3); margin-top:6px; }
+
+  h2.sec { font-size:20px; font-weight:800; letter-spacing:-.5px; display:flex;
+           align-items:center; gap:11px; margin-bottom:6px; }
+  h2.sec .n { font-family:var(--mono); font-size:12px; font-weight:700; color:#fff;
+              background:var(--ink); border-radius:var(--r-4); padding:3px 7px; flex:none; }
+  .sec-lede { font-size:13px; line-height:1.7; color:var(--ink-2); max-width:70ch; margin-bottom:16px; }
+
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:var(--r-12); box-shadow:var(--sh); }
+  .panel-b { padding:18px; }
+
+  /* 매트릭스 */
+  .mx-wrap { overflow-x:auto; }
+  .mx { width:100%; font-size:12px; min-width:760px; }
+  .mx th, .mx td { padding:7px 6px; text-align:center; }
+  .mx thead th { font-size:10.5px; font-weight:700; color:var(--ink-3); border-bottom:1px solid var(--line);
+                 vertical-align:bottom; }
+  .mx thead th.axis { min-width:62px; }
+  .mx tbody th { text-align:left; font-size:12px; font-weight:700; color:var(--ink-2);
+                 white-space:nowrap; padding-right:12px; }
+  .mx tbody th small { display:block; font-weight:500; color:var(--ink-4); font-size:10px;
+                       font-family:var(--mono); margin-top:1px; }
+  .mx tbody tr:hover td, .mx tbody tr:hover th { background:var(--surface-2); }
+  .mx tbody tr.done th { color:var(--brand); }
+  .mx tbody tr.newp th { color:var(--safe); }
+  .mx td.p { color:var(--brand); font-weight:800; font-size:15px; }
+  .mx td.s { color:var(--ink-4); font-size:14px; }
+  .mx .period { font-family:var(--mono); font-size:10px; color:var(--ink-3); text-align:right;
+                white-space:nowrap; }
+  .mx .crowd { background:var(--sev-warn-t) !important; }
+  .mx-legend { display:flex; gap:18px; flex-wrap:wrap; margin-top:13px; font-size:11px; color:var(--ink-3); }
+  .mx-legend b { color:var(--brand); }
+
+  /* 중복 카드 */
+  .dupes { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:14px; }
+  .dupe { background:var(--card); border:1px solid var(--line); border-left:3px solid var(--sev-warn);
+          border-radius:var(--r-12); box-shadow:var(--sh); padding:16px 18px; }
+  .dupe.crit { border-left-color:var(--sev-crit); }
+  .dupe-h { font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+            color:var(--sev-warn); margin-bottom:9px; }
+  .dupe.crit .dupe-h { color:var(--sev-crit); }
+  .dupe-pair { display:flex; align-items:center; gap:9px; flex-wrap:wrap; margin-bottom:10px; }
+  .dupe-pair code { background:var(--surface); border:1px solid var(--line); border-radius:var(--r-6);
+                    padding:3px 8px; font-size:11px; color:var(--ink); }
+  .dupe-pair span { color:var(--ink-4); font-size:13px; }
+  .dupe p { font-size:12.5px; line-height:1.7; color:var(--ink-2); }
+  .dupe p + p { margin-top:8px; }
+  .dupe .fix { margin-top:11px; padding-top:10px; border-top:1px dashed var(--line);
+               font-size:12px; line-height:1.65; color:var(--brand); }
+  .dupe .fix b { font-weight:700; }
+
+  /* 데이터 계열 */
+  .lanes { display:grid; grid-template-columns:repeat(auto-fit,minmax(270px,1fr)); gap:13px; }
+  .lane { border:1px solid var(--line); border-radius:var(--r-12); padding:15px 17px; background:var(--card); }
+  .lane h4 { font-size:12.5px; font-weight:800; margin-bottom:4px; display:flex; align-items:center; gap:7px; }
+  .lane h4 i { width:9px; height:9px; border-radius:2px; flex:none; }
+  .lane .src { font-family:var(--mono); font-size:10.5px; color:var(--ink-4); margin-bottom:11px; }
+  .lane li { font-size:11.5px; color:var(--ink-2); padding:4px 0; }
+  .lane li + li { border-top:1px dashed var(--line-2); }
+
+  /* 표 */
+  .tbl-wrap { overflow-x:auto; border:1px solid var(--line); border-radius:var(--r-8); }
+  .tbl { width:100%; font-size:12.5px; background:var(--card); min-width:640px; }
+  .tbl th,.tbl td { padding:9px 12px; text-align:left; }
+  .tbl thead th { font-size:10.5px; font-weight:700; color:var(--ink-4); background:var(--surface-2);
+                  border-bottom:1px solid var(--line); }
+  .tbl tbody tr + tr td { border-top:1px solid var(--line-2); }
+  .tbl td.c { text-align:center; }
+  .tbl code { font-size:11px; }
+
+  /* before/after */
+  .ba { display:grid; grid-template-columns:1fr auto 1fr; gap:20px; align-items:start; }
+  @media (max-width:860px){ .ba{ grid-template-columns:1fr; } .ba .arrow{ display:none; } }
+  .ba-col h4 { font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+               margin-bottom:11px; }
+  .ba-col.b h4 { color:var(--ink-4); } .ba-col.a h4 { color:var(--safe); }
+  .ba .arrow { align-self:center; font-size:22px; color:var(--ink-4); }
+  .rt-item { display:flex; align-items:baseline; gap:9px; padding:6px 9px; border-radius:var(--r-6);
+             font-size:12px; margin-bottom:3px; }
+  .rt-item code { font-size:11px; color:var(--ink-2); }
+  .rt-item .lbl { color:var(--ink-3); font-size:11px; margin-left:auto; white-space:nowrap; }
+  .rt-item.keep { background:var(--surface-2); }
+  .rt-item.new { background:var(--safe-t); }
+  .rt-item.merge { background:var(--sev-warn-t); }
+  .rt-item.kill { background:var(--sev-crit-t); text-decoration:line-through; opacity:.75; }
+
+  /* 우선순위 */
+  .prio { display:flex; flex-direction:column; gap:9px; }
+  .pr { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:14px; align-items:center;
+        background:var(--card); border:1px solid var(--line); border-radius:var(--r-8); padding:12px 15px; }
+  .pr .rank { font-family:var(--mono); font-size:15px; font-weight:800; color:var(--brand);
+              width:22px; text-align:center; }
+  .pr .t { font-size:13px; font-weight:700; letter-spacing:-.2px; }
+  .pr .d { font-size:11.5px; color:var(--ink-3); line-height:1.55; margin-top:3px; }
+  .pr .cost { font-size:10.5px; font-weight:700; border-radius:var(--r-full); padding:3px 9px;
+              white-space:nowrap; }
+  .cost.s { background:var(--safe-t); color:#0f7a44; }
+  .cost.m { background:var(--sev-warn-t); color:#92400e; }
+  .cost.l { background:var(--sev-crit-t); color:var(--sev-crit); }
+
+  .note { font-size:11.5px; line-height:1.65; color:var(--brand); background:var(--brand-tint);
+          border-left:2px solid var(--brand); border-radius:0 var(--r-6) var(--r-6) 0;
+          padding:9px 13px; margin-top:14px; }
+  .warn { font-size:12.5px; line-height:1.7; color:#92400e; background:var(--sev-warn-t);
+          border-left:3px solid var(--sev-warn); border-radius:0 var(--r-8) var(--r-8) 0; padding:13px 16px; }
+
+  .done-badge { font-size:9.5px; font-weight:700; color:#fff; background:var(--brand);
+                border-radius:var(--r-full); padding:1px 6px; margin-left:5px; }
+  .new-badge { font-size:9.5px; font-weight:700; color:#fff; background:var(--safe);
+               border-radius:var(--r-full); padding:1px 6px; margin-left:5px; }
+</style>
+
+<div class="rt">
+<div class="wrap">
+
+  <header class="cover">
+    <div class="eyebrow">렌트리 애널리틱스 · 정보구조 진단</div>
+    <h1>같은 데이터를 다섯 축으로 자르는데,<br>축마다 페이지가 따로 자랐습니다.</h1>
+    <p>
+      15개 라우트를 전부 읽고 각 페이지가 <b>어떤 축으로 데이터를 자르는지</b> 표로 놓아봤습니다.
+      그러자 겹치는 쌍이 드러났고, 페이지별 개선보다 먼저 정리해야 할 횡단 문제가 셋 나왔습니다 —
+      <b>데이터 계열 분열 · 기간 기준 불일치 · 뷰 기준 불일치</b>입니다.
+    </p>
+    <div class="stats">
+      <div class="st"><b class="num">15</b><span>현재 라우트</span></div>
+      <div class="st"><b class="num">5</b><span>분석 축</span></div>
+      <div class="st"><b class="num">3</b><span>서로 만나지 않는 데이터 계열</span></div>
+      <div class="st"><b class="num">7</b><span>서로 다른 기간 기본값</span></div>
+      <div class="st"><b class="num">4</b><span>역할이 겹치는 쌍</span></div>
+    </div>
+  </header>
+
+  <!-- ══ 1. 매트릭스 ══ -->
+  <section>
+    <h2 class="sec"><span class="n">01</span>축 × 페이지 매트릭스</h2>
+    <p class="sec-lede">
+      모든 분석 페이지는 결국 <code>raw_contracts</code> / <code>raw_orders</code> / <code>tps_pnl</code>을
+      <b>렌탈사 · 카테고리 · 브랜드 · 모델 · BM</b> 다섯 축 중 하나로 자릅니다.
+      ● 는 그 페이지의 <b>주축</b>, ○ 는 부축입니다. 한 열에 ● 가 여러 개면 그 축에 페이지가 몰려 있다는 뜻입니다.
+    </p>
+    <div class="panel"><div class="panel-b">
+      <div class="mx-wrap"><table class="mx">
+        <thead><tr>
+          <th style="text-align:left">페이지</th>
+          <th class="axis">렌탈사</th><th class="axis">카테고리</th><th class="axis">브랜드</th>
+          <th class="axis crowd">모델</th><th class="axis">BM·파트너</th>
+          <th style="text-align:right">기간 기본값</th>
+        </tr></thead>
+        <tbody id="mxBody"></tbody>
+      </table></div>
+      <div class="mx-legend">
+        <span><b>●</b> 주축 — 이 페이지의 존재 이유</span>
+        <span>○ 부축 — 필터나 분해 단위로 등장</span>
+        <span style="color:var(--sev-warn);font-weight:700">주황 열 = 페이지가 몰린 축</span>
+      </div>
+      <div class="note">
+        <b>모델 축에 5개 페이지가 몰려 있습니다.</b> 상품 수익성 · 예외승인 · 타사 비교 · 상품 지원금 조회,
+        그리고 새로 제안한 카테고리 상세까지. 전부 "어떤 모델이 얼마에 팔리고 얼마 남나"를 봅니다.
+        반대로 <b>브랜드 축은 페이지 하나뿐</b>이고, 그 페이지는 다른 곳과 크게 겹칩니다.
+      </div>
+    </div></div>
+  </section>
+
+  <!-- ══ 2. 중복 쌍 ══ -->
+  <section>
+    <h2 class="sec"><span class="n">02</span>역할이 겹치는 쌍 4개</h2>
+    <p class="sec-lede">
+      각각을 따로 개선하면 <b>중복을 그대로 둔 채 예뻐지기만 합니다.</b> 먼저 무엇을 합치고 무엇을 좁힐지 정해야 합니다.
+    </p>
+    <div class="dupes">
+
+      <div class="dupe crit">
+        <div class="dupe-h">겹침 1 · 가장 큼</div>
+        <div class="dupe-pair"><code>/compare</code><span>↔</span><code>/group/[그룹]</code>
+          <span class="new-badge" style="margin:0">신설안</span></div>
+        <p>
+          <code>/compare</code>는 <b>1,574줄로 앱에서 가장 큰 화면</b>인데, 하는 일은
+          "렌탈사 2개를 골라 6개월치를 나란히 놓기"입니다.
+          그룹 요약 페이지는 <b>같은 그룹 전체를 한 번에</b> 비교합니다 — 상위 개념입니다.
+        </p>
+        <p>
+          2개만 고르는 제약은 <b>점유율을 볼 수 없게</b> 만듭니다. 코웨이와 쿠쿠만 비교하면
+          둘 다 줄었을 때 시장이 준 건지 SK인텔릭스가 가져간 건지 알 수 없습니다.
+        </p>
+        <div class="fix"><b>제안 —</b> 그룹 페이지를 기본으로 삼고, <code>/compare</code>는
+          "그룹이 다른 렌탈사 2곳을 임의로 붙여보는" 특수 용도로 좁힙니다. 1,574줄 중 상당 부분이 그룹 페이지와 공유됩니다.</div>
+      </div>
+
+      <div class="dupe crit">
+        <div class="dupe-h">겹침 2 · 데이터가 어긋날 위험</div>
+        <div class="dupe-pair"><code>/margin-analysis</code><span>↔</span><code>/product-lookup</code></div>
+        <p>
+          둘 다 <b>"경쟁사·파트너사가 지원금을 얼마 주나"</b>에 답합니다. 그런데 출처가 다릅니다 —
+          타사 비교는 <code>products</code> + <code>competitor_subsidies</code>(수기 조사),
+          상품 지원금 조회는 <code>raw_orders</code> / <code>raw_contracts</code>(실거래)입니다.
+        </p>
+        <p>
+          <b>같은 모델을 두 페이지에서 조회하면 다른 숫자가 나올 수 있고, 어느 쪽이 맞는지 화면이 말해주지 않습니다.</b>
+          타사 비교는 76줄로 가장 얇아서 미완성으로도 보입니다.
+        </p>
+        <div class="fix"><b>제안 —</b> 한 화면에서 <b>조사값과 실거래값을 나란히</b> 보여주고
+          차이가 나면 그 자체를 신호로 씁니다. 조사가 실제와 벌어졌다는 건 조사를 다시 해야 한다는 뜻입니다.</div>
+      </div>
+
+      <div class="dupe">
+        <div class="dupe-h">겹침 3</div>
+        <div class="dupe-pair"><code>/brand-analysis</code><span>↔</span><code>/operation-efficiency</code>
+          <span>↔</span><code>/category/[카테고리]</code></div>
+        <p>
+          셋 다 <b>"어떤 상품이 팔리고 얼마 남나"</b>를 봅니다. 자르는 순서만 다릅니다 —
+          브랜드→상품 / 카테고리×브랜드→상품 / 카테고리→모델.
+        </p>
+        <p>
+          <b>브랜드 분석은 933줄인데 주축이 브랜드뿐</b>이고, 상품 수익성이 이미
+          "카테고리 × 브랜드 랭킹"을 하고 있어 상위집합에 가깝습니다.
+        </p>
+        <div class="fix"><b>제안 —</b> 상품 수익성을 <b>상품 축의 단일 진입점</b>으로 만들고
+          브랜드는 그 안의 필터로 흡수. 브랜드만의 고유 질문이 남는다면 그것만 별도 유지합니다.</div>
+      </div>
+
+      <div class="dupe">
+        <div class="dupe-h">겹침 4 · 성격이 다름</div>
+        <div class="dupe-pair"><code>/conversion</code><span>↔</span>각 페이지의 전환율</div>
+        <p>
+          전환율은 지금 <b>홈 · 렌탈사 상세 · 카테고리 상세에 전부 등장</b>하는데,
+          <code>/conversion</code> 페이지는 렌탈사×월만 봅니다.
+        </p>
+        <p>
+          전환율은 <b>"페이지"라기보다 "지표"</b>에 가깝습니다. 게다가 코드 주석에 적혀 있듯
+          동일 기간 주문·계약을 나눈 <b>추정치이지 정확한 코호트가 아닙니다.</b>
+        </p>
+        <div class="fix"><b>제안 —</b> 전환율을 각 축의 화면에 지표로 심고,
+          <code>/conversion</code>은 <b>코호트를 제대로 추적하는</b> 전용 화면으로 승격하거나 흡수합니다.</div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ══ 3. 횡단 문제 ══ -->
+  <section>
+    <h2 class="sec"><span class="n">03</span>페이지보다 먼저 고쳐야 할 것</h2>
+    <p class="sec-lede">
+      개별 화면을 아무리 잘 만들어도 아래 셋이 남으면 <b>페이지 간 숫자가 서로 안 맞습니다.</b>
+    </p>
+
+    <div class="warn" style="margin-bottom:16px">
+      <b>가장 위험한 것 — 데이터 계열이 셋으로 갈라져 서로 만나지 않습니다.</b>
+      같은 "지원금"이라도 어느 계열에서 왔느냐에 따라 값이 다를 수 있는데,
+      화면에는 출처 표시가 없습니다. 두 페이지를 나란히 열어 숫자가 다르면
+      <b>버그인지 정의 차이인지 판단할 방법이 없습니다.</b>
+    </div>
+
+    <div class="lanes">
+      <div class="lane">
+        <h4><i style="background:var(--brand)"></i>거래 원장</h4>
+        <div class="src">raw_contracts · raw_orders</div>
+        <ul>
+          <li>홈 · 매출 분석</li>
+          <li>렌탈사 상세 · 비교 · 전환율</li>
+          <li>카테고리 트렌드 · 브랜드 분석</li>
+          <li>상품 지원금 조회</li>
+        </ul>
+      </div>
+      <div class="lane">
+        <h4><i style="background:var(--sev-warn)"></i>손익 원장</h4>
+        <div class="src">tps_pnl</div>
+        <ul>
+          <li>예외승인 손익</li>
+          <li>상품 수익성 (일부)</li>
+          <li style="color:var(--ink-4)">타겟마진 · 대손비 · 지원금 상세는 여기에만 있음</li>
+        </ul>
+      </div>
+      <div class="lane">
+        <h4><i style="background:var(--safe)"></i>조사 · 마스터</h4>
+        <div class="src">products · competitor_subsidies · appliance_rentre_subsidy</div>
+        <ul>
+          <li>타사 비교</li>
+          <li>상품 관리 · 조사 상품 선정</li>
+          <li style="color:var(--ink-4)">사람이 수기로 채우는 값</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 style="font-size:14px;font-weight:800;margin:24px 0 10px">기간 기본값이 페이지마다 다릅니다</h3>
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>페이지</th><th>기간 기본값</th><th>기간 선택 UI</th><th>결과</th></tr></thead>
+      <tbody>
+        <tr><td>홈</td><td><code>어제까지 당월 누계</code></td><td class="c">없음</td>
+          <td>전월 동기간과만 비교 가능</td></tr>
+        <tr><td>매출 분석</td><td><code>WEEKS_BACK = 6</code></td><td class="c">없음</td><td>6주</td></tr>
+        <tr><td>렌탈사 상세</td><td><code>월별 + 주차별</code></td><td class="c">주문/계약 토글만</td><td>기간 고정</td></tr>
+        <tr><td>렌탈사 비교</td><td><code>getLast6Months()</code></td><td class="c">없음</td><td>6개월</td></tr>
+        <tr><td>카테고리 트렌드</td><td><code>24개월 조회 → 12개월 표시</code></td><td class="c">없음</td><td>12개월</td></tr>
+        <tr><td>브랜드 분석</td><td><code>getLast6Months()</code></td><td class="c">없음</td><td>6개월</td></tr>
+        <tr><td>상품 수익성</td><td><code>MONTHS_BACK = 6</code></td><td class="c">시작·종료일 있음</td><td>유일하게 선택 가능</td></tr>
+        <tr><td>예외승인</td><td><code>getLast6Months()</code></td><td class="c">없음</td><td>6개월 고정</td></tr>
+        <tr><td>상품 지원금 조회</td><td><code>MONTHS_BACK = 6</code></td><td class="c">없음</td><td>6개월</td></tr>
+      </tbody>
+    </table></div>
+    <div class="note">
+      기간을 고를 수 있는 화면이 <b>상품 수익성 하나뿐</b>입니다.
+      나머지는 각자 다른 기본값에 고정돼 있어서, 두 페이지의 숫자를 비교하려면
+      <b>사용자가 기간이 다르다는 걸 스스로 알고 있어야 합니다.</b>
+      공용 기간 선택 컴포넌트 하나면 대부분 해결됩니다.
+    </div>
+
+    <h3 style="font-size:14px;font-weight:800;margin:24px 0 10px">주문확정 / 계약완료 기준도 제각각입니다</h3>
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>페이지</th><th>기준</th><th>화면에 표시되나</th></tr></thead>
+      <tbody>
+        <tr><td>홈</td><td>둘 다 (섹션별로 다름)</td><td class="c" style="color:var(--sev-warn);font-weight:700">부분</td></tr>
+        <tr><td>렌탈사 상세</td><td>토글</td><td class="c" style="color:var(--safe);font-weight:700">예</td></tr>
+        <tr><td>카테고리 트렌드</td><td><b>월별=계약완료 / 주차별=주문확정</b></td>
+          <td class="c" style="color:var(--sev-crit);font-weight:700">아니오</td></tr>
+        <tr><td>매출 분석</td><td>둘 다 (반영비율로 연결)</td><td class="c" style="color:var(--safe);font-weight:700">예</td></tr>
+        <tr><td>전환율</td><td>주문 → 계약</td><td class="c" style="color:var(--safe);font-weight:700">예</td></tr>
+        <tr><td>상품 수익성</td><td>둘 다</td><td class="c" style="color:var(--sev-warn);font-weight:700">부분</td></tr>
+      </tbody>
+    </table></div>
+    <div class="note">
+      <b>카테고리 트렌드가 가장 위험합니다</b> — 탭을 누르면 기준이 조용히 바뀌는데
+      화면 어디에도 표시가 없습니다. <code>AGENTS.md</code>에만 적혀 있습니다.
+    </div>
+  </section>
+
+  <!-- ══ 4. 제안 구조 ══ -->
+  <section>
+    <h2 class="sec"><span class="n">04</span>제안하는 구조</h2>
+    <p class="sec-lede">
+      라우트를 없애는 게 목적이 아닙니다. <b>축마다 진입점을 하나로 정하고</b>,
+      나머지는 그 안의 필터나 드릴다운으로 내리는 것입니다.
+    </p>
+    <div class="panel"><div class="panel-b">
+      <div class="ba">
+        <div class="ba-col b">
+          <h4>현재 — 15개 라우트</h4>
+          <div id="beforeList"></div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="ba-col a">
+          <h4>제안 — 축별 단일 진입점</h4>
+          <div id="afterList"></div>
+        </div>
+      </div>
+    </div></div>
+  </section>
+
+  <!-- ══ 5. 우선순위 ══ -->
+  <section>
+    <h2 class="sec"><span class="n">05</span>무엇부터</h2>
+    <p class="sec-lede">
+      화면을 예쁘게 만드는 것보다 <b>숫자가 서로 맞게 만드는 것</b>이 먼저입니다.
+      1~3번은 디자인 작업이 아니라 정확성 작업입니다.
+    </p>
+    <div class="prio" id="prioList"></div>
+    <div class="note">
+      제가 만든 목업 6개는 전부 <b>4번 이하</b>에 해당합니다.
+      좋은 화면이지만, 1~3번을 건너뛰면 <b>예쁜 화면끼리 다른 숫자를 말하게 됩니다.</b>
+    </div>
+  </section>
+
+</div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ── 01 매트릭스 ──
+  var PAGES=[
+    {n:"홈 · 이달의 요약", r:"/", ax:[1,2,0,0,2], p:"당월 누계", done:true},
+    {n:"매출 분석", r:"/revenue-analysis", ax:[0,2,1,0,1], p:"6주"},
+    {n:"렌탈사 상세", r:"/company/[c]", ax:[2,1,0,1,0], p:"월 + 주차", done:true},
+    {n:"렌탈사 비교", r:"/compare", ax:[2,1,0,0,0], p:"6개월"},
+    {n:"전환율 분석", r:"/conversion", ax:[2,0,0,0,0], p:"월"},
+    {n:"카테고리 트렌드", r:"/category-trends", ax:[1,2,0,1,0], p:"12개월", done:true},
+    {n:"브랜드 분석", r:"/brand-analysis", ax:[0,1,2,1,0], p:"6개월"},
+    {n:"상품 수익성", r:"/operation-efficiency", ax:[0,1,1,2,1], p:"6개월 (선택 가능)"},
+    {n:"예외승인 손익", r:"/exception-approval", ax:[0,0,1,2,2], p:"6개월", done:true},
+    {n:"타사 비교", r:"/margin-analysis", ax:[0,1,1,2,0], p:"조사 월"},
+    {n:"상품 지원금 조회", r:"/product-lookup", ax:[0,1,1,2,2], p:"6개월"},
+    {n:"그룹 요약", r:"/group/[g]", ax:[2,1,0,0,0], p:"당월 누계", isNew:true},
+    {n:"카테고리 상세", r:"/category/[c]", ax:[2,2,1,2,0], p:"당월 누계", isNew:true}
+  ];
+  var tb=document.getElementById("mxBody");
+  PAGES.forEach(function(pg){
+    var tr=document.createElement("tr");
+    if(pg.done) tr.className="done"; if(pg.isNew) tr.className="newp";
+    var cells=pg.ax.map(function(v,i){
+      var cls=v===2?"p":v===1?"s":"";
+      var ch=v===2?"●":v===1?"○":"";
+      return '<td class="'+cls+(i===3?" crowd":"")+'">'+ch+"</td>";
+    }).join("");
+    tr.innerHTML="<th>"+pg.n+
+      (pg.done?'<span class="done-badge">목업 완료</span>':"")+
+      (pg.isNew?'<span class="new-badge">신설안</span>':"")+
+      "<small>"+pg.r+"</small></th>"+cells+
+      '<td class="period">'+pg.p+"</td>";
+    tb.appendChild(tr);
+  });
+
+  // ── 04 before / after ──
+  var BEFORE=[
+    {r:"/", l:"홈", k:"keep"},
+    {r:"/revenue-analysis", l:"매출 분석", k:"merge"},
+    {r:"/company/[c]", l:"렌탈사 상세", k:"keep"},
+    {r:"/compare", l:"렌탈사 비교", k:"merge"},
+    {r:"/conversion", l:"전환율", k:"merge"},
+    {r:"/category-trends", l:"카테고리 트렌드", k:"keep"},
+    {r:"/brand-analysis", l:"브랜드 분석", k:"merge"},
+    {r:"/operation-efficiency", l:"상품 수익성", k:"keep"},
+    {r:"/exception-approval", l:"예외승인", k:"keep"},
+    {r:"/margin-analysis", l:"타사 비교", k:"merge"},
+    {r:"/products", l:"상품 DB", k:"keep"},
+    {r:"/product-lookup", l:"지원금 조회", k:"merge"},
+    {r:"/survey-selection/appliance", l:"조사 선정 · 가전", k:"keep"},
+    {r:"/survey-selection/tps", l:"조사 선정 · TPS", k:"keep"}
+  ];
+  var AFTER=[
+    {r:"/", l:"홈 — 전사 요약", k:"keep", t:"진입점"},
+    {r:"/group/[g]", l:"그룹 요약", k:"new", t:"렌탈사 축"},
+    {r:"/company/[c]", l:"렌탈사 상세", k:"keep", t:"렌탈사 축"},
+    {r:"/category-trends", l:"카테고리 트렌드", k:"keep", t:"카테고리 축"},
+    {r:"/category/[c]", l:"카테고리 상세", k:"new", t:"카테고리 축"},
+    {r:"/operation-efficiency", l:"상품 수익성 (+브랜드 필터)", k:"keep", t:"상품 축"},
+    {r:"/exception-approval", l:"예외승인 손익", k:"keep", t:"수익성"},
+    {r:"/subsidy", l:"지원금 — 조사값 vs 실거래", k:"new", t:"타사 비교 + 지원금 조회 통합"},
+    {r:"/compare", l:"임의 2곳 비교 (용도 축소)", k:"keep", t:"특수"},
+    {r:"/products · /survey-selection", l:"관리 도구", k:"keep", t:"입력"}
+  ];
+  function paint(id, arr, showTag){
+    var h=document.getElementById(id);
+    arr.forEach(function(x){
+      var d=document.createElement("div");
+      d.className="rt-item "+x.k;
+      d.innerHTML="<code>"+x.r+"</code><span>"+x.l+"</span>"+
+        (showTag&&x.t?'<span class="lbl">'+x.t+"</span>":
+         (!showTag&&x.k==="merge"?'<span class="lbl">통합 대상</span>':""));
+      h.appendChild(d);
+    });
+  }
+  paint("beforeList", BEFORE, false);
+  paint("afterList", AFTER, true);
+
+  // ── 05 우선순위 ──
+  var PRIO=[
+    {t:"카테고리 트렌드의 기준 불일치 표시", c:"s",
+     d:"월별=계약완료 / 주차별=주문확정. 지금은 화면에 아무 표시가 없어 두 탭을 비교하면 반드시 틀립니다. 배너 한 줄이면 끝납니다."},
+    {t:"공용 기간 선택 컴포넌트", c:"m",
+     d:"7가지 다른 기본값을 하나로. 기간을 고를 수 있는 화면이 지금은 상품 수익성 하나뿐입니다."},
+    {t:"데이터 계열 출처 표시", c:"m",
+     d:"각 화면에 \"이 숫자는 거래 원장 / 손익 원장 / 수기 조사 중 어디서 왔는지\" 명시. 숫자가 어긋날 때 버그인지 정의 차이인지 가릴 수 있게."},
+    {t:"홈 재편 + 렌탈사 요약 카드", c:"m",
+     d:"바둑판 탈출. 결론을 맨 위로, 원본 격자는 접어서 보존. 목업 완료."},
+    {t:"그룹 요약 페이지 신설", c:"m",
+     d:"정수기·가전&상조·통신. 개별 페이지에서 구조적으로 알 수 없던 \"시장 자체의 증감\"을 만듭니다. 목업 완료."},
+    {t:"렌탈사 상세 순서 재편", c:"s",
+     d:"맨 아래 11번째에 있는 성과 원인 분석을 맨 위로. 코드 이동에 가깝습니다. 목업 완료."},
+    {t:"예외승인 손익분기 계산 추가", c:"s",
+     d:"성사율 가정 슬라이더 하나. 현재 시뮬레이션은 직선이라 정보가 없습니다. 목업 완료."},
+    {t:"카테고리 상세 신설", c:"l",
+     d:"동일 모델 × 렌탈사 가격 비교가 핵심. 새 집계가 필요합니다. 목업 완료."},
+    {t:"compare · 브랜드 분석 · 지원금 2종 통합", c:"l",
+     d:"가장 크고 가장 위험한 작업. 위 항목들이 자리 잡은 뒤에 손대는 게 맞습니다."}
+  ];
+  var ph=document.getElementById("prioList");
+  var COST={s:"작음", m:"중간", l:"큼"};
+  PRIO.forEach(function(x,i){
+    var d=document.createElement("div");
+    d.className="pr";
+    d.innerHTML='<div class="rank">'+(i+1)+"</div>"+
+      '<div><div class="t">'+x.t+'</div><div class="d">'+x.d+"</div></div>"+
+      '<div class="cost '+x.c+'">'+COST[x.c]+"</div>";
+    ph.appendChild(d);
+  });
+})();
+</script>
+
+</body>
+</html>

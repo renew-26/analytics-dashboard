@@ -1,0 +1,665 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>*{margin:0;padding:0;box-sizing:border-box}html,body{height:100%}</style>
+<title>렌트리 애널리틱스 — 그룹 요약 페이지 신설안</title>
+</head>
+<body>
+
+<style>
+  .rt {
+    color-scheme: light;
+    --page:#f6f7f9; --card:#fff; --surface:#f3f5f9; --surface-2:#f9fafb;
+    --ink:#222; --ink-2:#586177; --ink-3:#788093; --ink-4:#a1a5ac;
+    --line:#e2e6ec; --line-2:#eef0f4;
+    --brand:#4338ca; --brand-600:#4f46e5; --brand-tint:#eef2ff;
+    --up:#e03131; --up-tint:#fee2e2; --down:#2563eb; --down-tint:#dbeafe;
+    --sev-warn:#d97706; --sev-warn-t:#fef3c7; --sev-crit:#dc2626; --sev-crit-t:#fee2e2;
+    --c1:#2a78d6; --c2:#eb6834; --c3:#1baf7a; --c4:#eda100; --c5:#e87ba4;
+    --r-4:4px; --r-6:6px; --r-8:8px; --r-12:12px; --r-full:9999px;
+    --sh:0 1px 2px rgba(28,35,56,.04), 0 2px 8px rgba(28,35,56,.05);
+    --font:"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
+           "Apple SD Gothic Neo", system-ui, sans-serif;
+    --mono:ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+    font-family:var(--font); background:var(--page); color:var(--ink);
+    -webkit-font-smoothing:antialiased; display:block; min-height:100vh;
+    word-break:keep-all; line-break:strict;
+  }
+  .rt *, .rt *::before, .rt *::after { box-sizing:border-box; }
+  .rt p,.rt h1,.rt h2,.rt h3,.rt h4,.rt ul,.rt ol,.rt figure { margin:0; }
+  .rt ul,.rt ol { padding:0; list-style:none; }
+  .rt button { font:inherit; color:inherit; background:none; border:0; cursor:pointer; }
+  .rt :focus-visible { outline:2px solid var(--brand); outline-offset:2px; border-radius:var(--r-6); }
+  .rt table { border-collapse:collapse; }
+  .num { font-variant-numeric:tabular-nums; }
+  .up{color:var(--up)} .down{color:var(--down)} .flat{color:var(--ink-4)}
+
+  .shell { display:grid; grid-template-columns:216px minmax(0,1fr); min-height:100vh; }
+  .side { background:var(--card); border-right:1px solid var(--line); padding:18px 10px;
+          position:sticky; top:0; align-self:start; height:100vh; overflow-y:auto; }
+  .side-logo { display:flex; align-items:baseline; gap:5px; padding:0 10px 18px; }
+  .side-logo b { font-size:17px; font-weight:800; letter-spacing:-.4px; color:var(--brand); }
+  .side-logo span { font-size:11px; color:var(--ink-4); }
+  .nav-h { padding:16px 10px 6px; font-size:10px; font-weight:700; letter-spacing:.07em;
+           text-transform:uppercase; color:var(--ink-4); }
+  .nav-i { display:flex; align-items:center; justify-content:space-between; padding:7px 10px;
+           border-radius:var(--r-8); font-size:13px; color:var(--ink-2); text-decoration:none; margin-bottom:1px; }
+  .nav-i:hover { background:var(--surface); color:var(--ink); }
+  .nav-i.on { background:var(--brand-tint); color:var(--brand); font-weight:700; }
+  .nav-sub { padding-left:12px; }
+  .nav-sub .nav-i { font-size:12px; color:var(--ink-3); padding:5px 10px; }
+  .newbadge { font-size:9px; font-weight:700; color:#fff; background:var(--brand);
+              border-radius:var(--r-full); padding:1px 5px; }
+
+  .top { position:sticky; top:0; z-index:30; background:rgba(255,255,255,.93); backdrop-filter:blur(8px);
+         border-bottom:1px solid var(--line); padding:11px 28px; display:flex; align-items:center;
+         gap:14px; flex-wrap:wrap; }
+  .crumb { font-size:12px; color:var(--ink-4); display:flex; align-items:center; gap:7px; }
+  .crumb a { color:var(--brand); text-decoration:none; font-weight:600; }
+  .top h1 { font-size:18px; font-weight:800; letter-spacing:-.4px; }
+  .top-sp { flex:1 1 auto; }
+  .basis { display:flex; align-items:center; gap:7px; font-size:11.5px; color:var(--ink-2);
+           background:var(--surface); border:1px solid var(--line); border-radius:var(--r-full); padding:4px 11px; }
+  .basis b { font-family:var(--mono); font-weight:600; color:var(--ink); }
+
+  .main { padding:20px 28px 72px; display:flex; flex-direction:column; gap:24px; }
+
+  /* 그룹 전환 탭 */
+  .gtabs { display:flex; gap:6px; flex-wrap:wrap; }
+  .gtab { font-size:13px; font-weight:700; color:var(--ink-3); background:var(--card);
+          border:1px solid var(--line); border-radius:var(--r-8); padding:8px 16px; transition:.12s;
+          display:flex; align-items:center; gap:8px; }
+  .gtab:hover { border-color:var(--ink-4); color:var(--ink); }
+  .gtab[aria-pressed="true"] { background:var(--brand); border-color:var(--brand); color:#fff; }
+  .gtab span { font-size:10.5px; font-weight:600; opacity:.75; }
+
+  .lay { display:flex; align-items:baseline; gap:10px; margin-bottom:11px; flex-wrap:wrap; }
+  .lay h2 { font-size:15px; font-weight:800; letter-spacing:-.3px; }
+  .lay .sub { font-size:12px; color:var(--ink-3); }
+
+  .an { display:inline-flex; align-items:center; justify-content:center; min-width:17px; height:17px;
+        padding:0 4px; border-radius:var(--r-full); background:var(--brand); color:#fff; font-size:10px;
+        font-weight:700; font-family:var(--mono); vertical-align:middle; margin-left:5px; }
+  .note { font-size:11.5px; line-height:1.6; color:var(--brand); background:var(--brand-tint);
+          border-left:2px solid var(--brand); border-radius:0 var(--r-6) var(--r-6) 0; padding:7px 11px; margin-top:10px; }
+
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:var(--r-12); box-shadow:var(--sh); }
+  .panel-h { padding:14px 17px 11px; display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
+  .panel-h h3 { font-size:13.5px; font-weight:800; letter-spacing:-.2px; }
+  .panel-h .m { font-size:11px; color:var(--ink-4); }
+  .panel-b { padding:0 17px 16px; }
+
+  /* ── 시장 요약 밴드 ─────────────────────────────── */
+  .mkt { background:var(--card); border:1px solid var(--line); border-radius:var(--r-12);
+         box-shadow:var(--sh); overflow:hidden; }
+  .mkt-top { padding:19px 22px 17px; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:24px; align-items:start; }
+  @media (max-width:900px){ .mkt-top{ grid-template-columns:1fr; } }
+  .mkt-eyebrow { font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+                 color:var(--ink-4); margin-bottom:9px; }
+  .mkt-lede { font-size:19px; font-weight:700; line-height:1.5; letter-spacing:-.4px; text-wrap:balance; }
+  .mkt-sub { margin-top:10px; font-size:12.5px; line-height:1.7; color:var(--ink-2); max-width:62ch; }
+  .mkt-sub b { color:var(--ink); }
+  .mkt-kpis { display:flex; gap:22px; }
+  .mkt-k { text-align:right; }
+  .mkt-k dt { font-size:10.5px; color:var(--ink-3); margin-bottom:5px; }
+  .mkt-k dd { font-size:22px; font-weight:800; letter-spacing:-.7px; line-height:1; }
+  .mkt-k .d { font-size:11.5px; font-weight:700; margin-top:5px; }
+
+  /* ── 점유율 스택 ────────────────────────────────── */
+  .stack-row { margin-bottom:14px; }
+  .stack-lab { display:flex; align-items:baseline; justify-content:space-between;
+               font-size:11px; color:var(--ink-3); margin-bottom:5px; }
+  .stack-lab b { font-weight:700; color:var(--ink-2); }
+  .stack { display:flex; height:30px; border-radius:var(--r-6); overflow:hidden; gap:2px; background:var(--card); }
+  .stack i { display:block; height:100%; position:relative; }
+  .stack em { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+              font-style:normal; font-size:10.5px; font-weight:700; color:#fff; }
+
+  /* ── 표 ─────────────────────────────────────────── */
+  .tbl-wrap { overflow-x:auto; border:1px solid var(--line); border-radius:var(--r-8); }
+  .tbl { width:100%; font-size:12.5px; background:var(--card); min-width:820px; }
+  .tbl th,.tbl td { padding:9px 12px; text-align:right; white-space:nowrap; }
+  .tbl thead th { font-size:10.5px; font-weight:700; color:var(--ink-4); background:var(--surface-2);
+                  border-bottom:1px solid var(--line); text-align:right; }
+  .tbl tbody tr + tr td { border-top:1px solid var(--line-2); }
+  .tbl td:first-child,.tbl th:first-child { text-align:left; }
+  .tbl tbody tr:hover td { background:var(--brand-tint); }
+  .tbl .co { display:flex; align-items:center; gap:8px; font-weight:700; color:var(--ink-2);
+             text-decoration:none; }
+  .tbl .co i { width:9px; height:9px; border-radius:2px; flex:none; }
+  .tbl tbody tr:hover .co { color:var(--brand); }
+  .tbl .best { font-weight:800; }
+  .tbl .best::after { content:" ★"; font-size:9px; color:var(--sev-warn); }
+
+  /* ── 히트맵 ─────────────────────────────────────── */
+  .hm-wrap { overflow-x:auto; }
+  .hm { border-collapse:separate; border-spacing:2px; font-size:12px; min-width:760px; }
+  .hm th { font-size:10.5px; font-weight:700; color:var(--ink-3); padding:5px 6px; white-space:nowrap; }
+  .hm thead th { text-align:center; vertical-align:bottom; }
+  .hm tbody th { text-align:left; padding-right:10px; }
+  .hm tbody th a { color:var(--ink-2); text-decoration:none; font-weight:700; }
+  .hm tbody th a:hover { color:var(--brand); }
+  .hm td { text-align:center; padding:8px 6px; border-radius:var(--r-4); font-variant-numeric:tabular-nums;
+           font-weight:600; cursor:default; }
+  .hm td.lead { outline:2px solid var(--sev-warn); outline-offset:-2px; }
+  .hm-legend { display:flex; align-items:center; gap:8px; margin-top:12px; font-size:10.5px; color:var(--ink-3); }
+  .hm-legend .ramp { display:flex; gap:2px; }
+  .hm-legend .ramp i { width:22px; height:9px; border-radius:2px; }
+
+  .det { background:var(--card); border:1px solid var(--line); border-radius:var(--r-12); box-shadow:var(--sh); overflow:hidden; }
+  .det > summary { list-style:none; cursor:pointer; padding:14px 18px; display:flex; align-items:center;
+                   gap:9px; font-size:13.5px; font-weight:800; letter-spacing:-.2px; }
+  .det > summary::-webkit-details-marker { display:none; }
+  .det > summary::before { content:"▸"; color:var(--ink-4); font-size:11px; transition:transform .15s; }
+  .det[open] > summary::before { transform:rotate(90deg); }
+  .det > summary .m { font-size:11.5px; font-weight:500; color:var(--ink-4); margin-left:auto; }
+  .det-b { padding:14px 18px 20px; border-top:1px solid var(--line-2); }
+
+  .tip { position:fixed; z-index:90; pointer-events:none; opacity:0; transition:opacity .1s;
+         background:var(--ink); color:#fff; border-radius:var(--r-8); padding:7px 10px; font-size:11.5px;
+         line-height:1.5; box-shadow:0 6px 20px rgba(0,0,0,.22); max-width:250px; }
+  .tip.on { opacity:1; }
+  .tip .t-h { font-weight:700; margin-bottom:3px; }
+  .tip .t-row { display:flex; align-items:center; gap:6px; white-space:nowrap; }
+  .tip .t-row i { width:7px; height:7px; border-radius:2px; flex:none; }
+
+  .legend { display:flex; flex-wrap:wrap; gap:4px 14px; margin-top:10px; }
+  .legend span { display:inline-flex; align-items:center; gap:5px; font-size:10.5px; color:var(--ink-2); }
+  .legend i { width:9px; height:9px; border-radius:2px; flex:none; }
+
+  .chg { background:var(--card); border:1px solid var(--line); border-radius:var(--r-12); padding:18px 20px; }
+  .chg h3 { font-size:13.5px; font-weight:800; margin-bottom:12px; letter-spacing:-.2px; }
+  .chg-g { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:16px; }
+  .chg-c h4 { font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; margin-bottom:7px; }
+  .chg-c.in h4 { color:var(--up); } .chg-c.keep h4 { color:var(--ink-4); } .chg-c.out h4 { color:var(--down); }
+  .chg-c li { font-size:12px; line-height:1.65; color:var(--ink-2); padding-left:13px; position:relative; }
+  .chg-c li::before { content:"—"; position:absolute; left:0; color:var(--ink-4); }
+  .chg code { font-family:var(--mono); font-size:11px; }
+</style>
+
+<div class="rt" id="rt">
+<div class="shell">
+
+  <aside class="side">
+    <div class="side-logo"><b>렌트리</b><span>애널리틱스</span></div>
+    <div class="nav-h">매일 보는 것</div>
+    <a class="nav-i" href="#">이달의 요약</a>
+    <a class="nav-i" href="#">매출 분석</a>
+    <div class="nav-h">렌탈사</div>
+    <a class="nav-i on" href="#" data-g="정수기"><span>정수기</span><span class="newbadge">요약</span></a>
+    <div class="nav-sub" id="navSub"></div>
+    <a class="nav-i" href="#" data-g="가전&amp;상조"><span>가전 &amp; 상조</span><span class="newbadge">요약</span></a>
+    <a class="nav-i" href="#" data-g="통신"><span>통신</span><span class="newbadge">요약</span></a>
+    <a class="nav-i" href="#">렌탈사 비교</a>
+    <div class="nav-h">상품 · 수익성</div>
+    <a class="nav-i" href="#">상품 수익성</a>
+    <a class="nav-i" href="#">카테고리 트렌드</a>
+  </aside>
+
+  <div>
+    <header class="top">
+      <div class="crumb"><a href="#">이달의 요약</a><span>›</span></div>
+      <h1 id="ttl">정수기</h1>
+      <div class="basis"><span>기준</span><b>2026.08.01 – 08.14</b>
+        <span style="color:var(--ink-4)">계약완료 · 전월 동기간 대비</span></div>
+      <div class="top-sp"></div>
+    </header>
+
+    <main class="main">
+
+      <div class="gtabs">
+        <button class="gtab" data-g="정수기" aria-pressed="true">정수기 <span>5개사 · 정면 경쟁</span></button>
+        <button class="gtab" data-g="가전&amp;상조" aria-pressed="false">가전 &amp; 상조 <span>8개사 · 주력 분산</span></button>
+        <button class="gtab" data-g="통신" aria-pressed="false">통신 <span>5개사 · 정면 경쟁</span></button>
+      </div>
+
+      <!-- ═══ 시장 요약 ═══════════════════════════ -->
+      <section>
+        <div class="lay">
+          <h2>이 그룹의 시장 자체는 어떤가 <span class="an">①</span></h2>
+          <span class="sub">개별 렌탈사 페이지에서는 절대 알 수 없는 것</span>
+        </div>
+        <div class="mkt">
+          <div class="mkt-top">
+            <div>
+              <div class="mkt-eyebrow" id="mktEyebrow">8월 정수기 시장</div>
+              <p class="mkt-lede" id="mktLede"></p>
+              <p class="mkt-sub" id="mktSub"></p>
+            </div>
+            <dl class="mkt-kpis" id="mktKpis"></dl>
+          </div>
+        </div>
+        <div class="note" id="mktNote"></div>
+      </section>
+
+      <!-- ═══ 모드 A: 점유율 ═══════════════════════ -->
+      <section id="modeA">
+        <div class="lay">
+          <h2>누가 누구 걸 가져갔나 <span class="an">②</span></h2>
+          <span class="sub">점유율은 합이 100% — 누군가의 상승은 반드시 누군가의 하락</span>
+        </div>
+        <div class="panel">
+          <div class="panel-b" style="padding-top:16px">
+            <div class="stack-row">
+              <div class="stack-lab"><b>이번 달</b><span id="curTot"></span></div>
+              <div class="stack" id="stackCur"></div>
+            </div>
+            <div class="stack-row">
+              <div class="stack-lab"><span>전월 동기간</span><span id="prevTot"></span></div>
+              <div class="stack" id="stackPrev" style="opacity:.5"></div>
+            </div>
+            <div class="legend" id="shareLegend"></div>
+            <div style="margin-top:20px">
+              <div style="font-size:11.5px;font-weight:700;color:var(--ink-2);margin-bottom:9px">
+                점유율 변동 (%p)
+              </div>
+              <div id="deltaChart"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══ 모드 B: 매트릭스 ═════════════════════ -->
+      <section id="modeB" hidden>
+        <div class="lay">
+          <h2>누가 어디서 강한가 <span class="an">③</span></h2>
+          <span class="sub">이 그룹은 정면 경쟁이 아니다 — 회사마다 주력 카테고리가 다르다</span>
+        </div>
+        <div class="panel">
+          <div class="panel-b" style="padding-top:16px">
+            <div class="hm-wrap"><table class="hm" id="heatmap"></table></div>
+            <div class="hm-legend">
+              <span>적음</span><span class="ramp" id="ramp"></span><span>많음</span>
+              <span style="margin-left:14px;color:var(--sev-warn);font-weight:700">▢ 카테고리 1위</span>
+            </div>
+            <div class="note" id="hmNote"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══ 비교 표 ═════════════════════════════ -->
+      <section>
+        <div class="lay">
+          <h2>렌탈사 비교 <span class="an">④</span></h2>
+          <span class="sub">지금은 이 표를 만들려면 페이지를 5번 오가야 한다</span>
+        </div>
+        <div class="panel">
+          <div class="panel-b" style="padding-top:16px">
+            <div class="tbl-wrap">
+              <table class="tbl">
+                <thead id="cmpHead"></thead>
+                <tbody id="cmpBody"></tbody>
+              </table>
+            </div>
+            <div class="note" id="cmpNote"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══ 접힘 ════════════════════════════════ -->
+      <details class="det">
+        <summary>렌탈사별 상세로 이동 <span class="m">각 회사의 월별·주차별·경쟁 분석은 개별 페이지에 그대로</span></summary>
+        <div class="det-b">
+          <div id="linkList" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+        </div>
+      </details>
+
+      <!-- ═══ Changelog ═══════════════════════════ -->
+      <section class="chg">
+        <h3>무엇이 새로 생기나</h3>
+        <div class="chg-g">
+          <div class="chg-c in">
+            <h4>신설</h4>
+            <ul>
+              <li><code>/group/정수기</code> · <code>/group/가전&amp;상조</code> · <code>/group/통신</code> 3개 페이지</li>
+              <li>사이드바 그룹명이 <b>클릭 가능해짐</b> — 지금은 아코디언 펼침 버튼일 뿐</li>
+              <li>시장 전체 증감 — 개별 페이지에서 구조적으로 알 수 없던 값</li>
+              <li>점유율 이동 (정수기·통신) / 카테고리 매트릭스 (가전&amp;상조)</li>
+            </ul>
+          </div>
+          <div class="chg-c out">
+            <h4>정리 대상</h4>
+            <ul>
+              <li>각 회사 페이지의 "정수기 &amp; 크로스셀 내 포지션" — 같은 차트가 5개 페이지에 반복 중.
+                  그룹 페이지로 옮기고 개별 페이지에서는 제거</li>
+              <li><code>/compare</code>(2개사 비교)와 목적이 겹침 — 그룹 페이지가 상위 개념이라
+                  <code>/compare</code>는 그룹 간 비교 전용으로 좁히는 것을 제안</li>
+            </ul>
+          </div>
+          <div class="chg-c keep">
+            <h4>그대로</h4>
+            <ul>
+              <li>개별 <code>/company/[렌탈사]</code> 페이지 전부 유지 — 표의 회사명을 누르면 그대로 이동</li>
+              <li><code>PositionChartModal</code> 컴포넌트 재사용 — 위치만 그룹 페이지로</li>
+              <li>기존 색·폰트·라운딩 토큰 승계</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+<div class="tip" id="tip" role="status" aria-live="polite"></div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var root=document.getElementById("rt"), tip=document.getElementById("tip");
+  var NS="http://www.w3.org/2000/svg", CSS=getComputedStyle(root);
+  function tok(n){return CSS.getPropertyValue(n).trim();}
+  var UP=tok("--up"),DOWN=tok("--down"),INK=tok("--ink"),INK2=tok("--ink-2"),INK3=tok("--ink-3"),
+      INK4=tok("--ink-4"),LINE=tok("--line"),LINE2=tok("--line-2"),BRAND=tok("--brand"),CARD=tok("--card");
+  var CATC=[tok("--c1"),tok("--c2"),tok("--c3"),tok("--c4"),tok("--c5")];
+
+  function el(t,a,p){var n=document.createElementNS(NS,t);for(var k in a)n.setAttribute(k,a[k]);if(p)p.appendChild(n);return n;}
+  function svg(w,h,p){var s=el("svg",{viewBox:"0 0 "+w+" "+h,width:"100%",height:h,
+    preserveAspectRatio:"xMidYMid meet",role:"img"});s.style.display="block";s.style.overflow="visible";
+    if(p)p.appendChild(s);return s;}
+  function nf(n,d){return Number(n).toLocaleString("ko-KR",{minimumFractionDigits:d||0,maximumFractionDigits:d||0});}
+  function showTip(h,e){tip.innerHTML=h;tip.classList.add("on");
+    var r=tip.getBoundingClientRect(),x=e.clientX+14,y=e.clientY-r.height-10;
+    if(x+r.width>window.innerWidth-10)x=e.clientX-r.width-14;
+    if(y<8)y=e.clientY+18;tip.style.left=x+"px";tip.style.top=y+"px";}
+  function hideTip(){tip.classList.remove("on");}
+
+  // ── 데이터 ────────────────────────────────────────
+  var G={
+    "정수기":{
+      mode:"share",
+      eyebrow:"8월 정수기 · 크로스셀 시장",
+      cos:[
+        {n:"코웨이",      cur:1180, prev:1042, fee:38400, cm:23.4, conv:91.2},
+        {n:"LG_가전구독", cur:862,  prev:905,  fee:36200, cm:21.1, conv:89.4},
+        {n:"SK인텔릭스",  cur:640,  prev:512,  fee:33800, cm:25.2, conv:92.8},
+        {n:"쿠쿠",        cur:498,  prev:561,  fee:35100, cm:20.3, conv:87.1},
+        {n:"청호",        cur:214,  prev:235,  fee:34200, cm:18.9, conv:85.4}
+      ],
+      lede:'시장은 <span class="up">+4.3%</span> 커졌는데, 그 성장분을 <b>SK인텔릭스가 거의 혼자 가져갔습니다</b> (점유율 +3.1%p).',
+      sub:'쿠쿠가 <b>−2.6%p</b>로 가장 많이 잃었습니다. SK인텔릭스는 이 그룹에서 <b>월렌탈료가 가장 싸고(33,800원) 공헌이익률이 가장 높고(25.2%) 전환율도 최고(92.8%)</b>입니다 — 싸게 팔면서 더 남기고 있다는 뜻이라, 원가 구조나 상품 구성에 차이가 있을 가능성이 큽니다. 개별 페이지만 보면 이 세 가지가 한 회사에 몰려 있다는 사실이 드러나지 않습니다.'
+    },
+    "통신":{
+      mode:"share",
+      eyebrow:"8월 인터넷 시장",
+      cos:[
+        {n:"LGU+",     cur:486, prev:502, fee:31200, cm:19.8, conv:90.4},
+        {n:"KT_I",     cur:402, prev:388, fee:30400, cm:20.6, conv:91.8},
+        {n:"SK_I",     cur:318, prev:331, fee:29800, cm:18.4, conv:89.2},
+        {n:"LGHV_I",   cur:176, prev:168, fee:27600, cm:16.2, conv:88.1},
+        {n:"KT_SKY_I", cur:96,  prev:104, fee:26400, cm:15.1, conv:86.3}
+      ],
+      lede:'시장이 <span class="down">−1.0%</span>로 줄어든 달입니다. 절대 건수만 보면 다섯 곳 모두 부진해 보입니다.',
+      sub:'하지만 점유율로 보면 <b>KT_I만 +1.2%p로 유일하게 늘었습니다.</b> 시장이 줄어드는 국면에서는 절대 건수가 모두를 나쁘게 보이게 만들기 때문에, <b>점유율 축이 반드시 필요합니다.</b> 규모는 정수기의 1/2 수준이라 같은 화면 밀도로 다룰 필요는 없습니다.'
+    },
+    "가전&상조":{
+      mode:"matrix",
+      eyebrow:"8월 가전 · 상조 시장",
+      cos:[
+        {n:"현대유버스", cur:331, prev:297, fee:41200, cm:18.7, conv:89.2},
+        {n:"헬로비전",   cur:268, prev:355, fee:35800, cm:16.2, conv:84.6},
+        {n:"LG_가전",    cur:210, prev:198, fee:44600, cm:19.4, conv:90.1},
+        {n:"이니렌탈",   cur:194, prev:188, fee:38900, cm:19.4, conv:88.3},
+        {n:"BS렌탈",     cur:152, prev:214, fee:38200, cm:14.8, conv:76.8},
+        {n:"KT렌탈",     cur:121, prev:118, fee:33600, cm:17.9, conv:87.5},
+        {n:"스마트렌탈", cur:96,  prev:131, fee:31400, cm:15.3, conv:81.2},
+        {n:"바디프랜드", cur:88,  prev:84,  fee:68200, cm:22.1, conv:92.4}
+      ],
+      cats:["TV","세탁기+건조기","냉장고","에어컨","안마의자","매트리스","로봇청소기"],
+      matrix:{
+        "현대유버스":[42,58,51,39,112,18,8],
+        "헬로비전":  [78,62,48,41,12,15,9],
+        "LG_가전":   [52,64,44,38,0,0,10],
+        "이니렌탈":  [21,28,19,16,12,80,14],
+        "BS렌탈":    [28,40,31,24,17,6,4],
+        "KT렌탈":    [24,31,38,18,3,2,4],
+        "스마트렌탈":[11,14,9,8,4,6,37],
+        "바디프랜드":[0,0,0,0,88,0,0]
+      },
+      lede:'시장이 <span class="down">−7.9%</span> 줄었습니다. 다만 이 그룹은 <b>정면 경쟁이 아니라</b>, 8개사가 서로 다른 카테고리에 몰려 있어 점유율 싸움이 성립하지 않습니다.',
+      sub:'−125건 중 <b>헬로비전 −87 · BS렌탈 −62 · 스마트렌탈 −35</b> 세 곳이 −184를 만들었고, 나머지 5곳이 +59로 일부 메웠습니다. 구조를 보면 바디프랜드는 안마의자 <b>100%</b>, 이니렌탈은 매트리스 <b>41%</b>, 스마트렌탈은 로봇청소기 <b>39%</b>로 각자 다른 시장에 있습니다. 실제로 정면으로 붙는 건 <b>TV · 세탁기+건조기 · 냉장고</b> 세 카테고리뿐입니다. 그래서 이 그룹에는 점유율 스택이 아니라 <b>카테고리 × 렌탈사 매트릭스</b>가 맞습니다.',
+      note:'각 열에서 1위인 칸을 표시했습니다. 한 회사가 모든 열에서 1위인 경우는 없습니다 — 그게 이 그룹이 단일 시장이 아니라는 증거입니다. <b>세탁기+건조기 · 냉장고 · TV</b> 세 열만 여러 회사가 비슷한 값으로 몰려 있고, 나머지는 사실상 한 회사가 독점합니다.'
+    }
+  };
+
+  var cur="정수기";
+
+  function pct(a,b){ return b===0?0:(a/b*100); }
+
+  function render(){
+    var g=G[cur];
+    var tot=g.cos.reduce(function(a,c){return a+c.cur;},0);
+    var ptot=g.cos.reduce(function(a,c){return a+c.prev;},0);
+    var chg=(tot/ptot-1)*100;
+
+    document.getElementById("ttl").textContent=cur.replace("&"," & ");
+    document.getElementById("mktEyebrow").textContent=g.eyebrow;
+    document.getElementById("mktLede").innerHTML=g.lede;
+    document.getElementById("mktSub").innerHTML=g.sub;
+
+    var dcls=chg>0.5?"up":chg<-0.5?"down":"flat";
+    var arrow=chg>0.5?"▲":chg<-0.5?"▼":"—";
+    document.getElementById("mktKpis").innerHTML=
+      '<div class="mkt-k"><dt>그룹 전체 거래건수</dt><dd class="num">'+nf(tot)+'</dd>'+
+        '<div class="d '+dcls+' num">'+arrow+" "+Math.abs(chg).toFixed(1)+"%</div></div>"+
+      '<div class="mkt-k"><dt>참여 렌탈사</dt><dd class="num">'+g.cos.length+'</dd>'+
+        '<div class="d flat">전월 동기간 '+nf(ptot)+"건</div></div>";
+
+    // ① 주석은 그룹의 1위 회사를 예로 든다
+    var top=g.cos[0], topChg=(top.cur/top.prev-1)*100;
+    document.getElementById("mktNote").innerHTML=
+      "<b>①</b> 지금은 "+top.n+' 페이지에서 "'+(topChg>=0?"+":"")+topChg.toFixed(1)+'%"를 봐도 '+
+      "<b>시장이 커진 건지 남의 걸 뺏은 건지 알 수 없습니다.</b> "+
+      "이 그룹의 시장 자체는 <b>"+(chg>=0?"+":"")+chg.toFixed(1)+"%</b>였습니다 — "+
+      "그룹 요약이 없으면 모든 증감이 해석 불가능한 숫자로 남습니다.";
+
+    document.getElementById("modeA").hidden = g.mode!=="share";
+    document.getElementById("modeB").hidden = g.mode!=="matrix";
+
+    if(g.mode==="share") renderShare(g,tot,ptot);
+    else renderMatrix(g,tot);
+
+    renderTable(g,tot,ptot);
+    renderLinks(g);
+  }
+
+  function renderShare(g,tot,ptot){
+    document.getElementById("curTot").textContent=nf(tot)+"건";
+    document.getElementById("prevTot").textContent=nf(ptot)+"건";
+    ["stackCur","stackPrev"].forEach(function(id,si){
+      var host=document.getElementById(id); host.textContent="";
+      g.cos.forEach(function(c,i){
+        var v=si===0?c.cur:c.prev, t=si===0?tot:ptot, p=pct(v,t);
+        var b=document.createElement("i");
+        b.style.width=p+"%"; b.style.background=CATC[i%5];
+        if(p>7) b.innerHTML="<em>"+p.toFixed(1)+"%</em>";
+        b.addEventListener("mousemove",function(e){
+          showTip('<div class="t-h">'+c.n+"</div>"+
+            '<div class="t-row"><i style="background:'+CATC[i%5]+'"></i>'+
+            nf(v)+"건 · 점유율 <b>"+p.toFixed(1)+"%</b></div>",e);
+        });
+        b.addEventListener("mouseleave",hideTip);
+        host.appendChild(b);
+      });
+    });
+    var lg=document.getElementById("shareLegend"); lg.textContent="";
+    g.cos.forEach(function(c,i){
+      var s=document.createElement("span");
+      s.innerHTML='<i style="background:'+CATC[i%5]+'"></i>'+c.n;
+      lg.appendChild(s);
+    });
+
+    // 점유율 변동 diverging bar
+    var host=document.getElementById("deltaChart"); host.textContent="";
+    var deltas=g.cos.map(function(c){ return {n:c.n, d:pct(c.cur,tot)-pct(c.prev,ptot)}; })
+                    .sort(function(a,b){return b.d-a.d;});
+    // 이름은 항상 왼쪽 고정 열에 — 막대가 이름을 덮지 않게 한다
+    var W=620,rowH=28,H=deltas.length*rowH+16,nameW=118,mid=nameW+180,scale=52;
+    var s=svg(W,H,host);
+    s.setAttribute("aria-label","점유율 변동");
+    el("line",{x1:mid,x2:mid,y1:2,y2:H-14,stroke:LINE,"stroke-width":"1"},s);
+    deltas.forEach(function(d,i){
+      var y=i*rowH+4, w=Math.abs(d.d)*scale, pos=d.d>=0;
+      var t=el("text",{x:nameW,y:y+14,fill:INK2,"font-size":"11.5","font-weight":"600","text-anchor":"end"},s);
+      t.textContent=d.n;
+      el("rect",{x:pos?mid+1:mid-w-1,y:y+3,width:Math.max(2,w),height:13,rx:3,
+                 fill:pos?UP:DOWN},s);
+      // 값은 막대 안쪽(0선 옆)에 — 바깥에 두면 음수 막대가 이름 열을 침범한다
+      var inside = w > 48;
+      var v=el("text",{
+        x: pos ? (inside?mid+7:mid+w+7) : (inside?mid-7:mid-w-7),
+        y: y+14,
+        fill: inside ? "#fff" : (pos?UP:DOWN),
+        "font-size":"10.5","font-weight":"700",
+        "text-anchor": pos?"start":"end"
+      },s);
+      v.style.fontVariantNumeric="tabular-nums";
+      v.textContent=(pos?"+":"−")+Math.abs(d.d).toFixed(1)+"%p";
+    });
+    var cap=el("text",{x:mid,y:H-2,fill:INK4,"font-size":"9.5","text-anchor":"middle"},s);
+    cap.textContent="합계는 항상 0 — 점유율은 제로섬";
+  }
+
+  function renderMatrix(g,tot){
+    var tbl=document.getElementById("heatmap"); tbl.textContent="";
+    var colMax=g.cats.map(function(_,ci){
+      return Math.max.apply(null,g.cos.map(function(c){return g.matrix[c.n][ci];}));
+    });
+    var thead=document.createElement("thead");
+    var hr=document.createElement("tr");
+    hr.innerHTML="<th></th>"+g.cats.map(function(c){return "<th>"+c+"</th>";}).join("")+"<th>합계</th>";
+    thead.appendChild(hr); tbl.appendChild(thead);
+
+    var tb=document.createElement("tbody");
+    g.cos.forEach(function(c){
+      var tr=document.createElement("tr");
+      var th=document.createElement("th");
+      th.innerHTML='<a href="#">'+c.n+"</a>";
+      tr.appendChild(th);
+      g.cats.forEach(function(cat,ci){
+        var v=g.matrix[c.n][ci], f=colMax[ci]?v/colMax[ci]:0;
+        var td=document.createElement("td");
+        // 순차 램프 — 단일 색조 밝기 변화 (magnitude)
+        td.style.background = v===0 ? "var(--surface-2)"
+          : "color-mix(in srgb, "+BRAND+" "+(8+f*62)+"%, white)";
+        td.style.color = f>0.55 ? "#fff" : (v===0?INK4:INK2);
+        td.textContent = v===0 ? "–" : nf(v);
+        if(v===colMax[ci] && v>0) td.className="lead";
+        td.addEventListener("mousemove",function(e){
+          showTip('<div class="t-h">'+c.n+" · "+cat+"</div>"+
+            '<div class="t-row">'+nf(v)+"건 · 이 회사 내 비중 <b>"+
+            (c.cur?(v/c.cur*100).toFixed(0):0)+"%</b></div>"+
+            '<div class="t-row" style="color:#c9c9d4">'+cat+" 전체 중 "+
+            (colMax[ci]?(v/g.cos.reduce(function(a,x){return a+g.matrix[x.n][ci];},0)*100).toFixed(0):0)+"%</div>",e);
+        });
+        td.addEventListener("mouseleave",hideTip);
+        tr.appendChild(td);
+      });
+      var tot2=document.createElement("td");
+      tot2.style.fontWeight="800"; tot2.textContent=nf(c.cur);
+      tr.appendChild(tot2);
+      tb.appendChild(tr);
+    });
+    tbl.appendChild(tb);
+
+    var ramp=document.getElementById("ramp"); ramp.textContent="";
+    [8,25,42,58,70].forEach(function(p){
+      var i=document.createElement("i");
+      i.style.background="color-mix(in srgb, "+BRAND+" "+p+"%, white)";
+      ramp.appendChild(i);
+    });
+    document.getElementById("hmNote").innerHTML="<b>③</b> "+g.note;
+  }
+
+  function renderTable(g,tot,ptot){
+    var isShare=g.mode==="share";
+    document.getElementById("cmpHead").innerHTML=
+      "<tr><th>렌탈사</th><th>이번 달</th><th>전월 동기간</th><th>증감</th>"+
+      (isShare?"<th>점유율</th><th>점유율 변동</th>":"<th>구성비</th><th>주력 카테고리</th>")+
+      "<th>평균 월렌탈료</th><th>공헌이익률</th><th>전환율</th></tr>";
+
+    var bestCm=Math.max.apply(null,g.cos.map(function(c){return c.cm;}));
+    var bestConv=Math.max.apply(null,g.cos.map(function(c){return c.conv;}));
+    var tb=document.getElementById("cmpBody"); tb.textContent="";
+
+    g.cos.forEach(function(c,i){
+      var diff=c.cur-c.prev;
+      var sh=pct(c.cur,tot), dsh=sh-pct(c.prev,ptot);
+      var mid="";
+      if(isShare){
+        mid='<td class="num">'+sh.toFixed(1)+"%</td>"+
+            '<td class="num" style="font-weight:700;color:'+(dsh>=0?UP:DOWN)+'">'+
+            (dsh>=0?"+":"")+dsh.toFixed(1)+"%p</td>";
+      } else {
+        var row=g.matrix[c.n], mi=row.indexOf(Math.max.apply(null,row));
+        mid='<td class="num">'+sh.toFixed(1)+"%</td>"+
+            '<td style="text-align:right;color:var(--ink-2)">'+g.cats[mi]+
+            ' <span style="color:var(--ink-4)">'+(row[mi]/c.cur*100).toFixed(0)+"%</span></td>";
+      }
+      var tr=document.createElement("tr");
+      tr.innerHTML=
+        '<td><a class="co" href="#"><i style="background:'+CATC[i%5]+'"></i>'+c.n+"</a></td>"+
+        '<td class="num" style="font-weight:800">'+nf(c.cur)+"</td>"+
+        '<td class="num" style="color:var(--ink-3)">'+nf(c.prev)+"</td>"+
+        '<td class="num" style="font-weight:700;color:'+(diff>=0?UP:DOWN)+'">'+
+          (diff>=0?"+":"")+nf(diff)+"</td>"+
+        mid+
+        '<td class="num">'+nf(c.fee)+"원</td>"+
+        '<td class="num'+(c.cm===bestCm?" best":"")+'">'+c.cm.toFixed(1)+"%</td>"+
+        '<td class="num'+(c.conv===bestConv?" best":"")+'">'+c.conv.toFixed(1)+"%</td>";
+      tb.appendChild(tr);
+    });
+
+    document.getElementById("cmpNote").innerHTML=
+      "<b>④</b> ★는 그룹 내 1위입니다. 공헌이익률·전환율처럼 <b>회사 간 비교로만 의미가 생기는 지표</b>는 "+
+      "개별 페이지에 흩어져 있으면 사실상 쓸 수 없습니다 — 5개 탭을 열어 눈으로 비교해야 하니까요.";
+  }
+
+  function renderLinks(g){
+    var host=document.getElementById("linkList"); host.textContent="";
+    g.cos.forEach(function(c){
+      var a=document.createElement("a");
+      a.href="#";
+      a.style.cssText="font-size:12px;font-weight:600;color:var(--ink-2);background:var(--surface);"+
+        "border:1px solid var(--line);border-radius:var(--r-8);padding:7px 13px;text-decoration:none;"+
+        "display:inline-flex;align-items:center;gap:7px";
+      a.innerHTML=c.n+'<span style="font-family:var(--mono);font-size:9.5px;color:var(--ink-4)">/company/'+c.n+"</span>";
+      a.addEventListener("click",function(e){e.preventDefault();});
+      host.appendChild(a);
+    });
+  }
+
+  // 그룹 전환
+  function setGroup(g){
+    cur=g;
+    document.querySelectorAll(".gtab").forEach(function(b){
+      b.setAttribute("aria-pressed", String(b.getAttribute("data-g")===g));
+    });
+    document.querySelectorAll(".side .nav-i[data-g]").forEach(function(b){
+      b.classList.toggle("on", b.getAttribute("data-g")===g);
+    });
+    render();
+    // 사이드바 하위 목록
+    var sub=document.getElementById("navSub"); sub.textContent="";
+    G[g].cos.forEach(function(c){
+      var a=document.createElement("a");
+      a.className="nav-i"; a.href="#"; a.textContent=c.n;
+      a.addEventListener("click",function(e){e.preventDefault();});
+      sub.appendChild(a);
+    });
+    var host=document.querySelector('.side .nav-i[data-g="'+g+'"]');
+    if(host && host.nextElementSibling!==sub) host.after(sub);
+  }
+
+  document.querySelectorAll('.gtab, .side .nav-i[data-g]').forEach(function(b){
+    b.addEventListener("click",function(e){ e.preventDefault(); setGroup(b.getAttribute("data-g")); });
+  });
+
+  setGroup("정수기");
+})();
+</script>
+
+</body>
+</html>
