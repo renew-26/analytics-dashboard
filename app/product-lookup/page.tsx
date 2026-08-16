@@ -22,6 +22,9 @@ type RawRow = {
   partner_company: string | null;
   total_rental_fee: number | null;
   sales_incentive: number | null;
+  contribution_margin: number | null;
+  management_type: string | null;
+  management_cycle: string | null;
 };
 
 export type ModelOption = {
@@ -29,6 +32,8 @@ export type ModelOption = {
   product_name: string;
   brand: string;
   category: string;
+  managementType: string;
+  managementCycle: string;
   count: number;
 };
 
@@ -40,6 +45,8 @@ export type PartnerRow = {
   avgTotalRentalFee: number;
   avgIncentive: number;
   incentiveRate: number; // 이 모델 기준 판매장려금/총렌탈료 비율(%)
+  avgContributionMargin: number;
+  marginRate: number; // 이 모델 기준 공헌이익/총렌탈료 비율(%)
 };
 
 export type PartnerProfile = {
@@ -67,9 +74,11 @@ async function fetchAllApplianceRows(start: string): Promise<RawRow[]> {
       const { data, error } = await supabase
         .from(table)
         .select(
-          "category, brand, product_name, model_name, partner_company, total_rental_fee, sales_incentive",
+          "category, brand, product_name, model_name, partner_company, total_rental_fee, sales_incentive, contribution_margin, management_type, management_cycle",
         )
         .neq("category", "인터넷")
+        .neq("category", "타이어")
+        .neq("category", "유심")
         .not("model_name", "is", null)
         .not("partner_company", "is", null)
         .gte(dateCol, start)
@@ -97,6 +106,8 @@ function buildModelOptions(rows: RawRow[]): ModelOption[] {
         product_name: r.product_name ?? "",
         brand: r.brand ?? "",
         category: r.category ?? "",
+        managementType: r.management_type ?? "",
+        managementCycle: r.management_cycle ?? "",
         count: 1,
       });
     }
@@ -105,19 +116,25 @@ function buildModelOptions(rows: RawRow[]): ModelOption[] {
 }
 
 function buildPartnerRowsForModel(rows: RawRow[], modelName: string): PartnerRow[] {
-  const map = new Map<string, { count: number; feeSum: number; incentiveSum: number }>();
+  const map = new Map<
+    string,
+    { count: number; feeSum: number; incentiveSum: number; marginSum: number }
+  >();
   for (const r of rows) {
     if (r.model_name !== modelName || !r.partner_company) continue;
-    const cur = map.get(r.partner_company) ?? { count: 0, feeSum: 0, incentiveSum: 0 };
+    const cur =
+      map.get(r.partner_company) ?? { count: 0, feeSum: 0, incentiveSum: 0, marginSum: 0 };
     cur.count += 1;
     cur.feeSum += r.total_rental_fee ?? 0;
     cur.incentiveSum += r.sales_incentive ?? 0;
+    cur.marginSum += r.contribution_margin ?? 0;
     map.set(r.partner_company, cur);
   }
   return Array.from(map.entries())
     .map(([partner, v]) => {
       const avgTotalRentalFee = Math.round(v.feeSum / v.count);
       const avgIncentive = Math.round(v.incentiveSum / v.count);
+      const avgContributionMargin = Math.round(v.marginSum / v.count);
       return {
         partner,
         isRentre: RENTRE_PARTNER_NAMES.has(partner),
@@ -126,6 +143,8 @@ function buildPartnerRowsForModel(rows: RawRow[], modelName: string): PartnerRow
         avgTotalRentalFee,
         avgIncentive,
         incentiveRate: v.feeSum > 0 ? (v.incentiveSum / v.feeSum) * 100 : 0,
+        avgContributionMargin,
+        marginRate: v.feeSum > 0 ? (v.marginSum / v.feeSum) * 100 : 0,
       };
     })
     .sort((a, b) => b.count - a.count);
@@ -162,9 +181,9 @@ function buildPartnerProfiles(rows: RawRow[], partners: string[]): Map<string, P
 export default async function ProductLookupPage({
   searchParams,
 }: {
-  searchParams: Promise<{ model?: string }>;
+  searchParams: Promise<{ model?: string; category?: string; brand?: string }>;
 }) {
-  const { model } = await searchParams;
+  const { model, category, brand } = await searchParams;
   const start = getDefaultStart(MONTHS_BACK);
 
   const rows = await fetchAllApplianceRows(start);
@@ -193,8 +212,8 @@ export default async function ProductLookupPage({
           동일 모델을 판매한 파트너사별 판매장려금(지원금)을 비교하고, 파트너사별 산정 로직을
           추정합니다 (가전, 최근 6개월 실거래 기준)
           <br />
-          BM1(일반 입점 파트너사)은 렌트리가 판매장려금을 관리하지 않아 데이터가 없습니다 —
-          "0원"이 아니라 "알 수 없음"으로 해석하세요
+          가전 전체 거래의 판매장려금/총렌탈료 비율 평균과 표준편차로 정률 산식 여부를
+          추정하며, 표준편차가 작을수록 일관된 정률 산식일 가능성이 높습니다
         </p>
       </div>
       <ProductLookupClient
@@ -203,6 +222,8 @@ export default async function ProductLookupPage({
         selectedInfo={selectedInfo}
         partnerRows={partnerRows}
         partnerProfiles={Array.from(partnerProfiles.values())}
+        initialCategory={category ?? ""}
+        initialBrand={brand ?? ""}
       />
     </div>
   );
