@@ -1,9 +1,18 @@
 import { createClient } from "@supabase/supabase-js";
-import { getBM, MAIN_RENTAL_COMPANIES } from "@/lib/company-map";
-import CategoryMonthlyChart, {
-  type CategoryMonthPoint,
-} from "@/app/components/CategoryMonthlyChart";
-import TransactionYearToggle from "@/app/components/TransactionYearToggle";
+import { getBM } from "@/lib/company-map";
+import { getWeekIndex, getWeekLabel } from "@/lib/week";
+import { type CategoryMonthPoint } from "@/app/components/CategoryMonthlyChart";
+import TransactionCountSection, {
+  type PeriodColumn,
+} from "@/app/components/TransactionCountSection";
+import {
+  KNOWN_CATS,
+  LARGE_CATEGORY_GROUPS,
+  LARGE_CATEGORY_COLORS,
+} from "@/app/components/transactionCategoryLayout";
+import BmMarginSection, {
+  type MarginPeriodData,
+} from "@/app/components/BmMarginSection";
 
 export const dynamic = "force-dynamic";
 
@@ -157,7 +166,12 @@ type YearContractRow = {
   category: string | null;
   partner_company: string | null;
   rental_company: string | null;
+  contribution_margin: number | null;
 };
+
+type BmKey = "BM1" | "BM2" | "BM3";
+type BmValue = Record<BmKey, number>;
+type BmValueNullable = Record<BmKey, number | null>;
 
 async function fetchAllYearContracts(
   yearStart: string,
@@ -169,7 +183,9 @@ async function fetchAllYearContracts(
   while (true) {
     const { data, error } = await supabase
       .from("raw_contracts")
-      .select("contract_date, category, partner_company, rental_company")
+      .select(
+        "contract_date, category, partner_company, rental_company, contribution_margin",
+      )
       .gte("contract_date", yearStart)
       .lte("contract_date", end)
       .order("prop_item_usid", { ascending: true })
@@ -210,57 +226,6 @@ const GOAL_ROWS: {
 ];
 
 // ── 섹션 2: 거래건수 ─────────────────────────────────
-const KNOWN_CATS = new Set([
-  "정수기",
-  "공기청정기",
-  "비데",
-  "TV",
-  "세탁기+건조기",
-  "에어컨",
-  "냉장고",
-  "로봇청소기",
-  "무선청소기",
-  "음식물처리기",
-  "안마의자",
-  "매트리스",
-  "타이어",
-  "인터넷",
-]);
-
-const CAT_TABLE_ROWS: {
-  large: string;
-  largeSpan: number;
-  cat: string | null;
-}[] = [
-  { large: "정수기", largeSpan: 1, cat: "정수기" },
-  { large: "크로스셀", largeSpan: 2, cat: "공기청정기" },
-  { large: "", largeSpan: 0, cat: "비데" },
-  { large: "성장성 카테고리", largeSpan: 10, cat: "TV" },
-  { large: "", largeSpan: 0, cat: "세탁기+건조기" },
-  { large: "", largeSpan: 0, cat: "에어컨" },
-  { large: "", largeSpan: 0, cat: "냉장고" },
-  { large: "", largeSpan: 0, cat: "로봇청소기" },
-  { large: "", largeSpan: 0, cat: "무선청소기" },
-  { large: "", largeSpan: 0, cat: "음식물처리기" },
-  { large: "", largeSpan: 0, cat: "안마의자" },
-  { large: "", largeSpan: 0, cat: "매트리스" },
-  { large: "", largeSpan: 0, cat: "타이어" },
-  { large: "인터넷", largeSpan: 1, cat: "인터넷" },
-  { large: "그외 카테고리", largeSpan: 1, cat: null },
-];
-
-// CAT_TABLE_ROWS를 대카테고리 단위로 묶은 그룹 (월별 대카테고리 그래프용)
-const LARGE_CATEGORY_GROUPS: { large: string; cats: (string | null)[] }[] = [];
-for (const row of CAT_TABLE_ROWS) {
-  if (row.large) {
-    LARGE_CATEGORY_GROUPS.push({ large: row.large, cats: [row.cat] });
-  } else {
-    LARGE_CATEGORY_GROUPS[LARGE_CATEGORY_GROUPS.length - 1].cats.push(row.cat);
-  }
-}
-
-// dataviz 검증된 카테고리 팔레트 (라이트 서페이스, 5색 인접쌍 CVD 통과)
-const LARGE_CATEGORY_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"];
 
 export default async function Home({
   searchParams,
@@ -430,9 +395,15 @@ export default async function Home({
     Record<"BM1" | "BM2" | "BM3", number>
   >(); // "YYYY-MM" → BM → count
   const monthRcMap = new Map<string, Map<string, number>>(); // "YYYY-MM" → rental_company → count
+  const monthMarginMap = new Map<string, BmValue>(); // "YYYY-MM" → BM → 공헌이익 합계
+  const weekCatMap = new Map<number, Map<string, number>>(); // weekIdx → cat → count
+  const weekBmMap = new Map<number, Record<"BM1" | "BM2" | "BM3", number>>(); // weekIdx → BM → count
+  const weekRcMap = new Map<number, Map<string, number>>(); // weekIdx → rental_company → count
+  const weekMarginMap = new Map<number, BmValue>(); // weekIdx → BM → 공헌이익 합계
 
   for (const r of catRaw) {
     const m = r.contract_date.slice(0, 7); // "YYYY-MM"
+    const w = getWeekIndex(r.contract_date);
     const cat = KNOWN_CATS.has(r.category ?? "")
       ? (r.category as string)
       : "그 외";
@@ -443,15 +414,29 @@ export default async function Home({
     if (!monthCatMap.has(m)) monthCatMap.set(m, new Map());
     const catMm = monthCatMap.get(m)!;
     catMm.set(cat, (catMm.get(cat) ?? 0) + 1);
+    if (!weekCatMap.has(w)) weekCatMap.set(w, new Map());
+    const catWm = weekCatMap.get(w)!;
+    catWm.set(cat, (catWm.get(cat) ?? 0) + 1);
 
     // BM
     if (!monthBmMap.has(m)) monthBmMap.set(m, { BM1: 0, BM2: 0, BM3: 0 });
     monthBmMap.get(m)![bm]++;
+    if (!weekBmMap.has(w)) weekBmMap.set(w, { BM1: 0, BM2: 0, BM3: 0 });
+    weekBmMap.get(w)![bm]++;
+
+    // 공헌이익
+    if (!monthMarginMap.has(m)) monthMarginMap.set(m, { BM1: 0, BM2: 0, BM3: 0 });
+    monthMarginMap.get(m)![bm] += r.contribution_margin ?? 0;
+    if (!weekMarginMap.has(w)) weekMarginMap.set(w, { BM1: 0, BM2: 0, BM3: 0 });
+    weekMarginMap.get(w)![bm] += r.contribution_margin ?? 0;
 
     // 렌탈사
     if (!monthRcMap.has(m)) monthRcMap.set(m, new Map());
     const rcMm = monthRcMap.get(m)!;
     rcMm.set(rc, (rcMm.get(rc) ?? 0) + 1);
+    if (!weekRcMap.has(w)) weekRcMap.set(w, new Map());
+    const rcWm = weekRcMap.get(w)!;
+    rcWm.set(rc, (rcWm.get(rc) ?? 0) + 1);
   }
 
   const months = Array.from(monthCatMap.keys()).sort((a, b) =>
@@ -460,49 +445,135 @@ export default async function Home({
   const visibleMonths = hideOld2025
     ? months.filter((m) => !m.startsWith("2025"))
     : months;
+  const bmMarginMonths = months.filter((m) => m.startsWith("2026")); // BM 수익성 분석은 항상 26년 데이터만
 
   function monthLabel(ym: string): string {
     return `${ym.slice(2, 4)}.${ym.slice(5, 7)}`; // "2025-07" → "25.07"
   }
 
-  function getCatCount(m: string, cat: string | null): number {
-    const mm = monthCatMap.get(m);
-    if (!mm) return 0;
-    if (cat === null) return mm.get("그 외") ?? 0;
-    return mm.get(cat) ?? 0;
+  function periodTotal(m: Map<string, number> | undefined): number {
+    if (!m) return 0;
+    return Array.from(m.values()).reduce((s, v) => s + v, 0);
   }
 
-  function getMonthTotal(m: string): number {
-    const mm = monthCatMap.get(m);
-    if (!mm) return 0;
-    return Array.from(mm.values()).reduce((s, v) => s + v, 0);
-  }
+  function buildMarginDerived(
+    periodKeys: string[], // 배열 순서: index 0이 가장 최근, 인덱스가 커질수록 과거
+    amount: Record<string, BmValue>,
+    amountTotal: Record<string, number>,
+    counts: Record<string, BmValue>,
+    countTotals: Record<string, number>,
+  ): {
+    perTx: Record<string, BmValueNullable>;
+    perTxTotal: Record<string, number | null>;
+    change: Record<string, BmValueNullable>;
+    changeTotal: Record<string, number | null>;
+  } {
+    const perTx: Record<string, BmValueNullable> = {};
+    const perTxTotal: Record<string, number | null> = {};
+    const change: Record<string, BmValueNullable> = {};
+    const changeTotal: Record<string, number | null> = {};
 
-  function buildCategoryChartData(year: string) {
-    return months
-      .filter((m) => m.startsWith(year))
-      .sort((a, b) => a.localeCompare(b))
-      .map((m) => {
-        const point: CategoryMonthPoint = {
-          month: `${Number(m.slice(5, 7))}월`,
+    periodKeys.forEach((key, i) => {
+      const bmAmount = amount[key];
+      const bmCount = counts[key];
+      perTx[key] = {
+        BM1: bmCount.BM1 > 0 ? bmAmount.BM1 / bmCount.BM1 : null,
+        BM2: bmCount.BM2 > 0 ? bmAmount.BM2 / bmCount.BM2 : null,
+        BM3: bmCount.BM3 > 0 ? bmAmount.BM3 / bmCount.BM3 : null,
+      };
+      perTxTotal[key] =
+        countTotals[key] > 0 ? amountTotal[key] / countTotals[key] : null;
+
+      const prevKey = periodKeys[i + 1];
+      if (i === 0 || prevKey === undefined) {
+        change[key] = { BM1: null, BM2: null, BM3: null };
+        changeTotal[key] = null;
+      } else {
+        const prevAmount = amount[prevKey];
+        change[key] = {
+          BM1: pct(bmAmount.BM1, prevAmount.BM1),
+          BM2: pct(bmAmount.BM2, prevAmount.BM2),
+          BM3: pct(bmAmount.BM3, prevAmount.BM3),
         };
-        for (const group of LARGE_CATEGORY_GROUPS) {
-          point[group.large] = group.cats.reduce(
-            (s, cat) => s + getCatCount(m, cat),
-            0,
-          );
-        }
-        return point;
-      });
+        changeTotal[key] = pct(amountTotal[key], amountTotal[prevKey]);
+      }
+    });
+
+    return { perTx, perTxTotal, change, changeTotal };
+  }
+
+  const monthlyColumns: PeriodColumn[] = visibleMonths.map((m) => ({
+    key: m,
+    label: monthLabel(m),
+  }));
+  const catCountsByMonth = Object.fromEntries(
+    visibleMonths.map((m) => [
+      m,
+      Object.fromEntries(monthCatMap.get(m) ?? new Map()),
+    ]),
+  );
+  const rcCountsByMonth = Object.fromEntries(
+    visibleMonths.map((m) => [
+      m,
+      Object.fromEntries(monthRcMap.get(m) ?? new Map()),
+    ]),
+  );
+  const totalsByMonth = Object.fromEntries(
+    visibleMonths.map((m) => [m, periodTotal(monthCatMap.get(m))]),
+  );
+  const bmCountsByMonth = Object.fromEntries(
+    visibleMonths.map((m) => [
+      m,
+      monthBmMap.get(m) ?? { BM1: 0, BM2: 0, BM3: 0 },
+    ]),
+  );
+  const bmMarginMonthlyColumns: PeriodColumn[] = bmMarginMonths.map((m) => ({
+    key: m,
+    label: monthLabel(m),
+  }));
+  const amountByMonth: Record<string, BmValue> = Object.fromEntries(
+    bmMarginMonths.map((m) => [
+      m,
+      monthMarginMap.get(m) ?? { BM1: 0, BM2: 0, BM3: 0 },
+    ]),
+  );
+  const amountTotalByMonth: Record<string, number> = Object.fromEntries(
+    bmMarginMonths.map((m) => {
+      const v = amountByMonth[m];
+      return [m, v.BM1 + v.BM2 + v.BM3];
+    }),
+  );
+  const monthlyMarginData: MarginPeriodData = {
+    columns: bmMarginMonthlyColumns,
+    amount: amountByMonth,
+    amountTotal: amountTotalByMonth,
+    ...buildMarginDerived(
+      bmMarginMonths,
+      amountByMonth,
+      amountTotalByMonth,
+      bmCountsByMonth,
+      totalsByMonth,
+    ),
+  };
+
+  function buildCategoryPoint(
+    label: string,
+    catMap: Map<string, number> | undefined,
+  ): CategoryMonthPoint {
+    const point: CategoryMonthPoint = { month: label };
+    for (const group of LARGE_CATEGORY_GROUPS) {
+      point[group.large] = group.cats.reduce(
+        (s, cat) => s + (catMap?.get(cat === null ? "그 외" : cat) ?? 0),
+        0,
+      );
+    }
+    return point;
   }
 
   const categoryChartSeries = LARGE_CATEGORY_GROUPS.map((g, i) => ({
     key: g.large,
     color: LARGE_CATEGORY_COLORS[i % LARGE_CATEGORY_COLORS.length],
   }));
-  const categoryChart2026 = buildCategoryChartData("2026");
-  const categoryChart2025 = buildCategoryChartData("2025");
-
   // 정수기는 스케일이 커서 별도 그래프로, 나머지 대카테고리는 별도 그래프로 분리
   const waterCategorySeries = categoryChartSeries.filter(
     (s) => s.key === "정수기",
@@ -510,21 +581,90 @@ export default async function Home({
   const categoryGraphSeries = categoryChartSeries.filter(
     (s) => s.key !== "정수기",
   );
-  const categoryChartMax = Math.max(
-    0,
-    ...[...categoryChart2026, ...categoryChart2025].flatMap((point) =>
-      categoryGraphSeries.map((s) => Number(point[s.key]) || 0),
-    ),
+
+  function buildMonthlyChart(year: string): CategoryMonthPoint[] {
+    return months
+      .filter((m) => m.startsWith(year))
+      .sort((a, b) => a.localeCompare(b))
+      .map((m) =>
+        buildCategoryPoint(`${Number(m.slice(5, 7))}월`, monthCatMap.get(m)),
+      );
+  }
+  const categoryChart2026 = buildMonthlyChart("2026");
+  const categoryChart2025 = buildMonthlyChart("2025");
+
+  function chartYDomain(points: CategoryMonthPoint[]): [number, number] {
+    const max = Math.max(
+      0,
+      ...points.flatMap((point) =>
+        categoryGraphSeries.map((s) => Number(point[s.key]) || 0),
+      ),
+    );
+    return [0, max];
+  }
+  const categoryChartYDomainMonthly = chartYDomain([
+    ...categoryChart2026,
+    ...categoryChart2025,
+  ]);
+
+  const WEEKS_LIMIT = 12;
+  const weekIndices = Array.from(weekCatMap.keys())
+    .sort((a, b) => b - a) // 최근 주 먼저
+    .slice(0, WEEKS_LIMIT); // 항상 최근 12주만 (그 이전 날짜는 getWeekIndex가 0으로 클램프하므로 여기서 경계를 넘지 않도록 자른다)
+  const weeklyColumns: PeriodColumn[] = weekIndices.map((idx) => ({
+    key: String(idx),
+    label: getWeekLabel(idx).range,
+  }));
+  const catCountsByWeek = Object.fromEntries(
+    weekIndices.map((idx) => [
+      String(idx),
+      Object.fromEntries(weekCatMap.get(idx) ?? new Map()),
+    ]),
   );
-  const categoryChartYDomain: [number, number] = [0, categoryChartMax];
+  const rcCountsByWeek = Object.fromEntries(
+    weekIndices.map((idx) => [
+      String(idx),
+      Object.fromEntries(weekRcMap.get(idx) ?? new Map()),
+    ]),
+  );
+  const totalsByWeek = Object.fromEntries(
+    weekIndices.map((idx) => [String(idx), periodTotal(weekCatMap.get(idx))]),
+  );
+  const bmCountsByWeek = Object.fromEntries(
+    weekIndices.map((idx) => [
+      String(idx),
+      weekBmMap.get(idx) ?? { BM1: 0, BM2: 0, BM3: 0 },
+    ]),
+  );
+  const amountByWeek: Record<string, BmValue> = Object.fromEntries(
+    weekIndices.map((idx) => [
+      String(idx),
+      weekMarginMap.get(idx) ?? { BM1: 0, BM2: 0, BM3: 0 },
+    ]),
+  );
+  const amountTotalByWeek: Record<string, number> = Object.fromEntries(
+    weekIndices.map((idx) => {
+      const v = amountByWeek[String(idx)];
+      return [String(idx), v.BM1 + v.BM2 + v.BM3];
+    }),
+  );
+  const weeklyMarginData: MarginPeriodData = {
+    columns: weeklyColumns,
+    amount: amountByWeek,
+    amountTotal: amountTotalByWeek,
+    ...buildMarginDerived(
+      weekIndices.map(String),
+      amountByWeek,
+      amountTotalByWeek,
+      bmCountsByWeek,
+      totalsByWeek,
+    ),
+  };
 
-  function getBmCount(m: string, bm: "BM1" | "BM2" | "BM3"): number {
-    return monthBmMap.get(m)?.[bm] ?? 0;
-  }
-
-  function getRcCount(m: string, dbName: string): number {
-    return monthRcMap.get(m)?.get(dbName) ?? 0;
-  }
+  const weeklyChart: CategoryMonthPoint[] = [...weekIndices]
+    .sort((a, b) => a - b)
+    .map((idx) => buildCategoryPoint(getWeekLabel(idx).range, weekCatMap.get(idx)));
+  const categoryChartYDomainWeekly = chartYDomain(weeklyChart);
 
   return (
     <div className="px-12 pt-5 pb-8 space-y-8">
@@ -756,216 +896,30 @@ export default async function Home({
       </div>
 
       {/* ── Section 2 ── */}
-      <div className="space-y-6">
-        <div className="flex items-center gap-2">
-          <h2 className="text-base font-semibold text-gray-700">2. 거래건수</h2>
-          <TransactionYearToggle hidden={hideOld2025} />
-        </div>
-
-        {/* 2-1. 카테고리 거래건수 */}
-        <div>
-          <h3 className="text-sm font-semibold text-gray-500 mb-2">
-            2-1. 카테고리 거래건수
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            {[
-              { year: "26", data: categoryChart2026 },
-              { year: "25", data: categoryChart2025 },
-            ].map(({ year, data }) => (
-              <div key={year} className="space-y-3">
-                <CategoryMonthlyChart
-                  title={`${year}년 정수기 거래건수`}
-                  data={data}
-                  series={waterCategorySeries}
-                />
-                <CategoryMonthlyChart
-                  title={`${year}년 대카테고리별 거래건수 (정수기 제외)`}
-                  data={data}
-                  series={categoryGraphSeries}
-                  yDomain={categoryChartYDomain}
-                />
-              </div>
-            ))}
-          </div>
-          <div className="rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
-            <table className="text-sm bg-white border-collapse w-full">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[120px] sticky left-0 bg-white z-10 border-r border-gray-100">
-                    대카테고리
-                  </th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[130px] border-r border-gray-100">
-                    상품 카테고리
-                  </th>
-                  {visibleMonths.map((m) => (
-                    <th
-                      key={m}
-                      className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[90px] cell-highlight"
-                    >
-                      {monthLabel(m)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {CAT_TABLE_ROWS.map((row) => (
-                  <tr
-                    key={row.cat ?? "그 외"}
-                    className="border-t border-gray-50"
-                  >
-                    {row.largeSpan > 0 && (
-                      <td
-                        rowSpan={row.largeSpan}
-                        className="px-4 py-3 text-xs font-semibold text-gray-500 text-center sticky left-0 bg-white border-r border-gray-100 align-middle"
-                      >
-                        {row.large}
-                      </td>
-                    )}
-                    <td className="px-4 py-3 text-xs text-gray-600 text-center border-r border-gray-100">
-                      {row.cat ?? "그 외"}
-                    </td>
-                    {visibleMonths.map((m) => (
-                      <td
-                        key={m}
-                        className="px-4 py-3 text-center text-gray-800 cell-highlight"
-                      >
-                        {getCatCount(m, row.cat) > 0 ? (
-                          fmt(getCatCount(m, row.cat))
-                        ) : (
-                          <span className="text-gray-200">-</span>
-                        )}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-                <tr className="border-t-2 border-gray-200">
-                  <td
-                    colSpan={2}
-                    className="px-4 py-3 text-xs font-semibold text-gray-400 text-center sticky left-0 bg-white border-r border-gray-100"
-                  >
-                    전체
-                  </td>
-                  {visibleMonths.map((m) => (
-                    <td
-                      key={m}
-                      className="px-4 py-3 text-center font-semibold text-gray-800 cell-highlight"
-                    >
-                      {fmt(getMonthTotal(m))}
-                    </td>
-                  ))}
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* 2-2. BM별 거래건수 */}
-        <div>
-          <h3 className="text-sm font-semibold text-gray-500 mb-2">
-            2-2. BM별 거래건수
-          </h3>
-          <div className="rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
-            <table className="text-sm bg-white border-collapse w-full">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[100px] sticky left-0 bg-white z-10 border-r border-gray-100">
-                    BM
-                  </th>
-                  {visibleMonths.map((m) => (
-                    <th
-                      key={m}
-                      className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[90px] cell-highlight"
-                    >
-                      {monthLabel(m)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {(["BM1", "BM2", "BM3"] as const).map((bm) => (
-                  <tr key={bm} className="border-t border-gray-50">
-                    <td className="px-4 py-3 text-xs font-semibold text-gray-600 text-center sticky left-0 bg-white border-r border-gray-100">
-                      {bm}
-                    </td>
-                    {visibleMonths.map((m) => (
-                      <td
-                        key={m}
-                        className="px-4 py-3 text-center text-gray-800 cell-highlight"
-                      >
-                        {getBmCount(m, bm) > 0 ? (
-                          fmt(getBmCount(m, bm))
-                        ) : (
-                          <span className="text-gray-200">-</span>
-                        )}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-                <tr className="border-t-2 border-gray-200">
-                  <td className="px-4 py-3 text-xs font-semibold text-gray-400 text-center sticky left-0 bg-white border-r border-gray-100">
-                    전체
-                  </td>
-                  {visibleMonths.map((m) => (
-                    <td
-                      key={m}
-                      className="px-4 py-3 text-center font-semibold text-gray-800 cell-highlight"
-                    >
-                      {fmt(getMonthTotal(m))}
-                    </td>
-                  ))}
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* 2-3. 주요 렌탈사별 거래건수 */}
-        <div>
-          <h3 className="text-sm font-semibold text-gray-500 mb-2">
-            2-3. 주요 렌탈사별 거래건수
-          </h3>
-          <div className="rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
-            <table className="text-sm bg-white border-collapse w-full">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[160px] sticky left-0 bg-white z-10 border-r border-gray-100">
-                    렌탈사
-                  </th>
-                  {visibleMonths.map((m) => (
-                    <th
-                      key={m}
-                      className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[90px] cell-highlight"
-                    >
-                      {monthLabel(m)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {MAIN_RENTAL_COMPANIES.map((rc) => (
-                  <tr key={rc.dbName} className="border-t border-gray-50">
-                    <td className="px-4 py-3 text-xs font-semibold text-gray-600 text-center sticky left-0 bg-white border-r border-gray-100">
-                      {rc.label}
-                    </td>
-                    {visibleMonths.map((m) => (
-                      <td
-                        key={m}
-                        className="px-4 py-3 text-center text-gray-800 cell-highlight"
-                      >
-                        {getRcCount(m, rc.dbName) > 0 ? (
-                          fmt(getRcCount(m, rc.dbName))
-                        ) : (
-                          <span className="text-gray-200">-</span>
-                        )}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+      <TransactionCountSection
+        hideOld2025={hideOld2025}
+        monthly={{
+          columns: monthlyColumns,
+          catCounts: catCountsByMonth,
+          bmCounts: bmCountsByMonth,
+          rcCounts: rcCountsByMonth,
+          totals: totalsByMonth,
+          chart2026: categoryChart2026,
+          chart2025: categoryChart2025,
+        }}
+        weekly={{
+          columns: weeklyColumns,
+          catCounts: catCountsByWeek,
+          bmCounts: bmCountsByWeek,
+          rcCounts: rcCountsByWeek,
+          totals: totalsByWeek,
+          chart: weeklyChart,
+        }}
+        waterSeries={waterCategorySeries}
+        categorySeries={categoryGraphSeries}
+        categoryChartYDomainMonthly={categoryChartYDomainMonthly}
+        categoryChartYDomainWeekly={categoryChartYDomainWeekly}
+      />
 
       {/* ── Section 3: BM 수익성 ── */}
       <details className="group">
@@ -976,7 +930,9 @@ export default async function Home({
         <div className="mt-3 grid grid-cols-3 gap-4">
           {/* 카드 1: BM별 공헌이익률 */}
           <div className="rounded-xl shadow-sm border border-gray-100 bg-white p-5">
-            <h3 className="text-sm font-semibold text-gray-700 mb-4">BM별 공헌이익률</h3>
+            <h3 className="text-sm font-semibold text-gray-700 mb-4">
+              BM별 공헌이익률 <span className="text-xs font-normal text-gray-400">(당월 기준)</span>
+            </h3>
             <div className="space-y-3">
               {(["BM1", "BM2", "BM3", "total"] as const).map((bm) => {
                 const s = currSalesTotal[bm];
@@ -1000,7 +956,9 @@ export default async function Home({
 
           {/* 카드 2: BM별 대손율 */}
           <div className="rounded-xl shadow-sm border border-gray-100 bg-white p-5">
-            <h3 className="text-sm font-semibold text-gray-700 mb-4">BM별 대손율</h3>
+            <h3 className="text-sm font-semibold text-gray-700 mb-4">
+              BM별 대손율 <span className="text-xs font-normal text-gray-400">(당월 기준)</span>
+            </h3>
             <div className="space-y-3">
               {(["BM1", "BM2", "BM3", "total"] as const).map((bm) => {
                 const s = currSalesTotal[bm];
@@ -1026,7 +984,9 @@ export default async function Home({
 
           {/* 카드 3: BM별 인센티브 효율 */}
           <div className="rounded-xl shadow-sm border border-gray-100 bg-white p-5">
-            <h3 className="text-sm font-semibold text-gray-700 mb-4">BM별 인센티브 효율</h3>
+            <h3 className="text-sm font-semibold text-gray-700 mb-4">
+              BM별 인센티브 효율 <span className="text-xs font-normal text-gray-400">(당월 기준)</span>
+            </h3>
             <div className="space-y-3">
               {(["BM1", "BM2", "BM3", "total"] as const).map((bm) => {
                 const s = currSalesTotal[bm];
@@ -1047,6 +1007,14 @@ export default async function Home({
               })}
             </div>
           </div>
+
+        </div>
+
+        <div className="mt-4">
+          <BmMarginSection
+            monthly={monthlyMarginData}
+            weekly={weeklyMarginData}
+          />
         </div>
       </details>
     </div>
