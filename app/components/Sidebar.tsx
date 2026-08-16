@@ -113,6 +113,12 @@ export default function Sidebar() {
 
               {isOpen && (
                 <div className="mt-1 pl-2">
+                  {/* 그룹 요약 — 개별 렌탈사보다 상위 개념이라 목록 맨 위 */}
+                  <NavItem
+                    href={`/group/${section.group}`}
+                    label="그룹 요약"
+                    active={pathname === `/group/${section.group}`}
+                  />
                   {section.items.map((item) => (
                     <NavItem
                       key={item.href}
@@ -138,6 +144,13 @@ export default function Sidebar() {
           href="/category-trends"
           label="카테고리 트렌드"
           active={pathname === "/category-trends"}
+        />
+        {/* 카테고리 상세는 페이지 내 탭으로 카테고리를 바꾸므로
+            사이드바에는 최대 카테고리 하나만 진입점으로 둔다 */}
+        <NavItem
+          href="/category/정수기"
+          label="카테고리 상세"
+          active={pathname.startsWith("/category/")}
         />
         <NavItem
           href="/brand-analysis"
