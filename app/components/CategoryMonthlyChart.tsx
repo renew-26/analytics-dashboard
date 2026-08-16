@@ -67,12 +67,14 @@ function CustomTooltip({
 
 export default function CategoryMonthlyChart({
   title,
+  subtitle,
   data,
   series,
   yDomain,
   unit = "건",
 }: {
   title: string;
+  subtitle?: string;
   data: CategoryMonthPoint[];
   series: CategorySeries[];
   yDomain?: [number, number];
@@ -82,7 +84,13 @@ export default function CategoryMonthlyChart({
 
   return (
     <div className="rounded-xl shadow-sm border border-gray-100 bg-white p-4">
-      <h4 className="text-sm font-semibold text-gray-600 mb-2">{title}</h4>
+      <h4 className="text-sm font-semibold text-gray-600">{title}</h4>
+      {subtitle && (
+        <p className="mt-0.5 mb-2 text-[11px] text-[var(--color-gray-400)]">
+          {subtitle}
+        </p>
+      )}
+      {!subtitle && <div className="mb-2" />}
       <ResponsiveContainer width="100%" height={260}>
         <LineChart data={data} margin={{ left: 8, right: 16, top: 8, bottom: 0 }}>
           <CartesianGrid
