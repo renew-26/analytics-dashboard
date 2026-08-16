@@ -21,6 +21,22 @@
   --color-warning-100: #fee2e2;
   --color-error: #e03131;
 
+  /* 심각도 — 방향색(up/down)과 분리한다.
+     대손율처럼 "오르면 나쁜" 지표에 방향색을 쓰면 거짓말이 되므로,
+     좋고 나쁨은 이 심각도색 + 텍스트 라벨로만 표현한다. */
+  --color-sev-warn: #d97706;
+  --color-sev-warn-100: #fef3c7;
+  --color-sev-crit: #dc2626;
+  --color-sev-crit-100: #fee2e2;
+
+  /* 카테고리 팔레트 — 계열형 지표(카테고리·BM 구분)에만 사용.
+     흰 배경 기준 대비 검증을 통과한 5색. 순서대로 쓴다. */
+  --color-cat-1: #2a78d6;
+  --color-cat-2: #eb6834;
+  --color-cat-3: #1baf7a;
+  --color-cat-4: #eda100;
+  --color-cat-5: #e87ba4;
+
   /* Accent */
   --color-accent-purple: #9747ff;
   --color-accent-yellow: #ffd600;
@@ -43,6 +59,10 @@
   --color-gray-100: #f3f5f9;
   --color-gray-50: #f6f6f6;
   --color-gray-25: #f9fafb;
+
+  /* 페이지 바탕 / 소프트 구분선 — 카드(흰색)를 띄우기 위한 한 단계 낮은 면 */
+  --color-page: #f6f7f9;
+  --color-line-2: #eef0f4;
 
   /* Legacy aliases (기존 컴포넌트 호환) */
   --color-primary-light: var(--color-primary-50);
@@ -86,6 +106,8 @@
   --font-sans:
     "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
     "Apple SD Gothic Neo", system-ui, sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
 
   --color-brand: var(--color-primary);
   --color-brand-light: var(--color-primary-light);
@@ -112,4 +134,13 @@ body {
     "Segoe UI",
     Arial,
     sans-serif;
+  /* 한글은 어절 단위로만 끊는다 — 기본값은 단어 중간에서 잘린다 */
+  word-break: keep-all;
+  line-break: strict;
+}
+
+/* 숫자를 세로로 정렬해 자릿수 비교가 가능하게 한다.
+   표·KPI·차트 라벨 등 값이 나열되는 모든 곳에 붙인다. */
+.num {
+  font-variant-numeric: tabular-nums;
 }

@@ -1,134 +1,158 @@
 ## Overview
 
-렌트리(Rentree) 대시보드 디자인 시스템. Figma 디자인 토큰 기반의 인디고 프라이머리 컬러 체계를 사용한다. 인디고 계열의 강한 프라이머리 색상과 쿨그레이 중성 팔레트를 결합해 신뢰감 있는 B2B 분석 툴의 인상을 만든다.
+렌트리(Rentree) 애널리틱스 디자인 시스템. 내부 분석 도구이므로 **숫자가 주인공이고 UI는 배경**이다. 채도 높은 색을 넓게 쓰지 않고, 색은 의미를 나를 때만 쓴다.
 
-**폰트:** Pretendard Variable (한국어 최적화 Variable 폰트)  
-**기하:** 버튼 8px, 카드 12px 라운딩 — 절제된 비즈니스 UI
+**폰트:** Pretendard Variable (한국어 최적화 Variable 폰트)
+**기하:** 버튼 8px, 카드 12px 라운딩
+**기준면:** 페이지는 회색(`--color-page`), 카드는 흰색. 카드가 바탕 위에 떠 있는 구조.
+
+정의 위치는 `app/globals.css`이며, 이 문서는 그 토큰의 **용법**을 규정한다. 색을 새로 만들지 말고 여기 있는 것만 쓴다.
 
 ## Colors
 
 ### Primary — Indigo
-- **Primary** (`--primary` — #3531FF): 핵심 CTA, 활성 상태, 강조 인터랙션
-- **Primary-700** (`--primary-700` — #2C28DC): 호버·프레스 상태
-- **Primary-500** (`--primary-500` — #5D7CF9): 중간 강조, 아이콘 액센트
-- **Primary-400** (`--primary-400` — #6E81FF): 소프트 강조
-- **Primary-200** (`--primary-200` — #A9B1FF): 배지 배경, 라이트 인디케이터
-- **Primary-100** (`--primary-100` — #DBE5FF): 인터랙티브 요소 배경 tint
-- **Primary-50** (`--primary-50` — #EDF2FF): 섹션 배경 tint, 테이블 하이라이트
+브랜드·활성 상태·링크에만 쓴다. 넓은 면적에 칠하지 않는다.
 
-### Semantic
-- **Warning** (`--warning` — #F90000): 에러, 삭제 확인 등 고위험 액션
-- **Warning-500** (`--warning-500` — #FF5252): 소프트 경고
-- **Warning-100** (`--warning-100` — #FFE0E0): 경고 배경 tint
-- **Success** (`--success` — #1EA85E): 성공, 긍정 지표, 증가 트렌드
-- **Success-100** (`--success-100` — #DFF7EA): 성공 배경 tint
+- **Primary** (`--color-primary` — #4338CA): 핵심 CTA, 활성 내비, 강조 인터랙션
+- **Primary-700** (`--color-primary-700` — #3730A3): 호버·프레스
+- **Primary-500** (`--color-primary-500` — #6366F1): 중간 강조, 아이콘 액센트
+- **Primary-400** (`--color-primary-400` — #818CF8): 소프트 강조
+- **Primary-200** (`--color-primary-200` — #A5B4FC): 배지 보더
+- **Primary-100** (`--color-primary-100` — #C7D2FE): 인터랙티브 배경 tint
+- **Primary-50** (`--color-primary-50` — #EEF2FF): 섹션 tint, 활성 내비 배경, 테이블 하이라이트
 
-### Accent
-- **Accent Purple** (`--accent-purple` — #9747FF): 보조 강조 색상
-- **Accent Yellow** (`--accent-yellow` — #FFD600): 주의 배지, 포인트 하이라이트
-- **Accent Orange** (`--accent-orange` — #FF7700): 감소 트렌드, 중간 경고
+### 방향색 — 변화량 전용 (한국 증시 컨벤션)
+**증감에만 쓴다.** 값 자체의 좋고 나쁨에는 절대 쓰지 않는다.
+
+- **Up** (`--color-up` — #E03131): 증가 / **Up-100** (`--color-up-100` — #FEE2E2)
+- **Down** (`--color-down` — #2563EB): 감소 / **Down-100** (`--color-down-100` — #DBEAFE)
+- 변화가 미미할 때(±1.5% 이내)는 방향색 대신 `--color-gray-400` + `—` 표기
+
+### 심각도 — 좋고 나쁨 전용
+방향색과 **반드시 분리한다.** 대손율처럼 "오르면 나쁜" 지표에 방향색을 쓰면 빨강이 상승과 위험을 동시에 뜻하게 되어 거짓말이 된다.
+
+- **Sev-Warn** (`--color-sev-warn` — #D97706): 주의 임계 / **-100** (#FEF3C7)
+- **Sev-Crit** (`--color-sev-crit` — #DC2626): 경고선 초과 / **-100** (#FEE2E2)
+- **색 단독으로 의미를 전달하지 않는다.** 항상 텍스트 라벨(`주의`/`이상`/`경고선 5% 초과`)을 함께 붙인다.
+
+### 카테고리 팔레트 — 계열 구분 전용
+카테고리·BM처럼 **순서에 의미가 없는 분류**에만 쓴다. 흰 배경 대비 검증을 통과한 5색이며 **순서대로** 사용한다.
+
+- `--color-cat-1` #2A78D6 · `--color-cat-2` #EB6834 · `--color-cat-3` #1BAF7A · `--color-cat-4` #EDA100 · `--color-cat-5` #E87BA4
+- 계열이 6개를 넘으면 색을 늘리지 말고 **상위 5개 + "그 외"** 로 묶는다.
+
+### Semantic (보조)
+- **Success** (`--color-success` — #1EA85E) / **-100** (#DFF7EA): 달성·완료 상태
+- **Warning** (`--color-warning` — #E03131) / **-100** (#FEE2E2): 에러·삭제 확인
+- **Accent Purple / Yellow / Orange**: 레거시. 신규 화면에서는 쓰지 않는다.
 
 ### Gray Scale
-- **Gray-950** (`--gray-950` — #161616): 최고 강조 텍스트
-- **Gray-900** (`--gray-900` — #222222): 프라이머리 텍스트, 바디
-- **Gray-850** (`--gray-850` — #262624): 섹션 타이틀
-- **Gray-800** (`--gray-800` — #2C2C2C): 강조 바디
-- **Gray-700** (`--gray-700` — #393939): 세컨더리 타이틀
-- **Gray-600** (`--gray-600` — #586177): 세컨더리 텍스트
-- **Gray-500** (`--gray-500` — #788093): 서브 텍스트, 플레이스홀더
-- **Gray-400** (`--gray-400` — #A1A5AC): 뮤트 레이블
-- **Gray-350** (`--gray-350` — #A9B1C3): 비활성 아이콘
-- **Gray-300** (`--gray-300` — #BABAB7): 구분선 (진한)
-- **Gray-250** (`--gray-250` — #CBD2E3): 구분선
-- **Gray-200** (`--gray-200` — #E2E6EC): 보더, 1px 구분선
-- **Gray-150** (`--gray-150` — #EBEBE9): 소프트 구분선
-- **Gray-100** (`--gray-100` — #F3F5F9): 섹션 배경, 테이블 행 배경
-- **Gray-50** (`--gray-50` — #F6F6F6): 페이지 배경
-- **Gray-25** (`--gray-25` — #F9FAFB): 가장 밝은 배경
-- **White** (`--white` — #FFFFFF): 카드, 패널 배경
+| Token | Hex | Use |
+|---|---|---|
+| `--color-gray-950` | #161616 | 최고 강조 |
+| `--color-gray-900` | #222222 | **프라이머리 텍스트** |
+| `--color-gray-700` | #393939 | 세컨더리 타이틀 |
+| `--color-gray-600` | #586177 | **세컨더리 텍스트** |
+| `--color-gray-500` | #788093 | 서브 텍스트, 플레이스홀더 |
+| `--color-gray-400` | #A1A5AC | **뮤트 레이블**, 축 라벨 |
+| `--color-gray-250` | #CBD2E3 | 구분선 (강조) |
+| `--color-gray-200` | #E2E6EC | **기본 보더** |
+| `--color-line-2` | #EEF0F4 | **소프트 구분선** (표 행 사이, 차트 격자) |
+| `--color-gray-100` | #F3F5F9 | 섹션 배경, 칩 배경 |
+| `--color-gray-25` | #F9FAFB | 가장 밝은 면 |
+| `--color-page` | #F6F7F9 | **페이지 바탕** |
+| `#FFFFFF` | | 카드·패널 |
 
 ## Typography
 
-### Font Family
-**Pretendard Variable** (primary): 한국어 최적화 가변 폰트. Fallbacks: Pretendard, -apple-system, BlinkMacSystemFont, system-ui, 'Apple SD Gothic Neo', sans-serif.
+**Pretendard Variable** (fallback: Pretendard, -apple-system, system-ui, 'Apple SD Gothic Neo', sans-serif)
+숫자·경로 표기는 `--font-mono` (ui-monospace, SF Mono, Menlo).
 
-### Hierarchy
-
-| Token | Size | Weight | Line Height | Letter Spacing | Use |
-|---|---|---|---|---|---|
-| `.t-title32` | 32px | 700 | 40px | -0.6px | 페이지 타이틀 |
-| `.t-title28` | 28px | 700 | 36px | -0.5px | 섹션 오프너 |
-| `.t-title24` | 24px | 700 | 32px | -0.4px | 카드 헤딩 |
-| `.t-title20` | 20px | 700 | 26px | -0.3px | 서브 헤딩 |
-| `.t-title18` | 18px | 700 | 24px | -0.3px | 패널 타이틀 |
-| `.t-title16` | 16px | 700 | 22px | -0.2px | 강조 레이블 |
-| `.t-title14` | 14px | 700 | 20px | -0.2px | 테이블 헤더 |
-| `.t-title12` | 12px | 700 | 16px | -0.1px | 배지 레이블 |
-| `.t-body16` | 16px | 500 | 22px | -0.2px | 프라이머리 바디 |
-| `.t-body14` | 14px | 500 | 20px | -0.2px | 세컨더리 바디 |
-| `.t-body12` | 12px | 500 | 16px | -0.1px | 캡션 바디 |
-| `.t-caption12` | 12px | 400 | 16px | 0 | 뮤트 캡션 (gray-500) |
-| `.t-caption10` | 10px | 500 | 14px | 0 | 초소형 레이블 (gray-500) |
+| Role | Size | Weight | Use |
+|---|---|---|---|
+| 페이지 타이틀 | 17px | 800 | 상단바 h1 |
+| 섹션 헤딩 | 15px | 800 | 계층 구분 |
+| 패널 타이틀 | 13.5px | 800 | 카드·패널 헤더 |
+| 리드 문장 | 19px | 700 | 자동 생성 요약문 |
+| KPI 값 | 23px | 800 | 히어로 타일 |
+| 카드 대표값 | 27px | 800 | 렌탈사 카드 |
+| 본문 | 12.5px | 500 | 설명, 표 셀 |
+| 캡션 | 11px | 500 | 보조 설명 |
+| 마이크로 라벨 | 10px | 700 | 축 라벨, 태그 |
 
 ### Principles
-- 모든 타이틀에 네거티브 letter-spacing (-0.1px ~ -0.6px)
-- 700 weight for 타이틀, 500 for 바디/버튼, 400 for 뮤트 캡션
-- 한국어 가독성을 위한 넉넉한 line-height
+- 타이틀에 네거티브 letter-spacing (-0.2px ~ -1px). 값이 클수록 크게 준다.
+- **숫자에는 반드시 `.num`** (`font-variant-numeric: tabular-nums`) — 자릿수가 세로로 맞아야 비교가 된다.
+- 한글은 `word-break: keep-all` (body에 전역 적용) — 어절 중간에서 끊지 않는다.
+- 단위는 값보다 작고 흐리게 (`<i>건</i>` 12px/gray-500).
 
 ## Layout
 
-### Spacing System
-- **Base unit**: 2px
-- **Tokens**: `--s-2` (2px), `--s-4` (4px), `--s-6` (6px), `--s-8` (8px), `--s-10` (10px), `--s-12` (12px), `--s-16` (16px), `--s-20` (20px), `--s-24` (24px), `--s-28` (28px), `--s-32` (32px), `--s-40` (40px), `--s-48` (48px), `--s-56` (56px), `--s-64` (64px)
+- **Base unit**: 2px. 실사용 스케일 4 / 6 / 8 / 11 / 13 / 16 / 18 / 22 / 26px
+- 사이드바(216px) + 콘텐츠 2-column
+- 콘텐츠 패딩 22px 28px, 섹션 간격 26px
+- 카드 내부 패딩 14~17px, 패널 헤더 14px 17px 11px
 
-### Grid & Container
-- 사이드바 + 콘텐츠 2-column 레이아웃
-- 콘텐츠 영역 max-width 제한 없음 (full-width 테이블 우선)
-- 섹션 내 패딩: 24px (모바일 16px)
-
-## Elevation & Depth
-
-| Level | Value | Use |
-|---|---|---|
-| `--sh-soft` | `0 2px 8px 0 rgba(0,0,0,0.06)` | 기본 카드, 드롭다운 |
-| `--sh-card` | `0 4px 16px 0 rgba(142,142,142,0.30)` | 팝업 카드, 모달 |
-| `--sh-pop` | `0 8px 24px 0 rgba(30,30,60,0.18)` | 플로팅 패널, 툴팁 |
-
-## Shapes
-
-### Border Radius Scale
+## Elevation
 
 | Token | Value | Use |
 |---|---|---|
-| `--r-2` | 2px | 인디케이터 점 |
-| `--r-4` | 4px | 태그 칩, 배지 |
+| `--sh-soft` | `0 2px 8px rgba(0,0,0,.06)` | 드롭다운 |
+| 카드 기본 | `0 1px 2px rgba(28,35,56,.04), 0 2px 8px rgba(28,35,56,.05)` | **카드·패널 기본** |
+| 카드 호버 | `0 2px 4px rgba(67,56,202,.06), 0 8px 20px rgba(67,56,202,.10)` | 클릭 가능한 카드 |
+| `--sh-pop` | `0 8px 24px rgba(30,30,60,.18)` | 툴팁, 토스트 |
+
+그림자는 **깊이 2단계까지만**. 카드 위의 카드는 만들지 않는다.
+
+## Shapes
+
+| Token | Value | Use |
+|---|---|---|
+| `--r-4` | 4px | 태그, 배지, 차트 막대 |
 | `--r-6` | 6px | 소형 버튼 |
-| `--r-8` | 8px | **버튼, 인풋** |
+| `--r-8` | 8px | **버튼, 인풋, 표 컨테이너** |
 | `--r-12` | 12px | **카드, 패널** |
-| `--r-16` | 16px | 대형 카드 |
-| `--r-20` | 20px | 바텀시트, 모달 |
-| `--r-full` | 9999px | 상태 배지, 필 탭 |
+| `--r-full` | 9999px | 상태 pill, 필터 칩 |
+
+## Data Visualization
+
+- **축 하나 원칙**: 자릿수가 다른 계열을 같은 축에 놓지 않는다 (정수기 vs 그 외 카테고리는 차트를 분리).
+- 축이 0에서 시작하지 않으면 **밑동을 명시**한다 (`4,200↓` 같은 표기).
+- 격자선은 `--color-line-2`, 축 라벨은 `--color-gray-400`. 격자가 데이터보다 진하면 안 된다.
+- 값 라벨은 항목이 10개 이하일 때 **직접 라벨**을 우선한다 (범례 왕복 제거).
+- 진행 중인 마지막 데이터 점은 **속을 비운 원**으로 표시한다.
+- 툴팁은 색 스와치 + 값 + 비교값 순.
+
+## Interaction
+
+- **목적지를 숨기지 않는다**: 클릭 가능한 요소에는 이동 경로를 `--font-mono`로 병기한다 (`/company/코웨이`).
+- 필터가 걸린 채로 도착해야 하는 링크는 쿼리 파라미터까지 노출한다 (`?bm=BM3`).
+- 호버 트랜지션 0.12s. `prefers-reduced-motion: reduce`에서는 transform 제거.
+- 포커스 링: `2px solid var(--color-primary)`, offset 2px.
 
 ## Do's and Don'ts
 
 ### Do
-- `--primary` (#3531FF)를 핵심 CTA에만 사용
-- 버튼에 `--r-8` (8px), 카드에 `--r-12` (12px) 적용
-- 테이블 증가 지표에 `--success`, 감소 지표에 `--accent-orange` 사용
-- 텍스트 계층: 타이틀 `--gray-900`, 서브 `--gray-600`, 뮤트 `--gray-500`
-- 보더는 `--gray-200` 기본, 강조 보더는 `--gray-300`
+- 방향색은 **변화량에만**, 심각도색은 **좋고 나쁨에만**
+- 심각도색에는 **항상 텍스트 라벨**을 함께
+- 모든 숫자에 `.num`
+- 판정 기준은 **자기 과거 대비**(최근 3개월 같은 기간 평균)로 — 목표치 입력 없이 성립하게
+- 보더는 `--color-gray-200`, 표 행 구분은 `--color-line-2`
 
 ### Don't
-- `--primary`를 배경 대면적에 사용하지 않기
-- 순수 블랙(#000) 텍스트 사용 금지 — `--gray-900` (#222222) 사용
-- `--warning` (#F90000)을 일반 UI 강조에 사용하지 않기 (에러·삭제 전용)
+- `--color-primary`를 넓은 배경에 칠하지 않기
+- 순수 블랙(#000) 금지 — `--color-gray-900` 사용
+- 대손율·이탈률 등 "오르면 나쁜" 지표에 방향색 쓰지 않기
+- 색만으로 상태 전달하지 않기 (색맹 접근성)
+- 카테고리 팔레트를 순서·크기 지표에 쓰지 않기
 - 인라인 하드코딩 색상 대신 CSS 변수 사용
 
-## Responsive Behavior
+## Responsive
 
-### Breakpoints
 | Name | Width | Key Changes |
 |---|---|---|
 | Mobile | < 768px | 사이드바 숨김, 단일 컬럼 |
-| Tablet | 768 – 1023px | 사이드바 축소, 2-column |
-| Desktop | ≥ 1024px | 풀 사이드바 + 콘텐츠 영역 |
+| Tablet | 768–1079px | 히어로/패널 2단 → 1단 |
+| Desktop | ≥ 1080px | 풀 2-column, 히어로 좌우 분할 |
+
+넓은 표는 페이지가 아니라 **표 자체가 가로 스크롤**한다 (`overflow-x: auto`, 첫 열 sticky).
