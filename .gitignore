@@ -32,8 +32,7 @@ next-env.d.ts
 
 # claude code — machine-specific / generated (keep settings.json, CLAUDE.md)
 .claude/*
-.omc/*
-.arc/*
-
-/docs/.arc/*
-/docs/.omc/*
+# 슬래시가 들어간 패턴(.omc/*)은 루트에만 걸린다.
+# 하위 디렉터리에도 생기므로(docs/.omc 등) 디렉터리명만으로 매칭시킨다.
+.omc/
+.arc/
