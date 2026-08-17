@@ -231,5 +231,6 @@ WHERE
   )
 ORDER BY
   p.CONFIRMED_TS DESC
-LIMIT
-  { { row_limit } }
+-- SQL 포매터가 {{ }} 안에 공백을 넣으면 Redash가 파라미터로 인식하지 못하고
+-- MySQL 문법 오류가 난다. 이 줄은 한 줄로 유지할 것.
+LIMIT {{ row_limit }}
