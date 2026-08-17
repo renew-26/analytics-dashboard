@@ -33,3 +33,6 @@ next-env.d.ts
 # claude code — machine-specific / generated (keep settings.json, CLAUDE.md)
 .claude/*
 .omc/*
+
+/docs/.arc/*
+/docs/.omc/*
