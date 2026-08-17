@@ -10,6 +10,7 @@ import Sparkline from "@/app/components/home/Sparkline";
 import Waterfall from "@/app/components/home/Waterfall";
 import BMMixBar from "@/app/components/home/BMMixBar";
 import CompanyCards from "@/app/components/home/CompanyCards";
+import CategoryCards from "@/app/components/home/CategoryCards";
 
 export const dynamic = "force-dynamic";
 
@@ -128,6 +129,8 @@ type YearContractRow = {
   partner_company: string | null;
   rental_company: string | null;
   total_rental_fee: number | null;
+  /** 카테고리 카드의 12개월 매출 추이·평소 페이스에 쓴다 */
+  sales: number | null;
 };
 
 async function fetchAllYearContracts(
@@ -141,7 +144,7 @@ async function fetchAllYearContracts(
     const { data, error } = await supabase
       .from("raw_contracts")
       .select(
-        "contract_date, category, partner_company, rental_company, total_rental_fee",
+        "contract_date, category, partner_company, rental_company, total_rental_fee, sales",
       )
       .gte("contract_date", yearStart)
       .lte("contract_date", end)
@@ -657,6 +660,118 @@ export default async function Home({
   const visibleCards = companyCards.filter((c) => c.curr > 0 || c.prev > 0);
   const cardGroups = CARD_GROUP_ORDER.filter((g) =>
     visibleCards.some((c) => c.group === g),
+  );
+
+  // ── 카테고리 카드 ──────────────────────────────────────
+  //  워터폴이 멈추는 대카테고리(성장성 −121건)에서 한 단계 더 내려간다.
+  //  대표값은 매출이다 — 건수는 이미 워터폴이 카테고리 축으로 답하고 있고,
+  //  "건수는 그대로인데 단가가 빠진" 경우를 건수만으로는 못 잡는다.
+  const catKeyOf = (r: { category: string | null }) =>
+    KNOWN_CATS.has(r.category ?? "") ? (r.category as string) : "그 외";
+
+  // 상품 카테고리 × 월 매출 — 1~dayCut일 창 (스파크라인·평소 페이스 공용)
+  const catSalesWindow = new Map<string, Map<string, number>>();
+  for (const r of catRaw) {
+    if (Number(r.contract_date.slice(8, 10)) > dayCut) continue;
+    const key = catKeyOf(r);
+    const ym = r.contract_date.slice(0, 7);
+    if (!catSalesWindow.has(key)) catSalesWindow.set(key, new Map());
+    const wm = catSalesWindow.get(key)!;
+    wm.set(ym, (wm.get(ym) ?? 0) + (r.sales ?? 0));
+  }
+
+  type CatAcc = {
+    count: number;
+    sales: number;
+    amount: number;
+    margin: number;
+    companies: Map<string, number>;
+  };
+  const emptyAcc = (): CatAcc => ({
+    count: 0,
+    sales: 0,
+    amount: 0,
+    margin: 0,
+    companies: new Map(),
+  });
+  // 주력 렌탈사는 카드와 같은 정의를 쓴다 — dbName만으로 나누면 LG 하나가
+  // 'LG_가전'과 'LG_가전구독' 양쪽에 섞인다.
+  const companyLabelOf = (r: ContractRow) =>
+    CARD_DEFS.find((d) => matchesCompany(d, r))?.label ??
+    r.rental_company ??
+    "-";
+
+  function accumulateByCat(rows: ContractRow[], withCompanies: boolean) {
+    const acc = new Map<string, CatAcc>();
+    for (const r of rows) {
+      const key = catKeyOf(r);
+      if (!acc.has(key)) acc.set(key, emptyAcc());
+      const a = acc.get(key)!;
+      a.count += 1;
+      a.sales += r.sales ?? 0;
+      a.amount += r.total_rental_fee ?? 0;
+      a.margin += r.contribution_margin ?? 0;
+      if (withCompanies) {
+        const label = companyLabelOf(r);
+        a.companies.set(label, (a.companies.get(label) ?? 0) + 1);
+      }
+    }
+    return acc;
+  }
+  const catCurrAcc = accumulateByCat(currContracts, true);
+  const catPrevAcc = accumulateByCat(prevContracts, false);
+
+  // 카드 목록·순서는 CAT_TABLE_ROWS를 단일 소스로 삼는다 (null = 그 외)
+  const CATEGORY_KEYS = CAT_TABLE_ROWS.map((row) => row.cat ?? "그 외");
+
+  const categoryCards = CATEGORY_KEYS.map((key) => {
+    const c = catCurrAcc.get(key) ?? emptyAcc();
+    const p = catPrevAcc.get(key) ?? emptyAcc();
+
+    const paceVals = recentYms
+      .slice(-4, -1)
+      .map((ym) => (catSalesWindow.get(key)?.get(ym) ?? 0) / EOK);
+    const pace = paceVals.length
+      ? paceVals.reduce((s, v) => s + v, 0) / paceVals.length
+      : 0;
+
+    const topCompany = Array.from(c.companies.entries()).sort(
+      (a, b) => b[1] - a[1],
+    )[0];
+
+    return {
+      label: key,
+      group: largeGroupOf(key === "그 외" ? null : key),
+      sales: c.sales / EOK,
+      salesPrev: p.sales / EOK,
+      pace,
+      count: c.count,
+      countPrev: p.count,
+      amount: c.amount / EOK,
+      cpu: perDeal(c.margin, c.count),
+      topCompany: topCompany?.[0] ?? "-",
+      topShare: rate(topCompany?.[1] ?? 0, c.count),
+      rank: 0,
+      prevRank: 0,
+      spark: recentYms.map(
+        (ym) => (catSalesWindow.get(key)?.get(ym) ?? 0) / EOK,
+      ),
+    };
+  });
+  // 순위는 이번 달·전월 각각의 매출 기준
+  [...categoryCards]
+    .sort((a, b) => b.sales - a.sales)
+    .forEach((c, i) => (c.rank = i + 1));
+  [...categoryCards]
+    .sort((a, b) => b.salesPrev - a.salesPrev)
+    .forEach((c, i) => (c.prevRank = i + 1));
+
+  // 이번 달·전월 모두 거래가 없는 카테고리는 카드로 세우지 않는다
+  const visibleCatCards = categoryCards.filter(
+    (c) => c.count > 0 || c.countPrev > 0,
+  );
+  const catCardGroups = LARGE_CATEGORY_GROUPS.map((g) => g.large).filter((g) =>
+    visibleCatCards.some((c) => c.group === g),
   );
 
   // ── 주의 신호 ──────────────────────────────────────────
@@ -1272,6 +1387,19 @@ export default async function Home({
           </span>
         </div>
         <CompanyCards companies={visibleCards} groups={cardGroups} />
+      </section>
+
+      {/* ═══ 계층 3b — 카테고리 한 달 요약 카드 ════════════ */}
+      <section>
+        <div className="mb-[11px] flex flex-wrap items-baseline gap-2.5">
+          <h2 className="text-[15px] font-extrabold tracking-[-.3px]">
+            카테고리 요약
+          </h2>
+          <span className="text-[12px] text-[var(--color-gray-500)]">
+            매출이 어느 상품에서 빠졌는지 · 물량 탓인지 단가 탓인지까지
+          </span>
+        </div>
+        <CategoryCards categories={visibleCatCards} groups={catCardGroups} />
       </section>
 
       {/* ═══ 계층 4 — 원본 격자는 버리지 않고 접는다 ══════ */}
