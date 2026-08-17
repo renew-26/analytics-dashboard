@@ -3,6 +3,20 @@
 import { useState } from "react";
 import Link from "next/link";
 import Sparkline from "./Sparkline";
+import {
+  CARD_GRID,
+  CARD_SHELL,
+  CAT_COLORS,
+  STATE_PILL,
+  TAG,
+  deltaArrow,
+  deltaColor,
+  filterChip,
+  judgePace,
+  paceColor,
+  paceFraction,
+  stateStyle,
+} from "./cardKit";
 
 export type CompanyCard = {
   label: string;
@@ -26,52 +40,6 @@ export type CompanyCard = {
   /** 상위 5개 카테고리 비중 */
   heat: number[];
 };
-
-const CAT_COLORS = [
-  "var(--color-cat-1)",
-  "var(--color-cat-2)",
-  "var(--color-cat-3)",
-  "var(--color-cat-4)",
-  "var(--color-cat-5)",
-];
-
-/** 자기 과거 대비 판정 — 렌탈사별 목표를 새로 입력받지 않아도 성립한다 */
-function judge(c: CompanyCard) {
-  const idx = c.pace > 0 ? (c.curr / c.pace) * 100 : 100;
-  if (idx >= 110) return { cls: "s-hot", text: "호조", idx };
-  if (idx >= 90) return { cls: "s-ok", text: "정상", idx };
-  if (idx >= 80) return { cls: "s-warn", text: "주의", idx };
-  return { cls: "s-crit", text: "이상", idx };
-}
-
-function stateStyle(cls: string) {
-  switch (cls) {
-    case "s-hot":
-      return { color: "var(--color-up)", background: "var(--color-up-100)" };
-    case "s-warn":
-      return {
-        color: "var(--color-sev-warn)",
-        background: "var(--color-sev-warn-100)",
-      };
-    case "s-crit":
-      return {
-        color: "var(--color-sev-crit)",
-        background: "var(--color-sev-crit-100)",
-      };
-    default:
-      return {
-        color: "var(--color-gray-600)",
-        background: "var(--color-gray-100)",
-      };
-  }
-}
-
-function paceColor(idx: number) {
-  if (idx >= 110) return "var(--color-up)";
-  if (idx >= 90) return "var(--color-gray-600)";
-  if (idx >= 80) return "var(--color-sev-warn)";
-  return "var(--color-sev-crit)";
-}
 
 const SORTS = [
   { key: "change", label: "변화폭 큰 순" },
@@ -104,12 +72,7 @@ export default function CompanyCards({
       return db - da;
     });
 
-  const chip = (active: boolean) =>
-    `rounded-full border px-3 py-[5px] text-[11.5px] font-semibold transition-colors ${
-      active
-        ? "border-[var(--color-gray-900)] bg-[var(--color-gray-900)] text-white"
-        : "border-[var(--color-gray-200)] bg-white text-[var(--color-gray-600)] hover:border-[var(--color-gray-400)] hover:text-[var(--color-gray-900)]"
-    }`;
+  const chip = filterChip;
 
   return (
     <>
@@ -153,28 +116,22 @@ export default function CompanyCards({
         ))}
       </div>
 
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(272px,1fr))] gap-[13px]">
+      <div className={CARD_GRID}>
         {list.map((c) => {
-          const st = judge(c);
+          const st = judgePace(c.curr, c.pace);
           const chg = c.prev > 0 ? (c.curr / c.prev - 1) * 100 : 0;
-          const dirCol =
-            chg > 1.5
-              ? "var(--color-up)"
-              : chg < -1.5
-                ? "var(--color-down)"
-                : "var(--color-gray-400)";
-          const arrow = chg > 1.5 ? "▲" : chg < -1.5 ? "▼" : "—";
+          const dirCol = deltaColor(chg);
+          const arrow = deltaArrow(chg);
           const rankMove = c.prevRank - c.rank;
           const heatSum = c.heat.reduce((a, b) => a + b, 0) || 1;
-          const paceFrac =
-            Math.max(0, Math.min(1.3, st.idx / 100)) / 1.3;
+          const paceFrac = paceFraction(st.idx);
 
           return (
             <Link
               key={c.label}
               href={`/company/${c.label}`}
               aria-label={`${c.label} ${c.curr.toLocaleString("ko-KR")}건, ${st.text}`}
-              className="group flex flex-col gap-[11px] rounded-[12px] border border-[var(--color-gray-200)] bg-white p-[14px_15px_12px] shadow-[0_1px_2px_rgba(28,35,56,.04),0_2px_8px_rgba(28,35,56,.05)] transition-[border-color,box-shadow,transform] duration-[120ms] hover:-translate-y-px hover:border-[var(--color-primary-500)] hover:shadow-[0_2px_4px_rgba(67,56,202,.06),0_8px_20px_rgba(67,56,202,.10)] motion-reduce:transform-none motion-reduce:transition-none"
+              className={CARD_SHELL}
             >
               <div className="flex items-start justify-between gap-[9px]">
                 <div>
@@ -182,12 +139,8 @@ export default function CompanyCards({
                     {c.label}
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-[5px]">
-                    <span className="rounded-[4px] bg-[var(--color-gray-100)] px-[5px] py-0.5 text-[9.5px] font-bold text-[var(--color-gray-500)]">
-                      {c.bm}
-                    </span>
-                    <span className="rounded-[4px] bg-[var(--color-gray-100)] px-[5px] py-0.5 text-[9.5px] font-bold text-[var(--color-gray-500)]">
-                      {c.group}
-                    </span>
+                    <span className={TAG}>{c.bm}</span>
+                    <span className={TAG}>{c.group}</span>
                     <span className="num rounded-[4px] bg-[var(--color-gray-100)] px-[5px] py-0.5 font-mono text-[9.5px] font-bold text-[var(--color-gray-500)]">
                       #{c.rank}
                       {rankMove !== 0 && (
@@ -209,10 +162,7 @@ export default function CompanyCards({
                   </div>
                 </div>
                 {/* 색 단독 금지 — 점 + 텍스트 병기 */}
-                <span
-                  className="inline-flex flex-none items-center gap-[5px] rounded-full px-[9px] py-[3px] text-[10.5px] font-extrabold whitespace-nowrap before:h-[5px] before:w-[5px] before:rounded-full before:bg-current before:content-['']"
-                  style={stateStyle(st.cls)}
-                >
+                <span className={STATE_PILL} style={stateStyle(st.cls)}>
                   {st.text}
                 </span>
               </div>
