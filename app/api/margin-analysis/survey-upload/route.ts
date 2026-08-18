@@ -33,7 +33,7 @@ async function fetchAllActiveProducts(category: string) {
   for (let page = 0; ; page++) {
     const { data, error } = await supabase
       .from("products")
-      .select("id, telecom, name, model_number, brand, contract_period")
+      .select("id, telecom, name, model_number, brand, contract_period, effective_subsidy")
       .eq("category", category)
       .eq("is_active", true)
       .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
@@ -143,19 +143,24 @@ export async function POST(req: NextRequest) {
     const marginEstimates: { partner_name: string; product_name: string; commission: number; marginRate: number; subsidy_estimated?: boolean }[] = [];
 
     const needsTpsProducts = Boolean(sheets["인터넷"] || sheets["유심"]);
-    const tpsProducts: TpsProductLookup[] = needsTpsProducts
-      ? (await fetchAllActiveProducts("tps"))
-          .filter(p => p.telecom && p.name)
-          .map(p => ({ id: p.id, telecom: p.telecom as string, name: p.name }))
-      : [];
+    const tpsProductsRaw = needsTpsProducts ? await fetchAllActiveProducts("tps") : [];
+    const tpsProducts: TpsProductLookup[] = tpsProductsRaw
+      .filter(p => p.telecom && p.name)
+      .map(p => ({ id: p.id, telecom: p.telecom as string, name: p.name }));
+    const tpsEffectiveSubsidyById = new Map(
+      tpsProductsRaw.map(p => [p.id, p.effective_subsidy as number | null])
+    );
 
     if (sheets["인터넷"]) {
       for (const entry of extractTpsSurveyRecords(sheets["인터넷"])) {
+        const { record, matched } = buildCompetitorRecordFromTps(entry, tpsProducts, entry.survey_year, entry.survey_month);
         if (entry.subsidy_missing) {
-          subsidyMissingOut.push({ ...entry, category: "tps" });
+          const rentreSubsidy = matched && record?.product_id
+            ? tpsEffectiveSubsidyById.get(record.product_id) ?? null
+            : null;
+          subsidyMissingOut.push({ ...entry, category: "tps", rentreSubsidy });
           continue;
         }
-        const { record, matched } = buildCompetitorRecordFromTps(entry, tpsProducts, entry.survey_year, entry.survey_month);
         if (matched && record) {
           records.push(record);
           const key = buildTpsIdentityKey({ telecom: tpsProducts.find(p => p.id === record.product_id)!.telecom, name: entry.model_name });
@@ -186,11 +191,14 @@ export async function POST(req: NextRequest) {
 
     if (sheets["유심"]) {
       for (const entry of extractTpsSurveyRecords(sheets["유심"])) {
+        const { record, matched } = buildCompetitorRecordFromTps(entry, tpsProducts, entry.survey_year, entry.survey_month);
         if (entry.subsidy_missing) {
-          subsidyMissingOut.push({ ...entry, category: "usim" });
+          const rentreSubsidy = matched && record?.product_id
+            ? tpsEffectiveSubsidyById.get(record.product_id) ?? null
+            : null;
+          subsidyMissingOut.push({ ...entry, category: "usim", rentreSubsidy });
           continue;
         }
-        const { record, matched } = buildCompetitorRecordFromTps(entry, tpsProducts, entry.survey_year, entry.survey_month);
         if (matched && record) {
           // 유심 결합 지원금은 별도 카테고리로 저장한다 — 같은 tps 상품이라도 인터넷 단독
           // 지원금과는 다른 조사 대상이라 하나로 평균내면 안 된다.
