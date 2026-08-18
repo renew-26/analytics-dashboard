@@ -225,12 +225,13 @@ export async function POST(req: NextRequest) {
       }));
 
       for (const entry of extractApplianceSurveyRecords(sheets["가전"])) {
-        if (entry.subsidy_missing) {
-          subsidyMissingOut.push({ ...entry, category: "appliance" });
-          continue;
-        }
         const row = { "모델명": entry.model_number, "파트너사": entry.partner_name, "브랜드명": entry.brand, "지원금": entry.subsidy, "제품 카테고리": "appliance", "계약기간": entry.contract_period };
         const { record, matched } = buildCompetitorRecordFromAppliance(row, applianceProducts, entry.survey_year, entry.survey_month);
+        if (entry.subsidy_missing) {
+          const snapshot = matched && record?.product_id ? applianceSnapshotLookup.get(record.product_id) : undefined;
+          subsidyMissingOut.push({ ...entry, category: "appliance", rentreSubsidy: snapshot?.doublecheckSubsidy ?? null });
+          continue;
+        }
         if (matched && record) {
           records.push(record);
           const snapshot = applianceSnapshotLookup.get(record.product_id!);
