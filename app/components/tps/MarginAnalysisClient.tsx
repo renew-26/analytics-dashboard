@@ -631,12 +631,25 @@ export function MarginAnalysisClient({
         <div className="bg-white rounded-xl border border-amber-200 px-5 py-3">
           <div className="text-xs font-medium text-amber-700 mb-2">지원금 미입력 항목 (자동 보정 불가 — 원본 시트 확인 필요)</div>
           <table className="w-full text-xs">
+            <thead>
+              <tr className="text-gray-400">
+                <td className="py-1.5 pr-3">카테고리</td>
+                <td className="py-1.5 pr-3">파트너사</td>
+                <td className="py-1.5 pr-3">모델명</td>
+                <td className="py-1.5 pr-3">렌트리 지원금</td>
+              </tr>
+            </thead>
             <tbody>
               {subsidyMissing.map((entry, i) => (
                 <tr key={i} className="border-b border-gray-50">
                   <td className="py-1.5 pr-3">{String(entry.category ?? '')}</td>
                   <td className="py-1.5 pr-3">{String(entry.partner_name ?? '')}</td>
                   <td className="py-1.5 pr-3">{String(entry.model_name ?? entry.model_number ?? '')}</td>
+                  <td className="py-1.5 pr-3">
+                    {entry.rentreSubsidy != null
+                      ? formatKRW(Number(entry.rentreSubsidy))
+                      : <span className="text-gray-400">렌트리 매칭 안 됨</span>}
+                  </td>
                 </tr>
               ))}
             </tbody>
