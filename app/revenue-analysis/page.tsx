@@ -1,5 +1,15 @@
 import { createClient } from "@supabase/supabase-js";
+import { getBM } from "@/lib/company-map";
 import { getWeekIndex, getWeekLabel } from "@/lib/week";
+import { type CategoryMonthPoint } from "@/app/components/CategoryMonthlyChart";
+import RevenueAmountSection, {
+  type PeriodColumn,
+} from "@/app/components/RevenueAmountSection";
+import {
+  KNOWN_CATS,
+  LARGE_CATEGORY_GROUPS,
+  LARGE_CATEGORY_COLORS,
+} from "@/app/components/transactionCategoryLayout";
 import RevenueAnalysisClient from "./RevenueAnalysisClient";
 
 export const dynamic = "force-dynamic";
@@ -61,6 +71,41 @@ async function fetchContracts(
       .gte("contract_date", start)
       .lte("contract_date", end)
       .order("contract_date", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error || !data || data.length === 0) break;
+    all.push(...data);
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  return all;
+}
+
+type BmKey = "BM1" | "BM2" | "BM3";
+type BmValue = Record<BmKey, number>;
+
+type YearContractRow = {
+  contract_date: string;
+  category: string | null;
+  partner_company: string | null;
+  rental_company: string | null;
+  sales: number | null;
+};
+
+async function fetchAllYearContracts(
+  yearStart: string,
+  end: string,
+): Promise<YearContractRow[]> {
+  const all: YearContractRow[] = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from("raw_contracts")
+      .select(
+        "contract_date, category, partner_company, rental_company, sales",
+      )
+      .gte("contract_date", yearStart)
+      .lte("contract_date", end)
+      .order("prop_item_usid", { ascending: true })
       .range(from, from + PAGE - 1);
     if (error || !data || data.length === 0) break;
     all.push(...data);
@@ -150,6 +195,8 @@ function topN(map: Map<string, number>, n: number): RankItem[] {
 }
 
 export default async function RevenueAnalysisPage() {
+  const yearStart = "2026-01-01";
+
   const today = new Date();
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
@@ -186,9 +233,10 @@ export default async function RevenueAnalysisPage() {
   const prevMonthStartStr = toLocalDateStr(prevMonthStart);
   const prevPeriodEndStr = toLocalDateStr(prevPeriodEnd);
 
-  const [orders, contracts] = await Promise.all([
+  const [orders, contracts, catRaw] = await Promise.all([
     fetchOrders(startStr, endStr),
     fetchContracts(startStr, endStr),
+    fetchAllYearContracts(yearStart, endStr),
   ]);
 
   const currOrders = orders.filter(
@@ -323,21 +371,214 @@ export default async function RevenueAnalysisPage() {
     })
     .sort((a, b) => b.orderRevenue - a.orderRevenue);
 
+  // ── 매출액 추이 (카테고리·BM·렌탈사별, 월별/주차별) ──
+  const monthCatMap = new Map<string, Map<string, number>>(); // "YYYY-MM" → cat → 매출액
+  const monthBmMap = new Map<string, BmValue>(); // "YYYY-MM" → BM → 매출액
+  const monthRcMap = new Map<string, Map<string, number>>(); // "YYYY-MM" → rental_company → 매출액
+  const weekCatMap = new Map<number, Map<string, number>>(); // weekIdx → cat → 매출액
+  const weekBmMap = new Map<number, BmValue>(); // weekIdx → BM → 매출액
+  const weekRcMap = new Map<number, Map<string, number>>(); // weekIdx → rental_company → 매출액
+
+  for (const r of catRaw) {
+    const amount = r.sales ?? 0;
+    const m = r.contract_date.slice(0, 7); // "YYYY-MM"
+    const w = getWeekIndex(r.contract_date);
+    const cat = KNOWN_CATS.has(r.category ?? "")
+      ? (r.category as string)
+      : "그 외";
+    const bm = getBM(r.partner_company);
+    const rc = r.rental_company ?? "";
+
+    // 카테고리
+    if (!monthCatMap.has(m)) monthCatMap.set(m, new Map());
+    const catMm = monthCatMap.get(m)!;
+    catMm.set(cat, (catMm.get(cat) ?? 0) + amount);
+    if (!weekCatMap.has(w)) weekCatMap.set(w, new Map());
+    const catWm = weekCatMap.get(w)!;
+    catWm.set(cat, (catWm.get(cat) ?? 0) + amount);
+
+    // BM
+    if (!monthBmMap.has(m)) monthBmMap.set(m, { BM1: 0, BM2: 0, BM3: 0 });
+    monthBmMap.get(m)![bm] += amount;
+    if (!weekBmMap.has(w)) weekBmMap.set(w, { BM1: 0, BM2: 0, BM3: 0 });
+    weekBmMap.get(w)![bm] += amount;
+
+    // 렌탈사
+    if (!monthRcMap.has(m)) monthRcMap.set(m, new Map());
+    const rcMm = monthRcMap.get(m)!;
+    rcMm.set(rc, (rcMm.get(rc) ?? 0) + amount);
+    if (!weekRcMap.has(w)) weekRcMap.set(w, new Map());
+    const rcWm = weekRcMap.get(w)!;
+    rcWm.set(rc, (rcWm.get(rc) ?? 0) + amount);
+  }
+
+  const revenueMonths = Array.from(monthCatMap.keys()).sort((a, b) =>
+    b.localeCompare(a),
+  ); // 최근 월 먼저 (26년 데이터만)
+
+  function monthLabel(ym: string): string {
+    return `${ym.slice(2, 4)}.${ym.slice(5, 7)}`; // "2026-07" → "26.07"
+  }
+
+  function periodTotal(m: Map<string, number> | undefined): number {
+    if (!m) return 0;
+    return Array.from(m.values()).reduce((s, v) => s + v, 0);
+  }
+
+  const revenueMonthlyColumns: PeriodColumn[] = revenueMonths.map((m) => ({
+    key: m,
+    label: monthLabel(m),
+  }));
+  const catAmountsByMonth = Object.fromEntries(
+    revenueMonths.map((m) => [
+      m,
+      Object.fromEntries(monthCatMap.get(m) ?? new Map()),
+    ]),
+  );
+  const rcAmountsByMonth = Object.fromEntries(
+    revenueMonths.map((m) => [
+      m,
+      Object.fromEntries(monthRcMap.get(m) ?? new Map()),
+    ]),
+  );
+  const totalsByMonth = Object.fromEntries(
+    revenueMonths.map((m) => [m, periodTotal(monthCatMap.get(m))]),
+  );
+  const bmAmountsByMonth = Object.fromEntries(
+    revenueMonths.map((m) => [
+      m,
+      monthBmMap.get(m) ?? { BM1: 0, BM2: 0, BM3: 0 },
+    ]),
+  );
+
+  function buildCategoryPoint(
+    label: string,
+    catMap: Map<string, number> | undefined,
+  ): CategoryMonthPoint {
+    const point: CategoryMonthPoint = { month: label };
+    for (const group of LARGE_CATEGORY_GROUPS) {
+      point[group.large] = group.cats.reduce(
+        (s, cat) => s + (catMap?.get(cat === null ? "그 외" : cat) ?? 0),
+        0,
+      );
+    }
+    return point;
+  }
+
+  const categoryChartSeries = LARGE_CATEGORY_GROUPS.map((g, i) => ({
+    key: g.large,
+    color: LARGE_CATEGORY_COLORS[i % LARGE_CATEGORY_COLORS.length],
+  }));
+  // 정수기는 스케일이 커서 별도 그래프로, 나머지 대카테고리는 별도 그래프로 분리
+  const waterCategorySeries = categoryChartSeries.filter(
+    (s) => s.key === "정수기",
+  );
+  const categoryGraphSeries = categoryChartSeries.filter(
+    (s) => s.key !== "정수기",
+  );
+
+  const categoryChartMonthly: CategoryMonthPoint[] = [...revenueMonths]
+    .sort((a, b) => a.localeCompare(b))
+    .map((m) =>
+      buildCategoryPoint(`${Number(m.slice(5, 7))}월`, monthCatMap.get(m)),
+    );
+
+  function chartYDomain(points: CategoryMonthPoint[]): [number, number] {
+    const max = Math.max(
+      0,
+      ...points.flatMap((point) =>
+        categoryGraphSeries.map((s) => Number(point[s.key]) || 0),
+      ),
+    );
+    return [0, max];
+  }
+  const categoryChartYDomainMonthly = chartYDomain(categoryChartMonthly);
+
+  const WEEKS_LIMIT = 12;
+  const weekIndices = Array.from(weekCatMap.keys())
+    .sort((a, b) => b - a) // 최근 주 먼저
+    .slice(0, WEEKS_LIMIT); // 항상 최근 12주만
+  const weeklyColumns: PeriodColumn[] = weekIndices.map((idx) => ({
+    key: String(idx),
+    label: getWeekLabel(idx).range,
+  }));
+  const catAmountsByWeek = Object.fromEntries(
+    weekIndices.map((idx) => [
+      String(idx),
+      Object.fromEntries(weekCatMap.get(idx) ?? new Map()),
+    ]),
+  );
+  const rcAmountsByWeek = Object.fromEntries(
+    weekIndices.map((idx) => [
+      String(idx),
+      Object.fromEntries(weekRcMap.get(idx) ?? new Map()),
+    ]),
+  );
+  const totalsByWeek = Object.fromEntries(
+    weekIndices.map((idx) => [String(idx), periodTotal(weekCatMap.get(idx))]),
+  );
+  const bmAmountsByWeek = Object.fromEntries(
+    weekIndices.map((idx) => [
+      String(idx),
+      weekBmMap.get(idx) ?? { BM1: 0, BM2: 0, BM3: 0 },
+    ]),
+  );
+
+  const weeklyChart: CategoryMonthPoint[] = [...weekIndices]
+    .sort((a, b) => a - b)
+    .map((idx) =>
+      buildCategoryPoint(getWeekLabel(idx).range, weekCatMap.get(idx)),
+    );
+  const categoryChartYDomainWeekly = chartYDomain(weeklyChart);
+
   return (
-    <div className="px-12 py-6 mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[#222222]">매출 분석</h1>
-        <p className="text-sm text-[#788093] mt-1">
-          주문확정 · 계약완료 기준 매출 리뷰 (전일까지 기준)
-        </p>
+    <div className="px-12 py-6 mx-auto space-y-8">
+      <div>
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-[#222222]">수수료 매출</h1>
+          <p className="text-sm text-[#788093] mt-1">
+            주문확정 · 계약완료 기준 매출 리뷰 (전일까지 기준)
+          </p>
+        </div>
+        <RevenueAnalysisClient
+          kpi={kpi}
+          dailyRevenue={dailyRevenue}
+          weeklyRevenue={weeklyRevenue}
+          top5={top5}
+          funnelCategories={funnelCategories}
+        />
       </div>
-      <RevenueAnalysisClient
-        kpi={kpi}
-        dailyRevenue={dailyRevenue}
-        weeklyRevenue={weeklyRevenue}
-        top5={top5}
-        funnelCategories={funnelCategories}
-      />
+
+      <div>
+        <div className="mb-4">
+          <h2 className="text-xl font-bold text-[#222222]">매출액 추이</h2>
+          <p className="text-sm text-[#788093] mt-1">
+            계약완료 기준 카테고리·BM·렌탈사별 매출액 추이 (전일까지 기준)
+          </p>
+        </div>
+        <RevenueAmountSection
+          monthly={{
+            columns: revenueMonthlyColumns,
+            catAmounts: catAmountsByMonth,
+            bmAmounts: bmAmountsByMonth,
+            rcAmounts: rcAmountsByMonth,
+            totals: totalsByMonth,
+            chart: categoryChartMonthly,
+          }}
+          weekly={{
+            columns: weeklyColumns,
+            catAmounts: catAmountsByWeek,
+            bmAmounts: bmAmountsByWeek,
+            rcAmounts: rcAmountsByWeek,
+            totals: totalsByWeek,
+            chart: weeklyChart,
+          }}
+          waterSeries={waterCategorySeries}
+          categorySeries={categoryGraphSeries}
+          categoryChartYDomainMonthly={categoryChartYDomainMonthly}
+          categoryChartYDomainWeekly={categoryChartYDomainWeekly}
+        />
+      </div>
     </div>
   );
 }

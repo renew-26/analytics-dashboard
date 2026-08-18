@@ -25,10 +25,12 @@ function CustomTooltip({
   active,
   payload,
   label,
+  unit,
 }: {
   active?: boolean;
   payload?: { value: number; name: string; color: string }[];
   label?: string;
+  unit: string;
 }) {
   if (!active || !payload?.length) return null;
   return (
@@ -54,7 +56,8 @@ function CustomTooltip({
         <div key={p.name} style={{ color: "var(--color-gray-600)" }}>
           {p.name}{" "}
           <span style={{ fontWeight: 600, color: p.color }}>
-            {p.value.toLocaleString("ko-KR")}건
+            {p.value.toLocaleString("ko-KR")}
+            {unit}
           </span>
         </div>
       ))}
@@ -67,11 +70,13 @@ export default function CategoryMonthlyChart({
   data,
   series,
   yDomain,
+  unit = "건",
 }: {
   title: string;
   data: CategoryMonthPoint[];
   series: CategorySeries[];
   yDomain?: [number, number];
+  unit?: string;
 }) {
   if (data.length === 0) return null;
 
@@ -98,7 +103,10 @@ export default function CategoryMonthlyChart({
             tickLine={false}
             width={44}
           />
-          <Tooltip content={<CustomTooltip />} cursor={{ stroke: "var(--color-gray-200)" }} />
+          <Tooltip
+            content={<CustomTooltip unit={unit} />}
+            cursor={{ stroke: "var(--color-gray-200)" }}
+          />
           <Legend wrapperStyle={{ fontSize: 12 }} />
           {series.map((s) => (
             <Line

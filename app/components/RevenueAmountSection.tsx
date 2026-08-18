@@ -5,34 +5,31 @@ import CategoryMonthlyChart, {
   type CategoryMonthPoint,
   type CategorySeries,
 } from "@/app/components/CategoryMonthlyChart";
-import TransactionYearToggle from "@/app/components/TransactionYearToggle";
 import { CAT_TABLE_ROWS } from "@/app/components/transactionCategoryLayout";
 import { MAIN_RENTAL_COMPANIES } from "@/lib/company-map";
 
 export type PeriodColumn = { key: string; label: string };
-type BmCounts = Record<"BM1" | "BM2" | "BM3", number>;
+type BmAmounts = Record<"BM1" | "BM2" | "BM3", number>;
 
 type MonthlyData = {
   columns: PeriodColumn[];
-  catCounts: Record<string, Record<string, number>>;
-  bmCounts: Record<string, BmCounts>;
-  rcCounts: Record<string, Record<string, number>>;
+  catAmounts: Record<string, Record<string, number>>;
+  bmAmounts: Record<string, BmAmounts>;
+  rcAmounts: Record<string, Record<string, number>>;
   totals: Record<string, number>;
-  chart2026: CategoryMonthPoint[];
-  chart2025: CategoryMonthPoint[];
+  chart: CategoryMonthPoint[];
 };
 
 type WeeklyData = {
   columns: PeriodColumn[];
-  catCounts: Record<string, Record<string, number>>;
-  bmCounts: Record<string, BmCounts>;
-  rcCounts: Record<string, Record<string, number>>;
+  catAmounts: Record<string, Record<string, number>>;
+  bmAmounts: Record<string, BmAmounts>;
+  rcAmounts: Record<string, Record<string, number>>;
   totals: Record<string, number>;
   chart: CategoryMonthPoint[];
 };
 
 type Props = {
-  hideOld2025: boolean;
   monthly: MonthlyData;
   weekly: WeeklyData;
   waterSeries: CategorySeries[];
@@ -45,8 +42,7 @@ function fmt(n: number) {
   return n.toLocaleString("ko-KR");
 }
 
-export default function TransactionCountSection({
-  hideOld2025,
+export default function RevenueAmountSection({
   monthly,
   weekly,
   waterSeries,
@@ -59,8 +55,7 @@ export default function TransactionCountSection({
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2">
-        <h2 className="text-base font-semibold text-gray-700">2. 거래건수</h2>
-        <div className="flex gap-0 ml-2 border-b border-gray-100">
+        <div className="flex gap-0 border-b border-gray-100">
           <TabButton
             label="주차별"
             active={tab === "weekly"}
@@ -72,63 +67,57 @@ export default function TransactionCountSection({
             onClick={() => setTab("monthly")}
           />
         </div>
-        {tab === "monthly" && <TransactionYearToggle hidden={hideOld2025} />}
       </div>
 
       {tab === "monthly" && (
         <>
-          {/* 2-1. 카테고리 거래건수 */}
+          {/* 카테고리별 매출액 */}
           <div>
             <h3 className="text-sm font-semibold text-gray-500 mb-2">
-              2-1. 카테고리 거래건수
+              카테고리별 매출액
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              {[
-                { year: "26", data: monthly.chart2026 },
-                { year: "25", data: monthly.chart2025 },
-              ].map(({ year, data }) => (
-                <div key={year} className="space-y-3">
-                  <CategoryMonthlyChart
-                    title={`${year}년 정수기 거래건수`}
-                    data={data}
-                    series={waterSeries}
-                  />
-                  <CategoryMonthlyChart
-                    title={`${year}년 대카테고리별 거래건수 (정수기 제외)`}
-                    data={data}
-                    series={categorySeries}
-                    yDomain={categoryChartYDomainMonthly}
-                  />
-                </div>
-              ))}
+              <CategoryMonthlyChart
+                title="정수기 매출액"
+                data={monthly.chart}
+                series={waterSeries}
+                unit=""
+              />
+              <CategoryMonthlyChart
+                title="대카테고리별 매출액 (정수기 제외)"
+                data={monthly.chart}
+                series={categorySeries}
+                yDomain={categoryChartYDomainMonthly}
+                unit=""
+              />
             </div>
-            <CategoryCountTable
+            <CategoryAmountTable
               columns={monthly.columns}
-              catCounts={monthly.catCounts}
+              catAmounts={monthly.catAmounts}
               totals={monthly.totals}
             />
           </div>
 
-          {/* 2-2. BM별 거래건수 */}
+          {/* BM별 매출액 */}
           <div>
             <h3 className="text-sm font-semibold text-gray-500 mb-2">
-              2-2. BM별 거래건수
+              BM별 매출액
             </h3>
-            <BmCountTable
+            <BmAmountTable
               columns={monthly.columns}
-              bmCounts={monthly.bmCounts}
+              bmAmounts={monthly.bmAmounts}
               totals={monthly.totals}
             />
           </div>
 
-          {/* 2-3. 주요 렌탈사별 거래건수 */}
+          {/* 주요 렌탈사별 매출액 */}
           <div>
             <h3 className="text-sm font-semibold text-gray-500 mb-2">
-              2-3. 주요 렌탈사별 거래건수
+              주요 렌탈사별 매출액
             </h3>
-            <RcCountTable
+            <RcAmountTable
               columns={monthly.columns}
-              rcCounts={monthly.rcCounts}
+              rcAmounts={monthly.rcAmounts}
             />
           </div>
         </>
@@ -136,51 +125,53 @@ export default function TransactionCountSection({
 
       {tab === "weekly" && (
         <>
-          {/* 2-1. 카테고리 거래건수 */}
+          {/* 카테고리별 매출액 */}
           <div>
             <h3 className="text-sm font-semibold text-gray-500 mb-2">
-              2-1. 카테고리 거래건수
+              카테고리별 매출액
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <CategoryMonthlyChart
-                title="정수기 거래건수 (주차별)"
+                title="정수기 매출액 (주차별)"
                 data={weekly.chart}
                 series={waterSeries}
+                unit=""
               />
               <CategoryMonthlyChart
-                title="대카테고리별 거래건수 (주차별, 정수기 제외)"
+                title="대카테고리별 매출액 (주차별, 정수기 제외)"
                 data={weekly.chart}
                 series={categorySeries}
                 yDomain={categoryChartYDomainWeekly}
+                unit=""
               />
             </div>
-            <CategoryCountTable
+            <CategoryAmountTable
               columns={weekly.columns}
-              catCounts={weekly.catCounts}
+              catAmounts={weekly.catAmounts}
               totals={weekly.totals}
             />
           </div>
 
-          {/* 2-2. BM별 거래건수 */}
+          {/* BM별 매출액 */}
           <div>
             <h3 className="text-sm font-semibold text-gray-500 mb-2">
-              2-2. BM별 거래건수
+              BM별 매출액
             </h3>
-            <BmCountTable
+            <BmAmountTable
               columns={weekly.columns}
-              bmCounts={weekly.bmCounts}
+              bmAmounts={weekly.bmAmounts}
               totals={weekly.totals}
             />
           </div>
 
-          {/* 2-3. 주요 렌탈사별 거래건수 */}
+          {/* 주요 렌탈사별 매출액 */}
           <div>
             <h3 className="text-sm font-semibold text-gray-500 mb-2">
-              2-3. 주요 렌탈사별 거래건수
+              주요 렌탈사별 매출액
             </h3>
-            <RcCountTable
+            <RcAmountTable
               columns={weekly.columns}
-              rcCounts={weekly.rcCounts}
+              rcAmounts={weekly.rcAmounts}
             />
           </div>
         </>
@@ -212,17 +203,17 @@ function TabButton({
   );
 }
 
-function CategoryCountTable({
+function CategoryAmountTable({
   columns,
-  catCounts,
+  catAmounts,
   totals,
 }: {
   columns: PeriodColumn[];
-  catCounts: Record<string, Record<string, number>>;
+  catAmounts: Record<string, Record<string, number>>;
   totals: Record<string, number>;
 }) {
-  function getCount(colKey: string, cat: string | null): number {
-    return catCounts[colKey]?.[cat === null ? "그 외" : cat] ?? 0;
+  function getAmount(colKey: string, cat: string | null): number {
+    return catAmounts[colKey]?.[cat === null ? "그 외" : cat] ?? 0;
   }
   return (
     <div className="rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
@@ -238,7 +229,7 @@ function CategoryCountTable({
             {columns.map((c) => (
               <th
                 key={c.key}
-                className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[90px] cell-highlight"
+                className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[110px] cell-highlight"
               >
                 {c.label}
               </th>
@@ -264,8 +255,8 @@ function CategoryCountTable({
                   key={c.key}
                   className="px-4 py-3 text-center text-gray-800 cell-highlight"
                 >
-                  {getCount(c.key, row.cat) > 0 ? (
-                    fmt(getCount(c.key, row.cat))
+                  {getAmount(c.key, row.cat) > 0 ? (
+                    fmt(getAmount(c.key, row.cat))
                   ) : (
                     <span className="text-gray-200">-</span>
                   )}
@@ -295,17 +286,17 @@ function CategoryCountTable({
   );
 }
 
-function BmCountTable({
+function BmAmountTable({
   columns,
-  bmCounts,
+  bmAmounts,
   totals,
 }: {
   columns: PeriodColumn[];
-  bmCounts: Record<string, BmCounts>;
+  bmAmounts: Record<string, BmAmounts>;
   totals: Record<string, number>;
 }) {
-  function getCount(colKey: string, bm: "BM1" | "BM2" | "BM3"): number {
-    return bmCounts[colKey]?.[bm] ?? 0;
+  function getAmount(colKey: string, bm: "BM1" | "BM2" | "BM3"): number {
+    return bmAmounts[colKey]?.[bm] ?? 0;
   }
   return (
     <div className="rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
@@ -318,7 +309,7 @@ function BmCountTable({
             {columns.map((c) => (
               <th
                 key={c.key}
-                className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[90px] cell-highlight"
+                className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[110px] cell-highlight"
               >
                 {c.label}
               </th>
@@ -336,8 +327,8 @@ function BmCountTable({
                   key={c.key}
                   className="px-4 py-3 text-center text-gray-800 cell-highlight"
                 >
-                  {getCount(c.key, bm) > 0 ? (
-                    fmt(getCount(c.key, bm))
+                  {getAmount(c.key, bm) > 0 ? (
+                    fmt(getAmount(c.key, bm))
                   ) : (
                     <span className="text-gray-200">-</span>
                   )}
@@ -364,15 +355,15 @@ function BmCountTable({
   );
 }
 
-function RcCountTable({
+function RcAmountTable({
   columns,
-  rcCounts,
+  rcAmounts,
 }: {
   columns: PeriodColumn[];
-  rcCounts: Record<string, Record<string, number>>;
+  rcAmounts: Record<string, Record<string, number>>;
 }) {
-  function getCount(colKey: string, dbName: string): number {
-    return rcCounts[colKey]?.[dbName] ?? 0;
+  function getAmount(colKey: string, dbName: string): number {
+    return rcAmounts[colKey]?.[dbName] ?? 0;
   }
   return (
     <div className="rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
@@ -385,7 +376,7 @@ function RcCountTable({
             {columns.map((c) => (
               <th
                 key={c.key}
-                className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[90px] cell-highlight"
+                className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[110px] cell-highlight"
               >
                 {c.label}
               </th>
@@ -403,8 +394,8 @@ function RcCountTable({
                   key={c.key}
                   className="px-4 py-3 text-center text-gray-800 cell-highlight"
                 >
-                  {getCount(c.key, rc.dbName) > 0 ? (
-                    fmt(getCount(c.key, rc.dbName))
+                  {getAmount(c.key, rc.dbName) > 0 ? (
+                    fmt(getAmount(c.key, rc.dbName))
                   ) : (
                     <span className="text-gray-200">-</span>
                   )}
