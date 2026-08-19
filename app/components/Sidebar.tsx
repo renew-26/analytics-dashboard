@@ -69,8 +69,13 @@ export default function Sidebar() {
         <SectionHeader label="매출 분석" />
         <NavItem
           href="/revenue-analysis"
-          label="매출 분석"
+          label="수수료 매출"
           active={pathname === "/revenue-analysis"}
+        />
+        <NavItem
+          href="/transaction-count"
+          label="전체 거래건수"
+          active={pathname === "/transaction-count"}
         />
 
         {/* 렌탈사별 매출 추이 섹션 */}
