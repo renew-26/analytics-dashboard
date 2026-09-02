@@ -3,14 +3,19 @@ const REDASH_API_KEY = process.env.REDASH_API_KEY!;
 
 /** Redash 쿼리 ID 통합 관리 */
 export const REDASH_QUERY = {
-  // analytics 기존
-  CONTRACT: 4445,
-  ORDER: 4441,
+  // analytics 기존 — 4678(견적신청&주문확정&계약완료 통합 원장)로 이관.
+  // 4441(주문확정)/4445(계약완료)를 대체한다. 3개월 실측으로 동등성 확인:
+  //   주문확정 27,440건 / 계약완료 17,822건 — USID 전건 일치, 공헌이익 불일치 0건.
+  // 4678은 총렌탈료를 fn_calc_gmv로 계산해 요금면제·프로모션·정액할인을 반영한다
+  // (구 쿼리의 단순곱 대비 3.5~4.5% 낮음 → gmv 컬럼에 적재, 상세는 sync/route.ts 참고).
+  PROP_ITEMS: 4678,
   AUTO_QUOTE: 4404,
   AUTO_QUOTE_TYPEA: 4403,
   TPS_PNL: 4405,
   // tps 이관
   TPS_QUOTE: 4622,
+  // 4441 유지 — buildApplianceMonthlyBest가 4678에 없는 `지원금`(수량 미반영 단가)을 쓰고
+  // CONFIRMED_TS 단일 기준을 가정한다. 4678 전환은 집계 의미가 달라져 별도 검증 필요.
   APPLIANCE_ORDERS: 4441,
   APPLIANCE_SNAPSHOT: 4633,
   APPLIANCE_COMPETITOR: 38,

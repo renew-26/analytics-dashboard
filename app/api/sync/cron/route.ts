@@ -18,14 +18,16 @@ export async function GET(req: Request) {
 
   const results: Record<string, unknown> = {};
 
-  // 날짜 범위가 필요한 타입
-  for (const type of ["contract", "order"] as const) {
+  // 주문확정·계약완료 통합 — 4678 한 번 조회로 raw_prop_items를 갱신한다.
+  // 4678은 주문확정일 OR 계약완료일로 조회하므로, 주문확정이 오래된 건이라도
+  // 최근에 계약완료되면 이 창에 걸려 손익이 함께 갱신된다.
+  {
     const res = await fetch(base, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type, startDate: from, endDate: today }),
+      body: JSON.stringify({ type: "prop_items", startDate: from, endDate: today }),
     });
-    results[type] = await res.json();
+    results["prop_items"] = await res.json();
   }
 
   // tps_pnl: 올해 전체 기준 upsert

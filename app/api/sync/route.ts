@@ -7,37 +7,22 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-interface RedashContractRow {
-  PROP_ITEM_USID: number;
-  계약완료일: string;
-  주문확정일: string | null;
-  렌탈사: string;
-  브랜드: string | null;
-  카테고리: string | null;
-  제품명: string | null;
-  모델명: string | null;
-  관리방식: string | null;
-  관리주기: string | null;
-  의무사용기간: number | null;
-  파트너명: string | null;
-  파트너사: string | null;
-  월렌탈료: number | null;
-  총렌탈료: number | null;
-  공헌이익: number | null;
-  매출: number | null;
-  판매장려금: number | null;
-  프로모션: number | null;
-  매출원가: number | null;
-  금융비용: number | null;
-  대손비: number | null;
-  타겟마진: number | null;
-}
-
-interface RedashOrderRow {
+/**
+ * Redash 4678 — 견적신청&주문확정&계약완료 통합 원장. order/contract 양쪽의 원천.
+ *
+ * 4678은 기간 필터가 `CONFIRMED_TS OR PROP_COMPLETE_TS`라서 주문확정일·계약완료일 중
+ * 하나만 기간에 걸린 행도 함께 온다. 그래서 적재할 때 각 기준 날짜로 다시 걸러야 한다.
+ * (걸러지 않으면 raw_orders에 주문확정일이 기간 밖인 행이 섞인다 — 3개월 실측 기준 38%)
+ */
+interface Redash4678Row {
   PROP_ITEM_USID: number;
   견적신청일: string | null;
   주문확정일: string | null;
+  계약완료일: string | null;
+  구분: string | null;
+  "정산 상태": string | null;
   렌탈사: string;
+  파트너사: string | null;
   브랜드: string | null;
   카테고리: string | null;
   제품명: string | null;
@@ -45,10 +30,18 @@ interface RedashOrderRow {
   관리방식: string | null;
   관리주기: string | null;
   의무사용기간: number | null;
-  파트너명: string | null;
-  파트너사: string | null;
+  계약기간: number | null;
+  수량: number | null;
   월렌탈료: number | null;
   총렌탈료: number | null;
+  "총 지원금 (수량반영)": number | null;
+  "상품권 (수량반영)": number | null;
+  쿠폰명: string | null;
+  "쿠폰 금액": number | null;
+  "LAYER3 지원금": number | null;
+  "추가 TV지원금": number | null;
+  "인터넷 상담원 추가 지원금": number | null;
+  "2만원 추가 보상제 지원금": number | null;
   매출: number | null;
   판매장려금: number | null;
   프로모션: number | null;
@@ -57,14 +50,32 @@ interface RedashOrderRow {
   대손비: number | null;
   타겟마진: number | null;
   공헌이익: number | null;
+  운영효율: number | null;
 }
+
+/** 날짜 문자열을 YYYY-MM-DD로 자른다 (NULL 허용) */
+const day = (value: string | null) => (value ? value.slice(0, 10) : null);
+
+/**
+ * 4441/4445의 기존 총렌탈료 정의(월렌탈료 × 계약기간 × 수량)를 4678 컬럼으로 재현한다.
+ * 화면 숫자를 그대로 유지하기 위한 것이며, 4678의 정확한 GMV(fn_calc_gmv 기반 —
+ * 요금면제·프로모션·정액할인 반영)는 gmv 컬럼에 따로 적재한다.
+ * 3개월 실측: 주문확정 27,440건 전건 일치, 계약완료 17,822건 중 2건만 상이
+ * (그 2건은 4445의 조인 fan-out으로 원본이 2배가 된 건이라 재현값이 맞다).
+ */
+const legacyTotalRentalFee = (r: Redash4678Row) =>
+  r.월렌탈료 === null || r.계약기간 === null
+    ? null
+    : r.월렌탈료 * r.계약기간 * (r.수량 ?? 1);
 
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
     const startDate = body.startDate ?? "2026-01-01";
     const endDate = body.endDate ?? new Date().toISOString().slice(0, 10);
-    const type: "contract" | "order" | "auto_quote" | "auto_quote_typea" | "tps_pnl" = body.type ?? "contract";
+    // order/contract는 4678 통합 이후 prop_items와 동일 경로다 (호출부 호환을 위해 유지).
+    const type: "prop_items" | "contract" | "order" | "auto_quote" | "auto_quote_typea" | "tps_pnl" =
+      body.type ?? "prop_items";
 
     if (type === "tps_pnl") {
       const rows = (await fetchRedashData(REDASH_QUERY.TPS_PNL, startDate, endDate, 100000, "견적완료일시")) as Record<string, unknown>[];
@@ -262,68 +273,52 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, fetched: rows.length, upserted: deduped.length });
     }
 
-    if (type === "order") {
-      const rows = (await fetchRedashData(REDASH_QUERY.ORDER, startDate, endDate)) as RedashOrderRow[];
+    // prop_items (기본) — order/contract도 같은 경로로 처리한다.
+    //
+    // 4678의 한 행은 견적신청·주문확정·계약완료 세 기준 날짜를 동시에 담으므로
+    // 기준별로 나눠 저장할 필요가 없다. 기준 분리는 raw_orders/raw_contracts 뷰가 한다.
+    // 그래서 여기서는 4678이 준 행을 기준일로 걸러내지 않고 전부 적재한다 —
+    // 계약완료일로만 걸린 행도 그 prop_item의 정당한 최신 상태이기 때문이다.
+    const rows = (await fetchRedashData(REDASH_QUERY.PROP_ITEMS, startDate, endDate)) as Redash4678Row[];
 
-      const records = rows
-        .filter((r) => r.PROP_ITEM_USID && r.렌탈사)
-        .map((r) => ({
-          prop_item_usid: r.PROP_ITEM_USID,
-          quote_date: r.견적신청일 ? r.견적신청일.slice(0, 10) : null,
-          order_confirmed_at: r.주문확정일 ? r.주문확정일.slice(0, 10) : null,
-          rental_company: r.렌탈사,
-          brand: r.브랜드 ?? null,
-          category: r.카테고리 ?? null,
-          product_name: r.제품명 ?? null,
-          model_name: r.모델명 ?? null,
-          management_type: r.관리방식 ?? null,
-          management_cycle: r.관리주기 ?? null,
-          contract_months: r.의무사용기간 ?? null,
-          partner_name: r.파트너명 ?? null,
-          partner_company: r.파트너사 ?? null,
-          monthly_fee: r.월렌탈료 ?? null,
-          total_rental_fee: r.총렌탈료 ?? null,
-          sales: r.매출 ?? null,
-          sales_incentive: r.판매장려금 ?? null,
-          promotion: r.프로모션 ?? null,
-          cost_of_goods: r.매출원가 ?? null,
-          financial_cost: r.금융비용 ?? null,
-          bad_debt: r.대손비 ?? null,
-          target_margin: r.타겟마진 ?? null,
-          contribution_margin: r.공헌이익 ?? null,
-          synced_at: new Date().toISOString(),
-        }));
-
-      const { error } = await supabase.from("raw_orders").upsert(records, {
-        onConflict: "prop_item_usid",
-        ignoreDuplicates: false,
-      });
-
-      if (error) throw new Error(JSON.stringify(error));
-      return NextResponse.json({ ok: true, fetched: rows.length, upserted: records.length });
-    }
-
-    // contract (default)
-    const rows = (await fetchRedashData(REDASH_QUERY.CONTRACT, startDate, endDate)) as RedashContractRow[];
-
+    const syncedAt = new Date().toISOString();
     const records = rows
-      .filter((r) => r.PROP_ITEM_USID && r.계약완료일 && r.렌탈사)
+      .filter((r) => r.PROP_ITEM_USID && r.렌탈사)
       .map((r) => ({
         prop_item_usid: r.PROP_ITEM_USID,
-        contract_date: r.계약완료일.slice(0, 10),
+
+        quote_date: day(r.견적신청일),
+        order_confirmed_at: day(r.주문확정일),
+        contract_date: day(r.계약완료일),
+        status: r.구분 ?? null,
+        settle_status: r["정산 상태"] ?? null,
+
         rental_company: r.렌탈사,
+        partner_company: r.파트너사 ?? null,
         brand: r.브랜드 ?? null,
         category: r.카테고리 ?? null,
         product_name: r.제품명 ?? null,
         model_name: r.모델명 ?? null,
         management_type: r.관리방식 ?? null,
         management_cycle: r.관리주기 ?? null,
+
         contract_months: r.의무사용기간 ?? null,
-        partner_name: r.파트너명 ?? null,
-        partner_company: r.파트너사 ?? null,
+        contract_period: r.계약기간 ?? null,
+        quantity: r.수량 ?? null,
+
         monthly_fee: r.월렌탈료 ?? null,
-        total_rental_fee: r.총렌탈료 ?? null,
-        contribution_margin: r.공헌이익 ?? null,
+        total_rental_fee: legacyTotalRentalFee(r),
+        gmv: r.총렌탈료 ?? null,
+
+        payback_total: r["총 지원금 (수량반영)"] ?? null,
+        voucher: r["상품권 (수량반영)"] ?? null,
+        coupon_names: r.쿠폰명 ?? null,
+        coupon_amount: r["쿠폰 금액"] ?? null,
+        layer3_subsidy: r["LAYER3 지원금"] ?? null,
+        tv_subsidy: r["추가 TV지원금"] ?? null,
+        cs_internet_subsidy: r["인터넷 상담원 추가 지원금"] ?? null,
+        extra_reward_subsidy: r["2만원 추가 보상제 지원금"] ?? null,
+
         sales: r.매출 ?? null,
         sales_incentive: r.판매장려금 ?? null,
         promotion: r.프로모션 ?? null,
@@ -331,11 +326,13 @@ export async function POST(req: Request) {
         financial_cost: r.금융비용 ?? null,
         bad_debt: r.대손비 ?? null,
         target_margin: r.타겟마진 ?? null,
-        order_confirmed_at: r.주문확정일 ? r.주문확정일.slice(0, 10) : null,
-        synced_at: new Date().toISOString(),
+        contribution_margin: r.공헌이익 ?? null,
+        operating_efficiency: r.운영효율 ?? null,
+
+        synced_at: syncedAt,
       }));
 
-    const { error } = await supabase.from("raw_contracts").upsert(records, {
+    const { error } = await supabase.from("raw_prop_items").upsert(records, {
       onConflict: "prop_item_usid",
       ignoreDuplicates: false,
     });
