@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Dialog } from '@base-ui-components/react/dialog'
 import { supabase } from '@/lib/supabase'
 import {
   Product, Category, Telecom, ProductType, ApplianceCategory,
@@ -117,13 +118,27 @@ function ProductModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg my-4">
-        <div className="px-6 py-4 border-b border-gray-100">
-          <h3 className="font-semibold text-gray-900">
-            {isEdit ? '상품 수정' : '상품 등록'} — {CATEGORY_LABELS[form.category]}
-          </h3>
-        </div>
+    /*
+     * 부모가 조건부로 마운트하므로 open은 항상 true고, 닫기는 onClose로 위임한다.
+     * disablePointerDismissal: 입력 중인 폼이라 바깥 클릭으로 닫히면 타이핑한 값이
+     * 날아간다. 원래 동작(취소 버튼만 닫힘)을 유지하고 Escape만 새로 허용한다.
+     */
+    <Dialog.Root
+      open
+      disablePointerDismissal
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+    >
+      <Dialog.Portal>
+        <Dialog.Backdrop className="fixed inset-0 bg-black/40 z-50" />
+        <Dialog.Viewport className="fixed inset-0 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <Dialog.Popup className="bg-white rounded-2xl shadow-xl w-full max-w-lg my-4">
+            <div className="px-6 py-4 border-b border-gray-100">
+              <Dialog.Title className="font-semibold text-gray-900">
+                {isEdit ? '상품 수정' : '상품 등록'} — {CATEGORY_LABELS[form.category]}
+              </Dialog.Title>
+            </div>
         <div className="px-6 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
 
           {/* 공통: 상품명 */}
@@ -276,8 +291,10 @@ function ProductModal({
             {loading ? '저장 중...' : isEdit ? '수정 완료' : '상품 등록'}
           </button>
         </div>
-      </div>
-    </div>
+          </Dialog.Popup>
+        </Dialog.Viewport>
+      </Dialog.Portal>
+    </Dialog.Root>
   )
 }
 
