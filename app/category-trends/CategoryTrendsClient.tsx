@@ -2,6 +2,8 @@
 
 import React, { useState, useMemo } from "react";
 import Link from "next/link";
+import Sparkline from "@/app/components/home/Sparkline";
+import { deltaColor } from "@/app/components/home/cardKit";
 import type {
   MonthCategoryData,
   YoYBadge,
@@ -31,9 +33,11 @@ const CONCLUSION_LIMIT = 5;
 
 const nf = (n: number) => n.toLocaleString("ko-KR");
 const signed = (n: number, d = 1) => `${n > 0 ? "+" : ""}${n.toFixed(d)}`;
-/** 증감 방향색 — 값의 좋고 나쁨이 아니라 변화의 방향에만 쓴다 */
-const dirColor = (n: number) =>
-  n > 0 ? "var(--color-up)" : n < 0 ? "var(--color-down)" : "var(--color-gray-400)";
+/**
+ * 증감 방향색 — 값의 좋고 나쁨이 아니라 변화의 방향에만 쓴다.
+ * 이 화면은 flatBand 없이 0을 기준으로 갈라왔으므로 0을 넘겨 그 판정을 유지한다.
+ */
+const dirColor = (n: number) => deltaColor(n, 0);
 
 type Props = {
   monthlyData: MonthCategoryData[];
@@ -1220,53 +1224,18 @@ function SmallMultiples({
                   건
                 </span>
               </div>
-              <Sparkline values={vals} color={catColor(i)} />
+              {/* 폭은 카드 내용 폭(minmax 178px − px-3 양쪽 24px)에 맞춘다 */}
+              <Sparkline
+                values={vals}
+                color={catColor(i)}
+                width={154}
+                height={34}
+              />
             </div>
           );
         })}
       </div>
     </Panel>
-  );
-}
-
-function Sparkline({ values, color }: { values: number[]; color: string }) {
-  const W = 160;
-  const H = 34;
-  if (values.length < 2) return null;
-  const mn = Math.min(...values);
-  const mx = Math.max(...values);
-  const pad = (mx - mn) * 0.18 || 1;
-  const lo = mn - pad;
-  const hi = mx + pad;
-  const X = (i: number) => (i / (values.length - 1)) * (W - 6) + 3;
-  const Y = (v: number) => H - 4 - ((v - lo) / (hi - lo)) * (H - 8);
-  const line = values.map((v, i) => `${i ? "L" : "M"}${X(i)} ${Y(v)}`).join("");
-
-  return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      width="100%"
-      height={H}
-      preserveAspectRatio="none"
-      role="img"
-      aria-hidden="true"
-      style={{ display: "block", marginTop: 4 }}
-    >
-      <path
-        d={`${line}L${X(values.length - 1)} ${H}L${X(0)} ${H}Z`}
-        fill={color}
-        fillOpacity={0.12}
-      />
-      <path d={line} fill="none" stroke={color} strokeWidth={1.8} strokeLinejoin="round" />
-      <circle
-        cx={X(values.length - 1)}
-        cy={Y(values[values.length - 1])}
-        r={2.8}
-        fill="#ffffff"
-        stroke={color}
-        strokeWidth={1.8}
-      />
-    </svg>
   );
 }
 

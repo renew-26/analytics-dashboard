@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { COMPANY_MAP, matchesEntry } from "@/lib/company-map";
 import { getPeriod, formatShortRange } from "@/lib/period";
+import { deltaColor as dirColor } from "@/app/components/home/cardKit";
 
 export const dynamic = "force-dynamic";
 
@@ -30,13 +31,6 @@ const SERIES_MAX = 5;
 
 const panel =
   "rounded-[12px] border border-[var(--color-gray-200)] bg-white shadow-[0_1px_2px_rgba(28,35,56,.04),0_2px_8px_rgba(28,35,56,.05)]";
-
-/** 방향색은 변화량에만 — 값의 좋고 나쁨에는 쓰지 않는다 */
-function dirColor(d: number, flatBand = 1.5) {
-  if (d > flatBand) return "var(--color-up)";
-  if (d < -flatBand) return "var(--color-down)";
-  return "var(--color-gray-400)";
-}
 
 const nf = (n: number) => Math.round(n).toLocaleString("ko-KR");
 const pct = (v: number, t: number) => (t > 0 ? (v / t) * 100 : 0);

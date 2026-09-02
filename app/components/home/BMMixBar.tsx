@@ -1,3 +1,5 @@
+import { deltaColor } from "./cardKit";
+
 export type MixSegment = {
   key: string;
   color: string;
@@ -97,8 +99,5 @@ export default function BMMixBar({
   );
 }
 
-function dirColor(d: number) {
-  if (d > 0.05) return "var(--color-up)";
-  if (d < -0.05) return "var(--color-down)";
-  return "var(--color-gray-400)";
-}
+/** 구성비(%p) 변화라 판정 폭이 0.05로 훨씬 좁다 — 그 값을 넘겨 유지한다 */
+const dirColor = (d: number) => deltaColor(d, 0.05);

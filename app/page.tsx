@@ -11,6 +11,7 @@ import Waterfall from "@/app/components/home/Waterfall";
 import BMMixBar from "@/app/components/home/BMMixBar";
 import CompanyCards from "@/app/components/home/CompanyCards";
 import CategoryCards from "@/app/components/home/CategoryCards";
+import { deltaColor as dirColor } from "@/app/components/home/cardKit";
 
 export const dynamic = "force-dynamic";
 
@@ -26,13 +27,6 @@ function fmt(n: number) {
 function pct(curr: number, prev: number) {
   if (prev === 0) return null;
   return ((curr - prev) / prev) * 100;
-}
-
-/** 변화량 표기 — 방향색(빨강/파랑)은 여기에만 쓴다. 값의 좋고 나쁨에는 쓰지 않는다. */
-function dirColor(d: number, flatBand = 1.5) {
-  if (d > flatBand) return "var(--color-up)";
-  if (d < -flatBand) return "var(--color-down)";
-  return "var(--color-gray-400)";
 }
 
 function Delta({
