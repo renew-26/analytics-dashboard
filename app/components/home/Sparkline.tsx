@@ -31,9 +31,10 @@ export default function Sparkline({
     .map((v, i) => `${i === 0 ? "M" : "L"}${X(i).toFixed(1)},${Y(v).toFixed(1)}`)
     .join(" ");
   const area = `${line} L${(width - pad).toFixed(1)},${height} L0,${height} Z`;
-  const gid = `sp-${Math.abs(
-    pts.reduce((a, v, i) => a + v * (i + 1), 0) | 0,
-  )}-${Math.round(width)}`;
+  // gradient는 color에만 의존하므로 id도 색으로만 만든다.
+  // 값 해시로 만들면 값이 같고 색이 다른 두 개가 같은 id를 갖고, SVG는 먼저
+  // 정의된 gradient만 쓰므로 한쪽 area가 남의 색으로 칠해진다.
+  const gid = `sp-${color.replace(/[^a-zA-Z0-9]/g, "")}`;
 
   // 고정 크기로 그린다. width를 100%로 늘리면 종점 원이 타원으로 찌그러진다.
   return (
