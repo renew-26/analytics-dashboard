@@ -1,48 +1,84 @@
 @import "tailwindcss";
 
+/*
+ * 색 값의 출처는 TDS(Toss Design System) `@toss/tds-colors@0.1.0`의 라이트 테마다.
+ * 패키지를 의존성으로 받지 않고 값만 옮겨 적었다 — 그쪽 npm `license` 필드가
+ * 비어 있어서 런타임 의존을 만들지 않는다. 각 줄 주석의 이름이 원본 토큰이다.
+ *
+ * 토큰 이름은 기존 것을 그대로 유지한다. 값만 갈면 이미 var(--color-*)를 쓰는
+ * 사용처가 코드 변경 없이 새 팔레트를 따른다.
+ *
+ * 계열 배정:
+ *   방향(등락) = Red/Blue  ← 한국 증시 컨벤션
+ *   브랜드     = Purple    ← Red(상승)·Blue(하락)·Green(성공)과 겹치지 않는 유일한 계열
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #222222;
+  --background: #ffffff; /* Background */
+  --foreground: #191f28; /* Grey900 */
 
-  /* Primary — Indigo (softer) */
-  --color-primary: #4338ca;
-  --color-primary-700: #3730a3;
-  --color-primary-500: #6366f1;
-  --color-primary-400: #818cf8;
-  --color-primary-200: #a5b4fc;
-  --color-primary-100: #c7d2fe;
-  --color-primary-50: #eef2ff;
+  /* Primary — Purple. 방향색·성공색과 계열이 겹치지 않게 뺐다. */
+  --color-primary: #9128b4; /* Purple600 */
+  --color-primary-700: #8222a2; /* Purple700 — 호버·프레스 */
+  --color-primary-500: #a234c7; /* Purple500 */
+  --color-primary-400: #b44bd7; /* Purple400 */
+  --color-primary-200: #da9bef; /* Purple200 */
+  --color-primary-100: #edccf8; /* Purple100 */
+  --color-primary-50: #f9f0fc; /* Purple50 */
 
   /* Semantic */
-  --color-success: #1ea85e;
-  --color-success-100: #dff7ea;
-  --color-warning: #e03131;
-  --color-warning-500: #f87171;
-  --color-warning-100: #fee2e2;
-  --color-error: #e03131;
+  --color-success: #03b26c; /* Green500 */
+  --color-success-100: #aeefd5; /* Green100 */
+  --color-warning: #f04452; /* Red500 */
+  --color-warning-500: #f66570; /* Red400 */
+  --color-warning-100: #ffd4d6; /* Red100 */
+  --color-error: #f04452; /* Red500 */
 
-  /* Accent */
-  --color-accent-purple: #9747ff;
-  --color-accent-yellow: #ffd600;
-  --color-accent-orange: #ff7700;
+  /* 심각도 — 방향색(up/down)과 분리한다.
+     대손율처럼 "오르면 나쁜" 지표에 방향색을 쓰면 거짓말이 되므로,
+     좋고 나쁨은 이 심각도색 + 텍스트 라벨로만 표현한다.
+     주의: sev-crit(Red600)은 up(Red500)과 여전히 같은 Red 계열이다.
+     기존 팔레트에도 있던 충돌이라 값만 옮겼고, 계열 분리는 미해결로 남는다. */
+  --color-sev-warn: #f57800; /* Orange700 */
+  --color-sev-warn-100: #fff3e0; /* Orange50 */
+  --color-sev-crit: #e42939; /* Red600 */
+  --color-sev-crit-100: #ffeeee; /* Red50 */
 
-  /* Gray scale */
-  --color-gray-950: #161616;
-  --color-gray-900: #222222;
-  --color-gray-850: #262624;
-  --color-gray-800: #2c2c2c;
-  --color-gray-700: #393939;
-  --color-gray-600: #586177;
-  --color-gray-500: #788093;
-  --color-gray-400: #a1a5ac;
-  --color-gray-350: #a9b1c3;
-  --color-gray-300: #babab7;
-  --color-gray-250: #cbd2e3;
-  --color-gray-200: #e2e6ec;
-  --color-gray-150: #ebebe9;
-  --color-gray-100: #f3f5f9;
-  --color-gray-50: #f6f6f6;
-  --color-gray-25: #f9fafb;
+  /* 카테고리 팔레트 — 계열형 지표(카테고리·BM 구분)에만 사용.
+     순서에 의미가 없는 분류 전용. 순서대로 쓴다. */
+  --color-cat-1: #3182f6; /* Blue500 */
+  --color-cat-2: #fe9800; /* Orange500 */
+  --color-cat-3: #03b26c; /* Green500 */
+  --color-cat-4: #a234c7; /* Purple500 */
+  --color-cat-5: #18a5a5; /* Teal500 */
+
+  /* Accent — 레거시. 신규 화면에서는 쓰지 않는다. */
+  --color-accent-purple: #a234c7; /* Purple500 */
+  --color-accent-yellow: #ffc342; /* Yellow500 */
+  --color-accent-orange: #fe9800; /* Orange500 */
+
+  /* Gray scale — TDS Grey는 10단이고 여기는 16단이라 역할 기준으로 접었다.
+     같은 값이 두 토큰에 걸리는 자리가 있는 건 그래서다. */
+  --color-gray-950: #191f28; /* Grey900 */
+  --color-gray-900: #191f28; /* Grey900 — 프라이머리 텍스트 */
+  --color-gray-850: #333d4b; /* Grey800 */
+  --color-gray-800: #333d4b; /* Grey800 */
+  --color-gray-700: #333d4b; /* Grey800 — 세컨더리 타이틀 */
+  --color-gray-600: #4e5968; /* Grey700 — 세컨더리 텍스트 */
+  --color-gray-500: #6b7684; /* Grey600 — 서브 텍스트 */
+  --color-gray-400: #8b95a1; /* Grey500 — 뮤트 레이블, 축 라벨 */
+  --color-gray-350: #b0b8c1; /* Grey400 */
+  --color-gray-300: #b0b8c1; /* Grey400 */
+  --color-gray-250: #d1d6db; /* Grey300 — 구분선(강조) */
+  --color-gray-200: #e5e8eb; /* Grey200 = HairlineBorder — 기본 보더 */
+  --color-gray-150: #f2f4f6; /* Grey100 */
+  --color-gray-100: #f2f4f6; /* Grey100 = GreyBackground — 섹션 배경, 칩 */
+  --color-gray-50: #f9fafb; /* Grey50 */
+  --color-gray-25: #f9fafb; /* Grey50 */
+
+  /* 페이지 바탕 / 소프트 구분선 — 카드(흰색)를 띄우기 위한 한 단계 낮은 면.
+     page는 TDS PcScreenBg와 값이 원래 같았다(#f6f7f9). */
+  --color-page: #f6f7f9; /* PcScreenBg */
+  --color-line-2: #f2f4f6; /* Grey100 — 기본 보더보다 한 단계 연하게 */
 
   /* Legacy aliases (기존 컴포넌트 호환) */
   --color-primary-light: var(--color-primary-50);
@@ -57,11 +93,14 @@
   --color-muted: var(--color-gray-400);
   --color-tint-sky: var(--color-primary-50);
   --color-table-highlight: var(--color-gray-100);
-  /* 한국 증시 컨벤션: 상승 = 빨간색, 하락 = 파란색 */
-  --color-up: #e03131;
-  --color-up-100: #fee2e2;
-  --color-down: #2563eb;
-  --color-down-100: #dbeafe;
+  /* 한국 증시 컨벤션: 상승 = 빨간색, 하락 = 파란색.
+     down(Blue500)은 TDS 브랜드색이지만 이 프로젝트 브랜드는 Purple로 뺐으므로
+     겹치지 않는다. cat-1도 Blue500이라 차트에서 계열색과 방향색이 같은 파랑인
+     점은 기존 팔레트(cat-1 #2a78d6 / down #2563eb)에도 있던 근접이다. */
+  --color-up: #f04452; /* Red500 */
+  --color-up-100: #ffd4d6; /* Red100 */
+  --color-down: #3182f6; /* Blue500 */
+  --color-down-100: #c9e2ff; /* Blue100 */
   --color-accent-blue: var(--color-primary);
 
   /* Shadow */
@@ -86,6 +125,8 @@
   --font-sans:
     "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
     "Apple SD Gothic Neo", system-ui, sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
 
   --color-brand: var(--color-primary);
   --color-brand-light: var(--color-primary-light);
@@ -112,4 +153,13 @@ body {
     "Segoe UI",
     Arial,
     sans-serif;
+  /* 한글은 어절 단위로만 끊는다 — 기본값은 단어 중간에서 잘린다 */
+  word-break: keep-all;
+  line-break: strict;
+}
+
+/* 숫자를 세로로 정렬해 자릿수 비교가 가능하게 한다.
+   표·KPI·차트 라벨 등 값이 나열되는 모든 곳에 붙인다. */
+.num {
+  font-variant-numeric: tabular-nums;
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
+import { Popover } from "@base-ui-components/react/popover";
 import {
   ResponsiveContainer,
   LineChart,
@@ -858,26 +859,50 @@ function SimulationSection({ data }: { data: SimulationData }) {
 
 // ─── Formula Tooltip ─────────────────────────────────────────────────────────
 
-function FormulaTooltip() {
-  const [open, setOpen] = useState(false);
-
+/**
+ * 계산 공식 설명 패널.
+ *
+ * 이름은 Tooltip이었지만 동작은 Popover다 — 호버가 아니라 클릭으로 열고 내부에
+ * 닫기 버튼이 있다. base-ui Popover로 감싸 Escape·바깥 클릭·ARIA를 얻고,
+ * Positioner가 화면 경계를 피한다(flip/shift). 직접 만든 `absolute left-0`은
+ * 좁은 화면에서 420px 패널이 잘렸다.
+ *
+ * 두 사용처(FormulaTooltip / DetailFormulaTooltip)가 껍데기까지 같아 여기 하나만 둔다.
+ */
+function FormulaPopover({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="relative">
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-5 h-5 rounded-full border border-[#a1a5ac] text-[#a1a5ac] text-xs font-bold hover:border-[#3531FF] hover:text-[#3531FF] transition flex items-center justify-center"
-      >
+    <Popover.Root>
+      <Popover.Trigger className="w-5 h-5 rounded-full border border-[#a1a5ac] text-[#a1a5ac] text-xs font-bold hover:border-[#3531FF] hover:text-[#3531FF] transition flex items-center justify-center">
         ?
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-8 z-50 w-[420px] bg-white border border-[#e2e6ec] rounded-xl shadow-lg p-5">
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Positioner side="bottom" align="start" sideOffset={8} className="z-50">
+          <Popover.Popup className="w-[420px] bg-white border border-[#e2e6ec] rounded-xl shadow-lg p-5">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-bold text-[#222222]">시뮬레이션 계산 공식</span>
-              <button onClick={() => setOpen(false)} className="text-xs text-[#a1a5ac] hover:text-[#222222]">닫기</button>
+              <Popover.Title className="text-sm font-bold text-[#222222]">
+                {title}
+              </Popover.Title>
+              <Popover.Close className="text-xs text-[#a1a5ac] hover:text-[#222222]">
+                닫기
+              </Popover.Close>
             </div>
-            <div className="space-y-4 text-xs text-[#586177]">
+            <div className="space-y-4 text-xs text-[#586177]">{children}</div>
+          </Popover.Popup>
+        </Popover.Positioner>
+      </Popover.Portal>
+    </Popover.Root>
+  );
+}
+
+function FormulaTooltip() {
+  return (
+    <FormulaPopover title="시뮬레이션 계산 공식">
               <div>
                 <p className="font-bold text-[#222222] mb-1">총 공헌이익</p>
                 <p className="bg-[#f3f5f9] rounded-lg px-3 py-2 font-mono text-[11px]">
@@ -906,34 +931,13 @@ function FormulaTooltip() {
                   정상 건 건수 = 전체 건수 - 예외승인 건수
                 </p>
               </div>
-            </div>
-          </div>
-        </>
-      )}
-    </div>
+    </FormulaPopover>
   );
 }
 
 function DetailFormulaTooltip() {
-  const [open, setOpen] = useState(false);
-
   return (
-    <div className="relative">
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-5 h-5 rounded-full border border-[#a1a5ac] text-[#a1a5ac] text-xs font-bold hover:border-[#3531FF] hover:text-[#3531FF] transition flex items-center justify-center"
-      >
-        ?
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-8 z-50 w-[420px] bg-white border border-[#e2e6ec] rounded-xl shadow-lg p-5">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-bold text-[#222222]">건별 상세 계산 공식</span>
-              <button onClick={() => setOpen(false)} className="text-xs text-[#a1a5ac] hover:text-[#222222]">닫기</button>
-            </div>
-            <div className="space-y-4 text-xs text-[#586177]">
+    <FormulaPopover title="건별 상세 계산 공식">
               <div>
                 <p className="font-bold text-[#222222] mb-1">수익 배분 구조</p>
                 <p className="bg-[#f3f5f9] rounded-lg px-3 py-2 text-[11px]">
@@ -991,11 +995,7 @@ function DetailFormulaTooltip() {
                   <strong>마진+대손 까임</strong> — 타겟마진 전액 + 대손비까지 잠식
                 </p>
               </div>
-            </div>
-          </div>
-        </>
-      )}
-    </div>
+    </FormulaPopover>
   );
 }
 

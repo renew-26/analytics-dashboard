@@ -1,0 +1,804 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>*{margin:0;padding:0;box-sizing:border-box}html,body{height:100%}</style>
+<title>렌트리 애널리틱스 — 예외승인 · 카테고리 트렌드 개선안</title>
+</head>
+<body>
+
+<style>
+  .rt {
+    color-scheme: light;
+    --page:#f6f7f9; --card:#fff; --surface:#f3f5f9; --surface-2:#f9fafb;
+    --ink:#222; --ink-2:#586177; --ink-3:#788093; --ink-4:#a1a5ac;
+    --line:#e2e6ec; --line-2:#eef0f4;
+    --brand:#4338ca; --brand-600:#4f46e5; --brand-tint:#eef2ff;
+    --up:#e03131; --up-tint:#fee2e2; --down:#2563eb; --down-tint:#dbeafe;
+    --safe:#1ea85e; --safe-t:#dff7ea;
+    --sev-warn:#d97706; --sev-warn-t:#fef3c7; --sev-crit:#dc2626; --sev-crit-t:#fee2e2;
+    --c1:#2a78d6; --c2:#eb6834; --c3:#1baf7a; --c4:#eda100; --c5:#e87ba4;
+    --r-4:4px; --r-6:6px; --r-8:8px; --r-12:12px; --r-full:9999px;
+    --sh:0 1px 2px rgba(28,35,56,.04), 0 2px 8px rgba(28,35,56,.05);
+    --font:"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
+           "Apple SD Gothic Neo", system-ui, sans-serif;
+    --mono:ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+    font-family:var(--font); background:var(--page); color:var(--ink);
+    -webkit-font-smoothing:antialiased; display:block; min-height:100vh;
+    word-break:keep-all; line-break:strict;
+  }
+  .rt *, .rt *::before, .rt *::after { box-sizing:border-box; }
+  .rt p,.rt h1,.rt h2,.rt h3,.rt h4,.rt ul,.rt ol,.rt figure { margin:0; }
+  .rt ul,.rt ol { padding:0; list-style:none; }
+  .rt button { font:inherit; color:inherit; background:none; border:0; cursor:pointer; }
+  .rt :focus-visible { outline:2px solid var(--brand); outline-offset:2px; border-radius:var(--r-6); }
+  .rt table { border-collapse:collapse; }
+  .num { font-variant-numeric:tabular-nums; }
+  .up{color:var(--up)} .down{color:var(--down)} .flat{color:var(--ink-4)}
+
+  .wrap { max-width:1240px; margin:0 auto; padding:22px 26px 72px;
+          display:flex; flex-direction:column; gap:24px; }
+  /* display를 지정한 요소는 hidden 속성이 무시된다 — 명시적으로 눌러준다 */
+  .rt [hidden] { display:none !important; }
+
+  .top { position:sticky; top:0; z-index:30; background:rgba(255,255,255,.94);
+         backdrop-filter:blur(8px); border-bottom:1px solid var(--line); padding:12px 26px; }
+  .top-in { max-width:1240px; margin:0 auto; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  .top h1 { font-size:17px; font-weight:800; letter-spacing:-.35px; }
+  .ptabs { display:flex; gap:6px; }
+  .ptab { font-size:13px; font-weight:700; color:var(--ink-3); background:var(--card);
+          border:1px solid var(--line); border-radius:var(--r-8); padding:7px 15px; }
+  .ptab:hover { border-color:var(--ink-4); color:var(--ink); }
+  .ptab[aria-pressed="true"] { background:var(--brand); border-color:var(--brand); color:#fff; }
+  .top-sp { flex:1 1 auto; }
+  .basis { display:flex; align-items:center; gap:7px; font-size:11.5px; color:var(--ink-2);
+           background:var(--surface); border:1px solid var(--line); border-radius:var(--r-full); padding:4px 11px; }
+  .basis b { font-family:var(--mono); font-weight:600; color:var(--ink); }
+
+  .lay { display:flex; align-items:baseline; gap:10px; margin-bottom:11px; flex-wrap:wrap; }
+  .lay h2 { font-size:15px; font-weight:800; letter-spacing:-.3px; }
+  .lay .sub { font-size:12px; color:var(--ink-3); }
+  .step { font-size:10px; font-weight:800; font-family:var(--mono); color:var(--brand);
+          background:var(--brand-tint); border-radius:var(--r-4); padding:2px 6px; }
+
+  .an { display:inline-flex; align-items:center; justify-content:center; min-width:17px; height:17px;
+        padding:0 4px; border-radius:var(--r-full); background:var(--brand); color:#fff; font-size:10px;
+        font-weight:700; font-family:var(--mono); vertical-align:middle; margin-left:5px; }
+  .note { font-size:11.5px; line-height:1.65; color:var(--brand); background:var(--brand-tint);
+          border-left:2px solid var(--brand); border-radius:0 var(--r-6) var(--r-6) 0; padding:8px 12px; margin-top:11px; }
+  .warn { font-size:11.5px; line-height:1.65; color:#92400e; background:var(--sev-warn-t);
+          border-left:2px solid var(--sev-warn); border-radius:0 var(--r-6) var(--r-6) 0; padding:8px 12px; }
+
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:var(--r-12); box-shadow:var(--sh); }
+  .panel-h { padding:14px 17px 11px; display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
+  .panel-h h3 { font-size:13.5px; font-weight:800; letter-spacing:-.2px; }
+  .panel-h .m { font-size:11px; color:var(--ink-4); }
+  .panel-b { padding:0 17px 17px; }
+
+  /* 헤드라인 */
+  .hero { background:var(--card); border:1px solid var(--line); border-radius:var(--r-12);
+          box-shadow:var(--sh); padding:20px 22px; display:grid;
+          grid-template-columns:minmax(0,1fr) auto; gap:26px; align-items:center; }
+  @media (max-width:880px){ .hero{ grid-template-columns:1fr; } }
+  .hero-eyebrow { font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+                  color:var(--ink-4); margin-bottom:9px; }
+  .hero-q { font-size:20px; font-weight:800; letter-spacing:-.5px; line-height:1.45; text-wrap:balance; }
+  .hero-a { margin-top:11px; font-size:12.5px; line-height:1.75; color:var(--ink-2); max-width:64ch; }
+  .hero-a b { color:var(--ink); }
+  .bigstat { text-align:right; }
+  .bigstat .n { font-size:44px; font-weight:800; letter-spacing:-1.8px; line-height:1; color:var(--brand); }
+  .bigstat .l { font-size:11.5px; color:var(--ink-3); margin-top:8px; line-height:1.5; }
+
+  /* 신호등 스택 */
+  .sig { display:flex; height:34px; border-radius:var(--r-6); overflow:hidden; gap:2px; }
+  .sig i { display:block; height:100%; position:relative; }
+  .sig em { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+            font-style:normal; font-size:11px; font-weight:700; color:#fff; }
+  .siglegend { display:flex; flex-wrap:wrap; gap:6px 18px; margin-top:11px; }
+  .siglegend div { display:flex; align-items:center; gap:7px; font-size:11.5px; color:var(--ink-2); }
+  .siglegend i { width:10px; height:10px; border-radius:2px; flex:none; }
+  .siglegend b { font-weight:700; }
+  .siglegend span { color:var(--ink-4); font-size:10.5px; }
+
+  /* 시뮬레이터 */
+  .sim { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.1fr); gap:22px; }
+  @media (max-width:980px){ .sim{ grid-template-columns:1fr; } }
+  .sl { margin-bottom:20px; }
+  .sl-h { display:flex; align-items:baseline; justify-content:space-between; margin-bottom:7px; }
+  .sl-h b { font-size:12.5px; font-weight:700; }
+  .sl-h .v { font-size:19px; font-weight:800; color:var(--brand); letter-spacing:-.5px; }
+  .sl-h .v small { font-size:11px; font-weight:600; color:var(--ink-4); margin-left:4px; }
+  .sl input[type=range] { width:100%; height:6px; border-radius:var(--r-full); background:var(--line);
+                          appearance:none; -webkit-appearance:none; cursor:pointer; accent-color:var(--brand); }
+  .sl-cap { font-size:10.5px; color:var(--ink-4); margin-top:6px; line-height:1.55; }
+  .verdict { border-radius:var(--r-8); padding:13px 15px; margin-top:4px; }
+  .verdict.good { background:var(--safe-t); }
+  .verdict.bad { background:var(--sev-crit-t); }
+  .verdict .t { font-size:14px; font-weight:800; letter-spacing:-.3px; }
+  .verdict.good .t { color:#0f7a44; } .verdict.bad .t { color:var(--sev-crit); }
+  .verdict .d { font-size:11.5px; line-height:1.6; margin-top:5px; color:var(--ink-2); }
+
+  /* 표 */
+  .tbl-wrap { overflow-x:auto; border:1px solid var(--line); border-radius:var(--r-8); }
+  .tbl { width:100%; font-size:12.5px; background:var(--card); min-width:680px; }
+  .tbl th,.tbl td { padding:9px 12px; text-align:right; white-space:nowrap; }
+  .tbl thead th { font-size:10.5px; font-weight:700; color:var(--ink-4); background:var(--surface-2);
+                  border-bottom:1px solid var(--line); text-align:right; }
+  .tbl tbody tr + tr td { border-top:1px solid var(--line-2); }
+  .tbl td:first-child,.tbl th:first-child { text-align:left; font-weight:700; color:var(--ink-2); }
+  .tbl tbody tr:hover td { background:var(--surface-2); }
+  .riskbar { display:flex; align-items:center; gap:7px; justify-content:flex-end; }
+  .riskbar i { display:block; height:7px; border-radius:2px; flex:none; }
+
+  /* 카테고리 트렌드 */
+  .cards3 { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:13px; }
+  .mini { background:var(--card); border:1px solid var(--line); border-radius:var(--r-12);
+          box-shadow:var(--sh); padding:14px 16px; }
+  .mini h4 { font-size:11.5px; font-weight:700; color:var(--ink-3); margin-bottom:10px;
+             display:flex; align-items:center; gap:6px; }
+  .mini h4 i { width:3px; height:12px; border-radius:2px; flex:none; }
+  .mini li { display:flex; align-items:baseline; justify-content:space-between; gap:10px;
+             padding:6px 0; font-size:12.5px; }
+  .mini li + li { border-top:1px dashed var(--line-2); }
+  .mini li b { font-weight:700; color:var(--ink-2); }
+  .mini li span { font-weight:700; font-variant-numeric:tabular-nums; }
+  .mini li em { font-style:normal; font-size:10.5px; color:var(--ink-4); font-weight:500; margin-left:5px; }
+
+  .smgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(178px,1fr)); gap:11px; }
+  .sm { border:1px solid var(--line); border-radius:var(--r-8); padding:11px 12px; background:var(--card); }
+  .sm-h { display:flex; align-items:baseline; justify-content:space-between; gap:6px; margin-bottom:2px; }
+  .sm-h b { font-size:12px; font-weight:700; letter-spacing:-.2px; }
+  .sm-h span { font-size:11px; font-weight:700; }
+  .sm-n { font-size:16px; font-weight:800; letter-spacing:-.4px; }
+  .sm-n i { font-size:10px; font-style:normal; font-weight:600; color:var(--ink-4); margin-left:2px; }
+
+  .det { background:var(--card); border:1px solid var(--line); border-radius:var(--r-12); box-shadow:var(--sh); overflow:hidden; }
+  .det > summary { list-style:none; cursor:pointer; padding:14px 18px; display:flex; align-items:center;
+                   gap:9px; font-size:13.5px; font-weight:800; letter-spacing:-.2px; }
+  .det > summary::-webkit-details-marker { display:none; }
+  .det > summary::before { content:"▸"; color:var(--ink-4); font-size:11px; transition:transform .15s; }
+  .det[open] > summary::before { transform:rotate(90deg); }
+  .det > summary .m { font-size:11.5px; font-weight:500; color:var(--ink-4); margin-left:auto; }
+  .det-b { padding:14px 18px 20px; border-top:1px solid var(--line-2); }
+
+  .tip { position:fixed; z-index:90; pointer-events:none; opacity:0; transition:opacity .1s;
+         background:var(--ink); color:#fff; border-radius:var(--r-8); padding:7px 10px; font-size:11.5px;
+         line-height:1.5; box-shadow:0 6px 20px rgba(0,0,0,.22); max-width:260px; }
+  .tip.on { opacity:1; }
+  .tip .t-h { font-weight:700; margin-bottom:3px; }
+  .tip .t-row { display:flex; align-items:center; gap:6px; white-space:nowrap; }
+
+  .chg { background:var(--card); border:1px solid var(--line); border-radius:var(--r-12); padding:18px 20px; }
+  .chg h3 { font-size:13.5px; font-weight:800; margin-bottom:12px; letter-spacing:-.2px; }
+  .chg-g { display:grid; grid-template-columns:repeat(auto-fit,minmax(258px,1fr)); gap:16px; }
+  .chg-c h4 { font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; margin-bottom:7px; }
+  .chg-c.in h4 { color:var(--up); } .chg-c.keep h4 { color:var(--ink-4); } .chg-c.out h4 { color:var(--down); }
+  .chg-c li { font-size:12px; line-height:1.65; color:var(--ink-2); padding-left:13px; position:relative; }
+  .chg-c li::before { content:"—"; position:absolute; left:0; color:var(--ink-4); }
+  .chg code, .mono { font-family:var(--mono); font-size:11px; }
+</style>
+
+<div class="rt" id="rt">
+
+  <header class="top">
+    <div class="top-in">
+      <h1 id="ptitle">예외승인 손익</h1>
+      <div class="ptabs">
+        <button class="ptab" data-p="exc" aria-pressed="true">예외승인</button>
+        <button class="ptab" data-p="cat" aria-pressed="false">카테고리 트렌드</button>
+      </div>
+      <div class="top-sp"></div>
+      <div class="basis" id="pbasis"></div>
+    </div>
+  </header>
+
+  <!-- ══════════ 예외승인 ══════════ -->
+  <div class="wrap" id="pageExc">
+
+    <section>
+      <div class="lay"><span class="step">STEP 1</span><h2>남는 장사인가</h2>
+        <span class="sub">이 페이지가 존재하는 유일한 이유</span></div>
+      <div class="hero">
+        <div>
+          <div class="hero-eyebrow">최근 6개월 · 예외승인 1,043건</div>
+          <p class="hero-q">
+            예외승인 없이도 <span style="color:var(--brand)">73% 이상</span> 성사됐을 거라면 <b>손해</b>,
+            그 아래면 <b>이득</b>입니다.
+          </p>
+          <p class="hero-a">
+            예외승인 건의 건당 공헌이익은 <b>38,400원</b>, 미승인 건은 <b>52,700원</b>입니다.
+            건당 <b>14,300원</b>을 덜 법니다. 하지만 예외승인이 없었다면 <b>그 거래 자체가 없었을 수도</b> 있습니다.
+            두 경우가 갈리는 지점이 <b>성사율 72.9%</b>입니다 — 이 숫자 하나가
+            "예외승인을 늘릴까 줄일까"에 대한 답입니다.
+          </p>
+        </div>
+        <div class="bigstat">
+          <div class="n num">72.9<span style="font-size:20px">%</span></div>
+          <div class="l">손익분기 성사율<br><span style="color:var(--ink-4)">38,400 ÷ 52,700</span></div>
+        </div>
+      </div>
+      <div class="note">
+        <b>①</b> 현재 페이지에는 <b>이 계산이 없습니다.</b> 시뮬레이션은 "예외승인 비율을 올리면
+        건당 공헌이익이 떨어진다"만 보여주는데, 그건 두 평균값의 가중평균이라 <b>산술적으로 항상 참</b>입니다 —
+        직선이 나올 수밖에 없고, 새로운 정보가 없습니다. 빠진 건 <b>거래량 효과</b>입니다.
+      </div>
+    </section>
+
+    <section>
+      <div class="lay"><span class="step">STEP 2</span><h2>까임이 실제로 얼마나 발생했나</h2>
+        <span class="sub">safe / 마진 까임 / 대손까지 까임</span></div>
+      <div class="panel"><div class="panel-b" style="padding-top:16px">
+        <div class="sig" id="sigStack"></div>
+        <div class="siglegend" id="sigLegend"></div>
+        <div class="note">
+          <b>②</b> <code class="mono">marginImpact</code>(safe / margin_hit / both_hit) 3분류는
+          <b>이미 서버에서 계산되고 있는데</b> 화면에서는 상세 테이블 한 열로만 쓰입니다.
+          맨 위로 올리면 "1,043건 중 몇 건이 실제로 위험했나"가 한눈에 들어옵니다.
+        </div>
+      </div></div>
+    </section>
+
+    <section>
+      <div class="lay"><span class="step">STEP 3</span><h2>까임은 어떻게 계산되나</h2>
+        <span class="sub">예외승인 평균 1건 기준 · 산식을 그림으로</span></div>
+      <div class="panel"><div class="panel-b" style="padding-top:16px">
+        <div id="shortfall"></div>
+        <div class="note">
+          <b>③</b> 이 페이지의 <b>모든 숫자가 이 5줄짜리 산식에서 나옵니다.</b>
+          지금은 <code class="mono">FormulaTooltip</code> 안에 텍스트로만 있어서,
+          산식을 모르는 사람에게는 화면 전체가 의미 없는 숫자입니다.
+          폭포로 그리면 "왜 까였는지"가 설명 없이 보입니다.
+        </div>
+      </div></div>
+    </section>
+
+    <section>
+      <div class="lay"><span class="step">STEP 4</span><h2>시뮬레이션</h2>
+        <span class="sub">비율뿐 아니라 <b>성사율 가정</b>을 함께 움직인다</span></div>
+      <div class="panel"><div class="panel-b" style="padding-top:16px">
+        <div class="sim">
+          <div>
+            <div class="sl">
+              <div class="sl-h"><b>예외승인 비율</b>
+                <span class="v num" id="rateV">12.4%<small>현재 12.4%</small></span></div>
+              <input type="range" id="rate" min="0" max="30" step="0.5" value="12.4">
+              <div class="sl-cap">전체 8,420건 중 예외승인으로 처리할 비율</div>
+            </div>
+            <div class="sl">
+              <div class="sl-h"><b>예외승인 없어도 성사됐을 비율</b>
+                <span class="v num" id="convV">50%</span></div>
+              <input type="range" id="conv" min="0" max="100" step="1" value="50">
+              <div class="sl-cap">
+                가정값입니다. 데이터로는 알 수 없고 영업 판단이 필요합니다 —
+                <b>바로 그래서 화면에 노출해야 합니다.</b> 숨겨두면 암묵적으로 100%를 가정한 셈이 됩니다.
+              </div>
+            </div>
+            <div class="verdict" id="verdict"></div>
+          </div>
+          <div>
+            <div style="font-size:11.5px;font-weight:700;color:var(--ink-2);margin-bottom:8px">
+              성사율 가정별 총 공헌이익 변화
+            </div>
+            <div id="simChart"></div>
+          </div>
+        </div>
+        <div class="note">
+          <b>④</b> 슬라이더 하나를 더했을 뿐인데 화면의 성격이 바뀝니다 —
+          <b>"얼마나 깎이나"에서 "어디까지 허용할까"로.</b> 전자는 보고서고 후자는 의사결정 도구입니다.
+        </div>
+      </div></div>
+    </section>
+
+    <section>
+      <div class="lay"><span class="step">STEP 5</span><h2>브랜드별 위험도</h2>
+        <span class="sub">까임 총액이 아니라 <b>건당 까임</b>으로 정렬</span></div>
+      <div class="panel"><div class="panel-b" style="padding-top:16px">
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>브랜드</th><th>전체</th><th>예외승인</th><th>승인율</th>
+            <th>타겟마진 까임</th><th>대손비 까임</th><th>건당 까임</th></tr></thead>
+          <tbody id="brandTbl"></tbody>
+        </table></div>
+        <div class="note">
+          <b>⑤</b> 현재는 <b>예외승인 건수 순</b>으로 정렬됩니다 — 큰 브랜드가 항상 위에 옵니다.
+          삼성전자가 1위인 건 매달 같은 사실이라 정보가 없습니다.
+          <b>건당 까임</b>으로 정렬하면 "규모는 작은데 유독 많이 까이는" 브랜드가 드러납니다.
+        </div>
+      </div></div>
+    </section>
+
+    <details class="det">
+      <summary>월별 상세 · 건별 원장 <span class="m">현재 1·2번째 섹션 (월별 요약표 + 상세 테이블)</span></summary>
+      <div class="det-b">
+        <p style="font-size:12px;color:var(--ink-2);line-height:1.75">
+          월별 요약표와 건별 상세 테이블은 <b>그대로 유지</b>합니다 — 검증에 필요합니다.
+          다만 지금은 <code class="mono">getLast6Months()</code>로 <b>6개월 고정</b>이라 기간을 바꿀 수 없고,
+          <code class="mono">BRAND_COST = 20000</code>이 <b>여러 파일에 하드코딩</b>되어 있습니다.
+          보상제 금액이 바뀌면 코드를 고쳐야 하므로, 기간 선택과 함께 화면에서 조정 가능하게 만드는 것을 제안합니다.
+        </p>
+      </div>
+    </details>
+
+    <section class="chg">
+      <h3>현재 예외승인 페이지 대비 무엇이 달라지나</h3>
+      <div class="chg-g">
+        <div class="chg-c in"><h4>넣은 것</h4><ul>
+          <li>손익분기 성사율 <b>72.9%</b> — 이 페이지가 내놔야 할 단 하나의 숫자 (①)</li>
+          <li>safe / margin_hit / both_hit 신호등 — 이미 계산 중인 값을 승격 (②)</li>
+          <li>까임 산식 폭포 — 5줄 산식을 그림으로 (③)</li>
+          <li>성사율 가정 슬라이더 — 암묵적 100% 가정을 드러냄 (④)</li>
+        </ul></div>
+        <div class="chg-c out"><h4>바뀐 것</h4><ul>
+          <li>시뮬레이션 맨 아래 → <b>4번째</b>. 유일한 의사결정 도구가 스크롤 끝에 있었음</li>
+          <li>브랜드 정렬: 예외승인 건수 순 → <b>건당 까임 순</b> (⑤)</li>
+          <li>월별표·건별 원장 → 접힌 아코디언</li>
+        </ul></div>
+        <div class="chg-c keep"><h4>그대로</h4><ul>
+          <li>6개 <code>build*</code> 서버 함수 전부 재사용 — 집계 로직 변경 없음</li>
+          <li>까임 산식 자체 (<code>shortfall</code> · <code>targetMarginHit</code> · <code>badDebtHit</code>)</li>
+          <li><code>tps_pnl</code> 단일 테이블 구조</li>
+        </ul></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ══════════ 카테고리 트렌드 ══════════ -->
+  <div class="wrap" id="pageCat" hidden>
+
+    <div class="warn">
+      <b>⑥ 가장 먼저 고쳐야 할 것 —</b> 지금 이 페이지의 두 탭은 <b>데이터 소스가 다릅니다.</b>
+      월별 트렌드는 <b>계약완료</b>(<code class="mono">raw_contracts</code>), 주차별 트렌드는
+      <b>주문확정</b>(<code class="mono">raw_orders</code>) 기준입니다.
+      탭을 누르면 기준이 조용히 바뀌는데 <b>화면 어디에도 표시가 없습니다</b> —
+      <code class="mono">AGENTS.md</code>에만 적혀 있습니다. 두 탭의 숫자를 비교하면 반드시 틀립니다.
+    </div>
+
+    <section>
+      <div class="lay"><span class="step">STEP 1</span><h2>이번 달 무엇이 뜨고 무엇이 지나</h2>
+        <span class="sub">트렌드 페이지인데 지금은 결론이 없다</span></div>
+      <div class="cards3">
+        <div class="mini">
+          <h4><i style="background:var(--up)"></i>뜨는 카테고리 <span style="color:var(--ink-4);font-weight:500">전년 동월 대비</span></h4>
+          <ul id="risers"></ul>
+        </div>
+        <div class="mini">
+          <h4><i style="background:var(--down)"></i>지는 카테고리</h4>
+          <ul id="fallers"></ul>
+        </div>
+        <div class="mini">
+          <h4><i style="background:var(--brand)"></i>신규 · 이탈</h4>
+          <ul>
+            <li><b>음식물처리기</b><span style="color:var(--up)">신규 12건<em>이번 달 첫 등장</em></span></li>
+            <li><b>유선전화</b><span style="color:var(--down)">이탈<em>전월 8건 → 0</em></span></li>
+          </ul>
+          <div style="font-size:10.5px;color:var(--ink-4);line-height:1.6;margin-top:10px">
+            <code class="mono">calcYoYBadges</code>와 신규/이탈 감지는 <b>이미 구현돼 있습니다.</b>
+            표 안의 작은 배지로만 쓰여서 눈에 띄지 않을 뿐입니다.
+          </div>
+        </div>
+      </div>
+      <div class="note">
+        <b>⑦</b> 지금 화면은 12개월 × Top10 격자와 배지뿐이라, "그래서 뭐가 뜨는데?"를
+        <b>사람이 표를 읽어서 판단</b>해야 합니다. 정렬 한 번이면 화면이 답할 수 있습니다.
+      </div>
+    </section>
+
+    <section>
+      <div class="lay"><span class="step">STEP 2</span><h2>규모 × 성장률</h2>
+        <span class="sub">큰데 지는 것 / 작지만 급성장하는 것을 가른다</span></div>
+      <div class="panel"><div class="panel-b" style="padding-top:16px">
+        <div id="scatter"></div>
+        <div class="note">
+          <b>⑧</b> 매트리스 +41%와 로봇청소기 +69%는 성장률만 보면 최고지만
+          <b>합쳐서 213건</b>입니다. 정수기는 +8%지만 <b>1,420건</b>입니다.
+          성장률 순위표만 보면 이 차이가 사라져서, 작은 카테고리에 과잉 반응하게 됩니다.
+        </div>
+      </div></div>
+    </section>
+
+    <section>
+      <div class="lay"><span class="step">STEP 3</span><h2>Top 10 한눈에</h2>
+        <span class="sub">12개월 추이를 카테고리마다 작게</span></div>
+      <div class="smgrid" id="smallMult"></div>
+      <div class="note">
+        <b>⑨</b> 12행 × 12열 격자를 눈으로 훑는 대신, 카테고리마다 작은 추이선을 두면
+        <b>모양</b>으로 비교됩니다 — 꾸준한 것, 최근 꺾인 것, 튀는 것이 즉시 갈립니다.
+        원본 격자는 아래에 접어둡니다.
+      </div>
+    </section>
+
+    <details class="det">
+      <summary>원본 격자 · 렌탈사 드릴다운 <span class="m">현재 월별/주차별 트렌드 표 전체</span></summary>
+      <div class="det-b">
+        <p style="font-size:12px;color:var(--ink-2);line-height:1.75">
+          12개월 × Top10 격자, 카테고리 클릭 시 <b>렌탈사 드릴다운</b>(상위 5개사), 주차별 상품 표는
+          <b>전부 유지</b>합니다. 특히 드릴다운은 이 페이지에서 가장 좋은 기능인데
+          지금은 <b>클릭 가능하다는 표시가 없어</b> 발견하기 어렵습니다 — 행에 힌트를 다는 것만으로 개선됩니다.
+          <br><br>
+          추가 제안: Top10 컷오프에 걸려 잘린 카테고리들이 <b>합계 어디에도 안 보입니다.</b>
+          "그 외 N개 카테고리" 행을 하나 두면 전체 합이 맞는지 확인할 수 있습니다.
+        </p>
+      </div>
+    </details>
+
+    <section class="chg">
+      <h3>현재 카테고리 트렌드 대비 무엇이 달라지나</h3>
+      <div class="chg-g">
+        <div class="chg-c in"><h4>넣은 것</h4><ul>
+          <li>기준 불일치 경고 — 월별=계약완료 / 주차별=주문확정 명시 (⑥)</li>
+          <li>뜨는 것 · 지는 것 · 신규/이탈 결론 카드 (⑦)</li>
+          <li>규모 × 성장률 산점도 (⑧)</li>
+          <li>Top10 스몰 멀티플 (⑨)</li>
+          <li>"그 외 N개 카테고리" 합계 행</li>
+        </ul></div>
+        <div class="chg-c out"><h4>바뀐 것</h4><ul>
+          <li>12×10 격자 → 접힌 아코디언 (삭제 아님)</li>
+          <li>YoY 배지 · 신규/이탈 → 표 안 배지에서 <b>결론 카드로 승격</b></li>
+          <li>드릴다운에 "클릭 가능" 힌트 추가</li>
+        </ul></div>
+        <div class="chg-c keep"><h4>그대로</h4><ul>
+          <li>24개월 조회 → 12개월 표시 로직</li>
+          <li><code>calcYoYBadges</code> · 신규/이탈 감지 · 렌탈사 드릴다운 전부 재사용</li>
+          <li>주차 계산(<code>WEEK_REF</code>) · <code>getCompanyLabel</code> 매핑</li>
+        </ul></div>
+      </div>
+    </section>
+  </div>
+
+<div class="tip" id="tip" role="status" aria-live="polite"></div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var root=document.getElementById("rt"), tip=document.getElementById("tip");
+  var NS="http://www.w3.org/2000/svg", CSS=getComputedStyle(root);
+  function tok(n){return CSS.getPropertyValue(n).trim();}
+  var UP=tok("--up"),DOWN=tok("--down"),INK=tok("--ink"),INK2=tok("--ink-2"),INK3=tok("--ink-3"),
+      INK4=tok("--ink-4"),LINE=tok("--line"),LINE2=tok("--line-2"),BRAND=tok("--brand"),CARD=tok("--card"),
+      SAFE=tok("--safe"),WARNC=tok("--sev-warn"),CRIT=tok("--sev-crit"),SURF=tok("--surface"),C1=tok("--c1");
+
+  function el(t,a,p){var n=document.createElementNS(NS,t);for(var k in a)n.setAttribute(k,a[k]);if(p)p.appendChild(n);return n;}
+  function svg(w,h,p){var s=el("svg",{viewBox:"0 0 "+w+" "+h,width:"100%",height:h,
+    preserveAspectRatio:"xMidYMid meet",role:"img"});s.style.display="block";s.style.overflow="visible";
+    if(p)p.appendChild(s);return s;}
+  function nf(n,d){return Number(n).toLocaleString("ko-KR",{minimumFractionDigits:d||0,maximumFractionDigits:d||0});}
+  function won(n){ return nf(Math.round(n))+"원"; }
+  // 억 단위로 반올림하면 0.08 + 0.20 ≠ 0.13 처럼 검산이 안 맞아 보인다 — 크기에 맞춰 단위를 고른다
+  function eok(n){
+    var a=Math.abs(n);
+    if(a>=100000000) return (n/100000000).toFixed(2)+"억";
+    return nf(Math.round(n/10000))+"만";
+  }
+  function showTip(h,e){tip.innerHTML=h;tip.classList.add("on");
+    var r=tip.getBoundingClientRect(),x=e.clientX+14,y=e.clientY-r.height-10;
+    if(x+r.width>window.innerWidth-10)x=e.clientX-r.width-14;
+    if(y<8)y=e.clientY+18;tip.style.left=x+"px";tip.style.top=y+"px";}
+  function hideTip(){tip.classList.remove("on");}
+
+  // ═══ 페이지 전환 ═══
+  var BASIS={ exc:'<span>기준</span><b>2026.03 – 2026.08</b><span style="color:var(--ink-4)">6개월 · tps_pnl</span>',
+              cat:'<span>기준</span><b>계약완료</b><span style="color:var(--ink-4)">월별 트렌드 · raw_contracts</span>' };
+  function setPage(p){
+    document.getElementById("pageExc").hidden = p!=="exc";
+    document.getElementById("pageCat").hidden = p!=="cat";
+    document.getElementById("ptitle").textContent = p==="exc"?"예외승인 손익":"카테고리 트렌드";
+    document.getElementById("pbasis").innerHTML = BASIS[p];
+    document.querySelectorAll(".ptab").forEach(function(b){
+      b.setAttribute("aria-pressed", String(b.getAttribute("data-p")===p));
+    });
+    window.scrollTo(0,0);
+  }
+  document.querySelectorAll(".ptab").forEach(function(b){
+    b.addEventListener("click",function(){ setPage(b.getAttribute("data-p")); });
+  });
+
+  // ═══ ② 신호등 ═══
+  var SIG=[
+    {k:"safe",      n:"안전",              v:647, c:SAFE,  d:"지원금을 써도 타겟마진·대손비가 그대로 남음"},
+    {k:"margin_hit",n:"타겟마진 까임",     v:282, c:WARNC, d:"마진은 깎였지만 대손비는 보전됨"},
+    {k:"both_hit",  n:"대손비까지 까임",   v:114, c:CRIT,  d:"마진을 다 쓰고 대손비까지 잠식"}
+  ];
+  (function(){
+    var tot=SIG.reduce(function(a,s){return a+s.v;},0);
+    var host=document.getElementById("sigStack"), lg=document.getElementById("sigLegend");
+    SIG.forEach(function(s){
+      var p=s.v/tot*100;
+      var b=document.createElement("i");
+      b.style.width=p+"%"; b.style.background=s.c;
+      b.innerHTML="<em>"+p.toFixed(0)+"%</em>";
+      b.addEventListener("mousemove",function(e){
+        showTip('<div class="t-h">'+s.n+"</div><div class='t-row'>"+nf(s.v)+"건 · "+p.toFixed(1)+"%</div>"+
+                "<div class='t-row' style='color:#c9c9d4'>"+s.d+"</div>",e);
+      });
+      b.addEventListener("mouseleave",hideTip);
+      host.appendChild(b);
+      var d=document.createElement("div");
+      d.innerHTML='<i style="background:'+s.c+'"></i><b>'+s.n+"</b> "+nf(s.v)+"건 <span>"+s.d+"</span>";
+      lg.appendChild(d);
+    });
+  })();
+
+  // ═══ ③ 까임 폭포 ═══
+  (function(){
+    var host=document.getElementById("shortfall");
+    var STEPS=[
+      {l:"sales",        v: 148000, t:"in"},
+      {l:"voucher",      v:  32000, t:"in"},
+      {l:"브랜드 부담",   v:  20000, t:"in"},
+      {l:"렌트리 지원금", v:-118000, t:"out"},
+      {l:"예외승인 지원금",v:-20000, t:"out"},
+      {l:"가용액",        v:  62000, t:"sub"},
+      {l:"타겟마진 요구", v: -54000, t:"need"},
+      {l:"대손비 요구",   v: -22000, t:"need"},
+      {l:"부족분",        v: -14000, t:"end"}
+    ];
+    var W=880,H=260,padL=8,padT=30,padB=54, n=STEPS.length;
+    var slot=(W-padL*2)/n, bw=Math.min(58,slot*0.62);
+    var run=0,bars=[];
+    STEPS.forEach(function(s){
+      if(s.t==="sub"||s.t==="end"){ bars.push({s:s,y0:0,y1:s.v,abs:true}); run=s.v; }
+      else { bars.push({s:s,y0:run,y1:run+s.v}); run+=s.v; }
+    });
+    var lo=-20000,hi=210000,floor=H-padB;
+    var Y=function(v){return padT+(1-(v-lo)/(hi-lo))*(H-padT-padB);};
+    var s=svg(W,H,host);
+    s.setAttribute("aria-label","예외승인 1건의 까임 산식 폭포");
+    el("line",{x1:padL,x2:W-padL,y1:Y(0),y2:Y(0),stroke:LINE,"stroke-width":"1"},s);
+    bars.forEach(function(b,i){
+      var cx=padL+slot*i+slot/2, x=cx-bw/2;
+      var top,bot;
+      if(b.abs){ top=Math.min(Y(b.s.v),Y(0)); bot=Math.max(Y(b.s.v),Y(0)); }
+      else { top=Math.min(Y(b.y0),Y(b.y1)); bot=Math.max(Y(b.y0),Y(b.y1)); }
+      var hgt=Math.max(3,bot-top);
+      var col = b.s.t==="in"?SAFE : b.s.t==="out"?DOWN : b.s.t==="sub"?INK2
+              : b.s.t==="need"?WARNC : CRIT;
+      if(i>0){
+        var pcx=padL+slot*(i-1)+slot/2;
+        var prev=bars[i-1], ly=Y(prev.abs?prev.s.v:prev.y1);
+        el("line",{x1:pcx+bw/2,x2:x,y1:ly,y2:ly,stroke:LINE,"stroke-dasharray":"3 3"},s);
+      }
+      var r=el("rect",{x:x,y:top,width:bw,height:hgt,rx:4,fill:col,
+                       "fill-opacity":(b.s.t==="sub"||b.s.t==="end")?"1":".9"},s);
+      r.style.cursor="pointer";
+      var lv=el("text",{x:cx,y:top-6,fill:col,"font-size":"10.5","font-weight":"700","text-anchor":"middle"},s);
+      lv.style.fontVariantNumeric="tabular-nums";
+      lv.textContent=(b.s.v>0&&!b.abs?"+":"")+nf(b.s.v/1000)+"천";
+      // 축 라벨 — 2줄로 나눠 겹침 방지
+      var parts=b.s.l.split(" ");
+      var t1=el("text",{x:cx,y:floor+16,fill:INK3,"font-size":"9.5","text-anchor":"middle"},s);
+      t1.textContent=parts[0];
+      if(parts[1]){ var t2=el("text",{x:cx,y:floor+27,fill:INK3,"font-size":"9.5","text-anchor":"middle"},s);
+                    t2.textContent=parts[1]; }
+      r.addEventListener("mousemove",function(e){
+        showTip('<div class="t-h">'+b.s.l+"</div><div class='t-row'>"+won(b.s.v)+"</div>",e);
+      });
+      r.addEventListener("mouseleave",hideTip);
+    });
+    var cap=el("text",{x:W/2,y:H-6,fill:INK4,"font-size":"10","text-anchor":"middle"},s);
+    cap.textContent="가용액 62,000원 < 요구액 76,000원 → 부족분 14,000원이 타겟마진에서 까임 (타겟마진 54,000 이내라 대손비는 안전)";
+  })();
+
+  // ═══ ④ 시뮬레이터 ═══
+  var TOTAL=8420, EXC_CM=38400, NON_CM=52700, CUR_RATE=12.4;
+  var rateEl=document.getElementById("rate"), convEl=document.getElementById("conv");
+
+  function simulate(rate, conv){
+    var excN=Math.round(TOTAL*rate/100), nonN=TOTAL-excN;
+    // 성사율 가정: 예외승인 건 중 conv%는 예외승인 없어도 성사됐을 건 → 그만큼은 기회손실
+    var lost=excN*(conv/100)*(NON_CM-EXC_CM);   // 안 해줬어도 됐는데 깎아준 손실
+    var gained=excN*(1-conv/100)*EXC_CM;         // 예외승인 덕에 새로 생긴 이익
+    return { excN:excN, nonN:nonN, lost:lost, gained:gained, net:gained-lost,
+             totalCm: nonN*NON_CM + excN*EXC_CM };
+  }
+
+  function drawSim(){
+    var rate=Number(rateEl.value), conv=Number(convEl.value);
+    document.getElementById("rateV").innerHTML=rate.toFixed(1)+"%<small>현재 "+CUR_RATE+"%</small>";
+    document.getElementById("convV").textContent=conv+"%";
+    var r=simulate(rate,conv);
+    var v=document.getElementById("verdict");
+    var good=r.net>=0;
+    v.className="verdict "+(good?"good":"bad");
+    v.innerHTML='<div class="t">'+(good?"순이득 +":"순손실 −")+eok(Math.abs(r.net))+"</div>"+
+      '<div class="d">예외승인 '+nf(r.excN)+"건 중 "+nf(Math.round(r.excN*conv/100))+
+      "건은 안 해줬어도 성사됐을 건으로 가정 → 기회손실 −"+eok(r.lost)+
+      "<br>나머지 "+nf(Math.round(r.excN*(1-conv/100)))+"건은 예외승인 덕에 생긴 거래 → +"+eok(r.gained)+
+      "<br><b>손익분기 성사율 72.9%</b> — 현재 가정 "+conv+"%는 "+
+      (conv<72.9?"<b>이 아래</b>라 이득":"<b>이 위</b>라 손해")+"</div>";
+
+    // 커브: 성사율 0~100 대비 순효과
+    var host=document.getElementById("simChart"); host.textContent="";
+    var W=460,H=230,padL=52,padR=14,padT=14,padB=34;
+    var X=function(p){return padL+(p/100)*(W-padL-padR);};
+    var vals=[]; for(var p=0;p<=100;p+=2){ vals.push({p:p,net:simulate(rate,p).net}); }
+    var mx=Math.max.apply(null,vals.map(function(d){return Math.abs(d.net);}))||1;
+    var Y=function(v){return padT+(1-(v+mx)/(2*mx))*(H-padT-padB);};
+    var s=svg(W,H,host);
+    s.setAttribute("aria-label","성사율 가정별 순효과");
+    [mx,0,-mx].forEach(function(g){
+      el("line",{x1:padL,x2:W-padR,y1:Y(g),y2:Y(g),stroke:g===0?LINE:LINE2,
+                 "stroke-width":g===0?"1.5":"1"},s);
+      var t=el("text",{x:padL-7,y:Y(g)+3.5,fill:INK4,"font-size":"9","text-anchor":"end"},s);
+      t.textContent=(g>0?"+":g<0?"−":"")+(g===0?"0":eok(Math.abs(g)));
+    });
+    [0,25,50,75,100].forEach(function(p){
+      var t=el("text",{x:X(p),y:H-padB+15,fill:INK4,"font-size":"9","text-anchor":"middle"},s);
+      t.textContent=p+"%";
+    });
+    var d="";
+    vals.forEach(function(v2,i){ d+=(i?"L":"M")+X(v2.p)+" "+Y(v2.net); });
+    el("path",{d:d,fill:"none",stroke:BRAND,"stroke-width":"2","stroke-linejoin":"round"},s);
+    // 손익분기선
+    var be=72.9;
+    el("line",{x1:X(be),x2:X(be),y1:padT,y2:H-padB,stroke:CRIT,"stroke-width":"1.5","stroke-dasharray":"4 3"},s);
+    var bt=el("text",{x:X(be),y:padT-3,fill:CRIT,"font-size":"9.5","font-weight":"700","text-anchor":"middle"},s);
+    bt.textContent="손익분기 72.9%";
+    // 현재 가정
+    el("circle",{cx:X(conv),cy:Y(r.net),r:"4.5",fill:CARD,stroke:BRAND,"stroke-width":"2.5"},s);
+    var ct=el("text",{x:X(conv),y:Y(r.net)-11,fill:BRAND,"font-size":"9.5","font-weight":"700",
+                      "text-anchor":conv>70?"end":"middle"},s);
+    ct.textContent="현재 가정";
+    var xl=el("text",{x:(padL+W-padR)/2,y:H-4,fill:INK4,"font-size":"9.5","text-anchor":"middle"},s);
+    xl.textContent="예외승인 없어도 성사됐을 비율 →";
+  }
+  rateEl.addEventListener("input",drawSim);
+  convEl.addEventListener("input",drawSim);
+  drawSim();
+
+  // ═══ ⑤ 브랜드 ═══
+  var BRANDS=[
+    {b:"삼성전자",  tot:2840, exc:412, tm:9800000, bd:4200000},
+    {b:"LG전자",    tot:2210, exc:298, tm:7100000, bd:3100000},
+    {b:"쿠쿠",      tot:1180, exc:142, tm:2600000, bd:1100000},
+    {b:"코웨이",    tot:980,  exc:98,  tm:1500000, bd:600000},
+    {b:"청호나이스",tot:640,  exc:58,  tm:600000,  bd:300000},
+    {b:"기타",      tot:570,  exc:35,  tm:200000,  bd:100000}
+  ];
+  (function(){
+    var rows=BRANDS.map(function(x){
+      return Object.assign({},x,{ rate:x.exc/x.tot*100, per:(x.tm+x.bd)/x.exc });
+    }).sort(function(a,b){return b.per-a.per;});
+    var mx=Math.max.apply(null,rows.map(function(r){return r.per;}));
+    var tb=document.getElementById("brandTbl");
+    rows.forEach(function(r,i){
+      var tr=document.createElement("tr");
+      tr.innerHTML="<td>"+r.b+(i===0?' <span style="font-size:9px;font-weight:700;color:var(--sev-crit)">최고 위험</span>':"")+"</td>"+
+        '<td class="num" style="color:var(--ink-3)">'+nf(r.tot)+"</td>"+
+        '<td class="num" style="font-weight:700">'+nf(r.exc)+"</td>"+
+        '<td class="num">'+r.rate.toFixed(1)+"%</td>"+
+        '<td class="num">'+nf(r.tm/10000)+"만</td>"+
+        '<td class="num">'+nf(r.bd/10000)+"만</td>"+
+        '<td><div class="riskbar"><b class="num">'+won(r.per)+"</b>"+
+          '<i style="width:'+(r.per/mx*54)+"px;background:"+(i===0?CRIT:i<3?WARNC:INK4)+'"></i></div></td>';
+      tb.appendChild(tr);
+    });
+  })();
+
+  // ═══ 카테고리 트렌드 ═══
+  var CATS=[
+    {n:"정수기",       v:1420, yoy: 8.2, sp:[2540,2612,2488,2601,2705,2668,2742,2690,2755,2704,2688,1420]},
+    {n:"인터넷",       v:196,  yoy:-3.1, sp:[388,402,376,394,410,398,416,404,422,408,401,196]},
+    {n:"세탁기+건조기",v:297,  yoy:22.4, sp:[210,224,238,246,255,262,271,278,284,290,297,152]},
+    {n:"TV",           v:256,  yoy:-8.8, sp:[298,292,284,278,272,268,264,260,258,257,256,128]},
+    {n:"안마의자",     v:248,  yoy:14.1, sp:[196,204,212,218,225,231,236,240,244,246,248,124]},
+    {n:"냉장고",       v:240,  yoy: 4.2, sp:[224,228,230,232,234,236,237,238,239,240,240,120]},
+    {n:"에어컨",       v:184,  yoy:-12.4,sp:[228,222,216,210,204,199,195,191,188,186,184,88]},
+    {n:"매트리스",     v:127,  yoy:41.2, sp:[76,82,89,95,101,107,112,117,121,124,127,66]},
+    {n:"비데",         v:118,  yoy: 2.1, sp:[112,113,114,115,116,116,117,117,118,118,118,58]},
+    {n:"로봇청소기",   v:86,   yoy:68.5, sp:[42,47,53,58,63,68,72,76,80,83,86,46]}
+  ];
+
+  (function(){
+    var sorted=CATS.slice().sort(function(a,b){return b.yoy-a.yoy;});
+    var rs=document.getElementById("risers"), fs=document.getElementById("fallers");
+    sorted.filter(function(c){return c.yoy>0;}).slice(0,4).forEach(function(c){
+      var li=document.createElement("li");
+      li.innerHTML="<b>"+c.n+'</b><span class="up">+'+c.yoy.toFixed(1)+"%<em>"+nf(c.v)+"건</em></span>";
+      rs.appendChild(li);
+    });
+    sorted.filter(function(c){return c.yoy<0;}).sort(function(a,b){return a.yoy-b.yoy;})
+      .slice(0,4).forEach(function(c){
+      var li=document.createElement("li");
+      li.innerHTML="<b>"+c.n+'</b><span class="down">'+c.yoy.toFixed(1)+"%<em>"+nf(c.v)+"건</em></span>";
+      fs.appendChild(li);
+    });
+  })();
+
+  // ⑧ 산점도
+  (function(){
+    var host=document.getElementById("scatter");
+    var W=860,H=310,padL=54,padR=90,padT=18,padB=42;
+    var maxV=1500, minY=-20, maxY=80;
+    var X=function(v){return padL+(v/maxV)*(W-padL-padR);};
+    var Y=function(g){return padT+(1-(g-minY)/(maxY-minY))*(H-padT-padB);};
+    var s=svg(W,H,host);
+    s.setAttribute("aria-label","카테고리 규모 대비 전년 대비 성장률 산점도");
+    // 0% 기준선
+    el("line",{x1:padL,x2:W-padR,y1:Y(0),y2:Y(0),stroke:LINE,"stroke-width":"1.5"},s);
+    [-20,0,20,40,60,80].forEach(function(g){
+      if(g!==0) el("line",{x1:padL,x2:W-padR,y1:Y(g),y2:Y(g),stroke:LINE2},s);
+      var t=el("text",{x:padL-7,y:Y(g)+3.5,fill:INK4,"font-size":"9","text-anchor":"end"},s);
+      t.textContent=(g>0?"+":"")+g+"%";
+    });
+    [0,500,1000,1500].forEach(function(v){
+      var t=el("text",{x:X(v),y:H-padB+15,fill:INK4,"font-size":"9","text-anchor":"middle"},s);
+      t.textContent=nf(v)+"건";
+    });
+    var yl=el("text",{x:padL-7,y:padT-5,fill:INK4,"font-size":"9","text-anchor":"end"},s);
+    yl.textContent="YoY";
+    var xl=el("text",{x:(padL+W-padR)/2,y:H-6,fill:INK4,"font-size":"9.5","text-anchor":"middle"},s);
+    xl.textContent="이번 달 거래건수 →";
+
+    var pts=CATS.map(function(c){ return {c:c,x:X(c.v),y:Y(c.yoy),r:Math.max(5,Math.sqrt(c.v)/4.4)}; });
+    // 라벨 세로 충돌 회피 — 이름과 증감률을 한 줄로 합쳐 필요한 간격을 절반으로 줄인다
+    pts.slice().sort(function(a,b){return a.y-b.y;}).forEach(function(p,i,arr){
+      p.ly = (i>0 && p.y-arr[i-1].ly < 13) ? arr[i-1].ly+13 : p.y;
+    });
+    // 오른쪽에 다른 점이 가까이 있으면 라벨을 왼쪽으로 뒤집는다
+    pts.forEach(function(p){
+      p.left = pts.some(function(q){
+        return q!==p && q.x>p.x && q.x-p.x<95 && Math.abs(q.y-p.ly)<13;
+      });
+    });
+    pts.forEach(function(p){
+      var col=p.c.yoy>=0?UP:DOWN, r=p.r, dir=p.left?-1:1;
+      el("circle",{cx:p.x,cy:p.y,r:r,fill:col,"fill-opacity":".18",stroke:col,"stroke-width":"2"},s);
+      if(Math.abs(p.ly-p.y)>3)
+        el("line",{x1:p.x+dir*(r+1),x2:p.x+dir*(r+5),y1:p.y,y2:p.ly,stroke:col,"stroke-width":"1","stroke-opacity":".45"},s);
+      var t=el("text",{x:p.x+dir*(r+6),y:p.ly+3.5,"font-size":"10","font-weight":"600",
+                       "text-anchor":p.left?"end":"start"},s);
+      var n1=el("tspan",{fill:INK2},t); n1.textContent=p.c.n+" ";
+      var n2=el("tspan",{fill:col,"font-weight":"700"},t);
+      n2.textContent=(p.c.yoy>0?"+":"")+p.c.yoy.toFixed(1)+"%";
+      var hit=el("circle",{cx:p.x,cy:p.y,r:r+5,fill:"transparent"},s);
+      hit.style.cursor="pointer";
+      hit.addEventListener("mousemove",function(e){
+        showTip('<div class="t-h">'+p.c.n+"</div><div class='t-row'>"+nf(p.c.v)+"건 · 전년 대비 "+
+          (p.c.yoy>0?"+":"")+p.c.yoy.toFixed(1)+"%</div>"+
+          "<div class='t-row' style='color:#c9c9d4'>원 크기 = 거래 규모</div>",e);
+      });
+      hit.addEventListener("mouseleave",hideTip);
+    });
+    var q=el("text",{x:W-padR+8,y:Y(60),fill:INK4,"font-size":"9.5"},s);
+    q.textContent="작지만 급성장";
+    var q2=el("text",{x:W-padR+8,y:Y(-10),fill:INK4,"font-size":"9.5"},s);
+    q2.textContent="축소 중";
+  })();
+
+  // ⑨ 스몰 멀티플
+  (function(){
+    var host=document.getElementById("smallMult");
+    CATS.forEach(function(c){
+      var col=c.yoy>=0?UP:DOWN;
+      var d=document.createElement("div"); d.className="sm";
+      d.innerHTML='<div class="sm-h"><b>'+c.n+'</b><span style="color:'+col+'">'+
+        (c.yoy>0?"+":"")+c.yoy.toFixed(1)+'%</span></div>'+
+        '<div class="sm-n num">'+nf(c.v)+"<i>건</i></div><div class='sph'></div>";
+      host.appendChild(d);
+      // 스파크라인
+      var vals=c.sp, W=160,H=32;
+      var mn=Math.min.apply(null,vals), mx=Math.max.apply(null,vals);
+      var pad=(mx-mn)*0.18||1, lo=mn-pad, hi=mx+pad;
+      var X=function(i){return (i/(vals.length-1))*(W-6)+3;};
+      var Y=function(v){return H-4-((v-lo)/(hi-lo))*(H-8);};
+      var s=svg(W,H,d.querySelector(".sph"));
+      var p=""; vals.forEach(function(v,i){ p+=(i?"L":"M")+X(i)+" "+Y(v); });
+      var gid="s"+Math.random().toString(36).slice(2,8);
+      var defs=el("defs",{},s);
+      var lg=el("linearGradient",{id:gid,x1:"0",y1:"0",x2:"0",y2:"1"},defs);
+      el("stop",{offset:"0","stop-color":col,"stop-opacity":".18"},lg);
+      el("stop",{offset:"1","stop-color":col,"stop-opacity":"0"},lg);
+      el("path",{d:p+"L"+X(vals.length-1)+" "+H+"L"+X(0)+" "+H+"Z",fill:"url(#"+gid+")"},s);
+      el("path",{d:p,fill:"none",stroke:col,"stroke-width":"1.8","stroke-linejoin":"round"},s);
+      el("circle",{cx:X(vals.length-1),cy:Y(vals[vals.length-1]),r:"2.8",
+                   fill:CARD,stroke:col,"stroke-width":"1.8"},s);
+    });
+  })();
+
+  setPage("exc");
+})();
+</script>
+
+</body>
+</html>

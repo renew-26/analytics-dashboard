@@ -103,7 +103,19 @@ export type CompanyOrderData = {
 };
 
 
-export default async function ComparePage() {
+function firstParam(v: string | string[] | undefined): string {
+  if (Array.isArray(v)) return v[0] ?? "";
+  return v ?? "";
+}
+
+export default async function ComparePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const sp = await searchParams;
+  const paramA = firstParam(sp.a);
+  const paramB = firstParam(sp.b);
   const months = getLast6Months();
   const startDate = months[0].start;
   const endDate = months[months.length - 1].end;
@@ -184,6 +196,11 @@ export default async function ComparePage() {
 
   const monthList = months.map((m) => m.month);
 
+  // 딥링크 ?a=<라벨>&b=<라벨> — 선택 가능한 라벨일 때만 초기 선택으로 사용
+  const initialA = allCompanies.includes(paramA) ? paramA : "";
+  const initialB =
+    allCompanies.includes(paramB) && paramB !== initialA ? paramB : "";
+
   return (
     <div className="px-12 py-6 mx-auto">
       <div className="mb-6">
@@ -197,6 +214,8 @@ export default async function ComparePage() {
         orderData={orderData}
         companies={allCompanies}
         months={monthList}
+        initialA={initialA}
+        initialB={initialB}
         companyMap={COMPANY_MAP.map((c) => ({
           label: c.label,
           dbName: c.dbName,

@@ -15,6 +15,28 @@ const PAGE_ORDERS = 50000;
 const TOP_N = 5;
 const YOY_THRESHOLD = 0.2;
 
+// 홈(거래건수 표)의 대카테고리 구분과 동일한 분류 — `?group=` 딥링크 수신용.
+// "그외 카테고리"는 아래 어디에도 속하지 않는 나머지 전부를 뜻한다.
+const OTHER_GROUP = "그외 카테고리";
+const CATEGORY_GROUPS: Record<string, string[]> = {
+  정수기: ["정수기"],
+  크로스셀: ["공기청정기", "비데"],
+  "성장성 카테고리": [
+    "TV",
+    "세탁기+건조기",
+    "에어컨",
+    "냉장고",
+    "로봇청소기",
+    "무선청소기",
+    "음식물처리기",
+    "안마의자",
+    "매트리스",
+    "타이어",
+  ],
+  인터넷: ["인터넷"],
+};
+const GROUPED_CATS = new Set(Object.values(CATEGORY_GROUPS).flat());
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type MonthCategoryData = {
@@ -38,6 +60,20 @@ export type CategoryChange = {
 export type YoYBadge = {
   type: "yoy-up" | "yoy-stable" | "new";
   label: string;
+};
+
+/** 최신월(부분월)과 전년 동일 일자구간을 맞춰 비교한 카테고리별 증감 */
+export type CatYoY = {
+  cat: string;
+  count: number;
+  prevCount: number;
+  /** prevCount가 0이면 비율을 낼 수 없어 null — "신규"로 표기한다 */
+  yoyPct: number | null;
+};
+
+export type YoYWindow = {
+  current: string;
+  previous: string;
 };
 
 export type WeekColumn = {
@@ -164,9 +200,62 @@ function calcYoYBadges(
   return badges;
 }
 
+// ─── YoY 증감률 (부분월 보정) ─────────────────────────────────────────────────
+
+/**
+ * 최신월은 아직 진행 중일 수 있어 전년 동월 "전체"와 비교하면 항상 감소로 보인다.
+ * 최신월에 데이터가 존재하는 마지막 일자까지로 양쪽 구간을 잘라 비교한다.
+ */
+function calcCatYoY(
+  allRows: ContractRow[],
+  latestMonth: string,
+  categories: string[],
+): { stats: CatYoY[]; window: YoYWindow } {
+  const [ly, lm] = latestMonth.split("-").map(Number);
+  const prevYearMonth = `${ly - 1}-${String(lm).padStart(2, "0")}`;
+
+  const latestRows = allRows.filter((r) => r.contract_date?.startsWith(latestMonth));
+  const day = (d: string) => Number(d.slice(8, 10));
+  const cutoffDay = latestRows.reduce((mx, r) => Math.max(mx, day(r.contract_date)), 0);
+
+  const curCount = new Map<string, number>();
+  for (const r of latestRows) {
+    if (!r.category || day(r.contract_date) > cutoffDay) continue;
+    curCount.set(r.category, (curCount.get(r.category) ?? 0) + 1);
+  }
+  const prevCount = new Map<string, number>();
+  for (const r of allRows) {
+    if (!r.category || !r.contract_date?.startsWith(prevYearMonth)) continue;
+    if (day(r.contract_date) > cutoffDay) continue;
+    prevCount.set(r.category, (prevCount.get(r.category) ?? 0) + 1);
+  }
+
+  const stats: CatYoY[] = categories.map((cat) => {
+    const count = curCount.get(cat) ?? 0;
+    const prev = prevCount.get(cat) ?? 0;
+    return {
+      cat,
+      count,
+      prevCount: prev,
+      yoyPct: prev > 0 ? ((count - prev) / prev) * 100 : null,
+    };
+  });
+
+  const range = (y: number) => `${y}.${lm}/1~${lm}/${cutoffDay}`;
+  return {
+    stats,
+    window: { current: range(ly), previous: range(ly - 1) },
+  };
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default async function CategoryTrendsPage() {
+export default async function CategoryTrendsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ group?: string }>;
+}) {
+  const { group } = await searchParams;
   const months24 = getLast24Months();
 
   const [contractRows, orderRows] = await Promise.all([
@@ -210,6 +299,27 @@ export default async function CategoryTrendsPage() {
   const categoryList = top10.filter((cat) =>
     [...aggMap.keys()].some((k) => k.endsWith(`::${cat}`)),
   );
+
+  // 월 전체 합계 + Top10 컷오프에 잘린 카테고리 — 비중 분모를 월 전체로 맞추고
+  // "그 외 N개 카테고리" 행으로 잔여분을 드러내기 위한 집계
+  const monthAllTotal: Record<string, number> = {};
+  const monthOtherTotal: Record<string, number> = {};
+  const otherCatsByMonth = new Map<string, Set<string>>();
+  for (const row of contractRows) {
+    if (!row.contract_date || !row.category) continue;
+    const month = row.contract_date.slice(0, 7);
+    if (!monthSet.has(month)) continue;
+    monthAllTotal[month] = (monthAllTotal[month] ?? 0) + 1;
+    if (!top10Set.has(row.category)) {
+      monthOtherTotal[month] = (monthOtherTotal[month] ?? 0) + 1;
+      if (!otherCatsByMonth.has(month)) otherCatsByMonth.set(month, new Set());
+      otherCatsByMonth.get(month)!.add(row.category);
+    }
+  }
+  const monthOtherCatCount: Record<string, number> = {};
+  for (const [month, set] of otherCatsByMonth.entries()) {
+    monthOtherCatCount[month] = set.size;
+  }
 
   // 렌탈사 드릴다운: month::category → top5 rental breakdown
   const rentalAgg = new Map<string, Map<string, number>>();
@@ -267,6 +377,29 @@ export default async function CategoryTrendsPage() {
   // YoY badges for the latest displayed month
   const latestMonth = monthList[monthList.length - 1];
   const yoyBadges = calcYoYBadges(contractRows, latestMonth, categoryList);
+  const { stats: catYoY, window: yoyWindow } = calcCatYoY(
+    contractRows,
+    latestMonth,
+    categoryList,
+  );
+
+  // `?group=` 딥링크 — 홈 워터폴/주의신호에서 넘어온 대카테고리.
+  // 알 수 없는 값이거나 해당 카테고리에 데이터가 없으면 기본 동작으로 되돌린다.
+  let groupName: string | null = null;
+  let groupCats: string[] = [];
+  if (group === OTHER_GROUP) {
+    const cats = categoryList.filter((c) => !GROUPED_CATS.has(c));
+    if (cats.length > 0) {
+      groupName = OTHER_GROUP;
+      groupCats = cats;
+    }
+  } else if (group && CATEGORY_GROUPS[group]) {
+    const cats = CATEGORY_GROUPS[group].filter((c) => categoryList.includes(c));
+    if (cats.length > 0) {
+      groupName = group;
+      groupCats = cats;
+    }
+  }
 
   // Weekly aggregation
   const weekAgg = new Map<number, Map<string, Map<string, ProductEntry>>>();
@@ -315,10 +448,9 @@ export default async function CategoryTrendsPage() {
   return (
     <div className="px-12 py-6 mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[#222222]">카테고리 트렌드</h1>
-        <p className="text-sm text-[#788093] mt-1">
-          계약완료 기준 · 월별 트렌드 | 주문확정 기준 · 주차별 트렌드
-        </p>
+        <h1 className="text-2xl font-bold" style={{ color: "var(--color-gray-900)" }}>
+          카테고리 트렌드
+        </h1>
       </div>
       <CategoryTrendsClient
         monthlyData={monthlyData}
@@ -329,6 +461,13 @@ export default async function CategoryTrendsPage() {
         weekColumns={weekColumns}
         categoryRentalMap={categoryRentalMap}
         categoryChanges={categoryChanges}
+        catYoY={catYoY}
+        yoyWindow={yoyWindow}
+        monthAllTotal={monthAllTotal}
+        monthOtherTotal={monthOtherTotal}
+        monthOtherCatCount={monthOtherCatCount}
+        groupName={groupName}
+        groupCats={groupCats}
       />
     </div>
   );

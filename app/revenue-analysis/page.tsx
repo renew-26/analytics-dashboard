@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
-import { getBM } from "@/lib/company-map";
 import { getWeekIndex, getWeekLabel } from "@/lib/week";
+import { getBM } from "@/lib/company-map";
+import BMFilter from "@/app/components/BMFilter";
 import { type CategoryMonthPoint } from "@/app/components/CategoryMonthlyChart";
 import RevenueAmountSection, {
   type PeriodColumn,
@@ -194,7 +195,17 @@ function topN(map: Map<string, number>, n: number): RankItem[] {
     }));
 }
 
-export default async function RevenueAnalysisPage() {
+export default async function RevenueAnalysisPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ bm?: string }>;
+}) {
+  const { bm: bmParam } = await searchParams;
+  // 홈 딥링크는 대문자(BM1), BMFilter 탭은 소문자(bm1) — 양쪽 모두 허용
+  const bmUpper = (bmParam ?? "").toUpperCase();
+  const bm = (
+    ["BM1", "BM2", "BM3"].includes(bmUpper) ? bmUpper.toLowerCase() : "all"
+  ) as "all" | "bm1" | "bm2" | "bm3";
   const yearStart = "2026-01-01";
 
   const today = new Date();
@@ -233,11 +244,21 @@ export default async function RevenueAnalysisPage() {
   const prevMonthStartStr = toLocalDateStr(prevMonthStart);
   const prevPeriodEndStr = toLocalDateStr(prevPeriodEnd);
 
-  const [orders, contracts, catRaw] = await Promise.all([
+  const [allOrders, allContracts, catRaw] = await Promise.all([
     fetchOrders(startStr, endStr),
     fetchContracts(startStr, endStr),
     fetchAllYearContracts(yearStart, endStr),
   ]);
+
+  const bmKey = bm.toUpperCase();
+  const orders =
+    bm === "all"
+      ? allOrders
+      : allOrders.filter((o) => getBM(o.partner_company) === bmKey);
+  const contracts =
+    bm === "all"
+      ? allContracts
+      : allContracts.filter((c) => getBM(c.partner_company) === bmKey);
 
   const currOrders = orders.filter(
     (o) =>
@@ -534,11 +555,14 @@ export default async function RevenueAnalysisPage() {
   return (
     <div className="px-12 py-6 mx-auto space-y-8">
       <div>
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-[#222222]">수수료 매출</h1>
-          <p className="text-sm text-[#788093] mt-1">
-            주문확정 · 계약완료 기준 매출 리뷰 (전일까지 기준)
-          </p>
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-[#222222]">수수료 매출</h1>
+            <p className="text-sm text-[#788093] mt-1">
+              주문확정 · 계약완료 기준 매출 리뷰 (전일까지 기준)
+            </p>
+          </div>
+          <BMFilter current={bm} />
         </div>
         <RevenueAnalysisClient
           kpi={kpi}

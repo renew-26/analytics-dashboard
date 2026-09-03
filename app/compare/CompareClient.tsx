@@ -28,6 +28,8 @@ type Props = {
   companies: string[];
   months: string[];
   companyMap: CompanyMapEntry[];
+  initialA?: string;
+  initialB?: string;
 };
 
 // 받침 여부로 조사 선택 (과/와, 을/를)
@@ -175,9 +177,11 @@ export default function CompareClient({
   companies,
   months,
   companyMap,
+  initialA = "",
+  initialB = "",
 }: Props) {
-  const [companyA, setCompanyA] = useState<string>("");
-  const [companyB, setCompanyB] = useState<string>("");
+  const [companyA, setCompanyA] = useState<string>(initialA);
+  const [companyB, setCompanyB] = useState<string>(initialB);
   const [showAllConversion, setShowAllConversion] = useState(false);
   const [showAllAvgFee, setShowAllAvgFee] = useState(false);
   const [showAllAvgIncentive, setShowAllAvgIncentive] = useState(false);
