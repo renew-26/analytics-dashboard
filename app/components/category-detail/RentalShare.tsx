@@ -58,7 +58,7 @@ export default function RentalShare({
               title={`${s.label} ${n(s.count)}건 (${p.toFixed(1)}%)`}
             >
               {p > 9 ? (
-                <span className="num text-[10.5px] font-bold text-white">
+                <span className="num text-[11px] font-bold text-white">
                   {p.toFixed(0)}%
                 </span>
               ) : null}
@@ -89,7 +89,7 @@ export default function RentalShare({
       </div>
 
       <div className="mt-5">
-        <div className="mb-2 text-[11.5px] font-bold text-[var(--color-gray-600)]">
+        <div className="mb-2 text-[12px] font-bold text-[var(--color-gray-600)]">
           전월 동기간({prevRangeLabel}) 대비 증감 (건)
         </div>
         {deltas.length === 0 ? (
@@ -103,7 +103,7 @@ export default function RentalShare({
               const pos = x.d > 0;
               return (
                 <li key={x.label} className="flex items-center gap-2">
-                  <span className="w-[86px] shrink-0 text-right text-[11.5px] font-semibold text-[var(--color-gray-600)]">
+                  <span className="w-[86px] shrink-0 text-right text-[12px] font-semibold text-[var(--color-gray-600)]">
                     {x.label}
                   </span>
                   <span className="relative block h-[14px] flex-1">

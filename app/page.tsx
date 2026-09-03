@@ -894,7 +894,7 @@ export default async function Home({
                   <>입니다.</>
                 )}
               </p>
-              <p className="mt-2.5 max-w-[46ch] text-[12.5px] leading-[1.65] text-[var(--color-gray-600)]">
+              <p className="mt-2.5 max-w-[46ch] text-[12px] leading-[1.65] text-[var(--color-gray-600)]">
                 거래액은 {amtChange > 0 ? "+" : ""}
                 {amtChange.toFixed(1)}% {amtChange >= 0 ? "늘었" : "줄었"}고
                 건당 공헌이익은 {Math.round(cpuCurr).toLocaleString("ko-KR")}
@@ -964,17 +964,17 @@ export default async function Home({
                   href={k.href}
                   className="bg-white p-[11px_13px_9px] transition-colors hover:bg-[var(--color-gray-25)]"
                 >
-                  <dt className="mb-[3px] text-[10.5px] font-semibold text-[var(--color-gray-500)]">
+                  <dt className="mb-[3px] text-[11px] font-semibold text-[var(--color-gray-500)]">
                     {k.label}
                   </dt>
                   <div className="flex items-end justify-between gap-2">
-                    <div className="num text-[21px] font-extrabold leading-none tracking-[-.6px]">
+                    <div className="num text-[21px] font-bold leading-none tracking-[-.6px]">
                       {k.value}
                       <i className="ml-0.5 text-[12px] font-semibold not-italic tracking-normal text-[var(--color-gray-500)]">
                         {k.unit}
                       </i>
                     </div>
-                    <div className="text-[11.5px] font-bold whitespace-nowrap">
+                    <div className="text-[12px] font-bold whitespace-nowrap">
                       <Delta
                         value={k.delta}
                         unit={k.deltaUnit}
@@ -1001,14 +1001,14 @@ export default async function Home({
                 </Link>
               ))}
             </dl>
-              <p className="col-span-full mt-2 text-[10.5px] text-[var(--color-gray-400)]">
+              <p className="col-span-full mt-2 text-[11px] text-[var(--color-gray-400)]">
                 선 = 최근 12개월 추이 (매월 1–{dayCut}일 같은 기간 기준) · 오른쪽 숫자 = 전월 동기간 대비
               </p>
           </div>
 
           {/* BM 수익성 — 대손율은 심각도색으로만 칠한다 */}
           <div className="grid grid-cols-1 items-center gap-[18px] border-t border-[var(--color-gray-200)] bg-[var(--color-gray-25)] p-[13px_22px] lg:grid-cols-[auto_repeat(3,minmax(0,1fr))]">
-            <div className="text-[11.5px] font-bold whitespace-nowrap text-[var(--color-gray-600)]">
+            <div className="text-[12px] font-bold whitespace-nowrap text-[var(--color-gray-600)]">
               BM별 실적
             </div>
             {bmStats.map((b) => (
@@ -1035,13 +1035,13 @@ export default async function Home({
                     },
                   ].map((m) => (
                     <div key={m.k} className="flex items-baseline gap-1">
-                      <span className="text-[10.5px] text-[var(--color-gray-400)]">
+                      <span className="text-[11px] text-[var(--color-gray-400)]">
                         {m.k}
                       </span>
                       <b className="num text-[13px] font-bold tracking-[-.2px]">
                         {m.v}
                       </b>
-                      <span className="ml-0.5 text-[10.5px] font-bold">
+                      <span className="ml-0.5 text-[11px] font-bold">
                         <Delta value={m.d} />
                       </span>
                     </div>
@@ -1060,7 +1060,7 @@ export default async function Home({
           {/* 주의 신호 */}
           <div className={panel}>
             <div className="flex items-baseline justify-between gap-2.5 p-[14px_17px_11px]">
-              <h3 className="text-[13.5px] font-extrabold tracking-[-.2px]">
+              <h3 className="text-[14px] font-bold tracking-[-.2px]">
                 주의 신호
               </h3>
               <span className="text-[11px] text-[var(--color-gray-400)]">
@@ -1095,7 +1095,7 @@ export default async function Home({
                         />
                         {/* 색 단독 금지 — 항상 텍스트 라벨을 붙인다 */}
                         <span
-                          className="rounded-[4px] px-1.5 py-[3px] text-[10px] font-extrabold whitespace-nowrap"
+                          className="rounded-[4px] px-1.5 py-[3px] text-[10px] font-bold whitespace-nowrap"
                           style={
                             a.sev === "crit"
                               ? {
@@ -1111,10 +1111,10 @@ export default async function Home({
                           {a.sev === "crit" ? "이상" : "주의"}
                         </span>
                         <span className="min-w-0">
-                          <span className="block text-[12.5px] font-bold leading-[1.4] tracking-[-.1px] group-hover:text-[var(--color-primary)]">
+                          <span className="block text-[12px] font-bold leading-[1.4] tracking-[-.1px] group-hover:text-[var(--color-primary)]">
                             {a.title}
                           </span>
-                          <span className="mt-0.5 block text-[11.5px] leading-[1.5] text-[var(--color-gray-500)]">
+                          <span className="mt-0.5 block text-[12px] leading-[1.5] text-[var(--color-gray-500)]">
                             {a.detail}
                           </span>
                         </span>
@@ -1138,7 +1138,7 @@ export default async function Home({
           {/* 워터폴 */}
           <div className={panel}>
             <div className="flex items-baseline justify-between gap-2.5 p-[14px_17px_11px]">
-              <h3 className="text-[13.5px] font-extrabold tracking-[-.2px]">
+              <h3 className="text-[14px] font-bold tracking-[-.2px]">
                 무엇이 이 달을 만들었나
               </h3>
               <span className="text-[11px] text-[var(--color-gray-400)]">
@@ -1148,7 +1148,7 @@ export default async function Home({
             <div className="px-[17px] pb-4">
               <Waterfall items={waterfallItems} />
               {(topPos || topNeg) && (
-                <p className="mt-3 rounded-r-[6px] border-l-2 border-[var(--color-primary)] bg-[var(--color-primary-50)] px-[11px] py-[7px] text-[11.5px] leading-[1.6] text-[var(--color-primary-700)]">
+                <p className="mt-3 rounded-r-[6px] border-l-2 border-[var(--color-primary)] bg-[var(--color-primary-50)] px-[11px] py-[7px] text-[12px] leading-[1.6] text-[var(--color-primary-700)]">
                   합계{" "}
                   <b>
                     {netDelta > 0 ? "+" : ""}
@@ -1182,7 +1182,7 @@ export default async function Home({
         {/* BM별 비교 */}
         <div className={panel}>
           <div className="flex items-baseline justify-between gap-2.5 p-[14px_17px_11px]">
-            <h3 className="text-[13.5px] font-extrabold tracking-[-.2px]">
+            <h3 className="text-[14px] font-bold tracking-[-.2px]">
               BM(판매 채널)별 비교
             </h3>
             <span className="text-[11px] text-[var(--color-gray-400)]">
@@ -1197,7 +1197,7 @@ export default async function Home({
                 <div className="mb-0.5 text-[12px] font-bold text-[var(--color-gray-600)]">
                   BM 구성이 어디로 움직였나
                 </div>
-                <div className="mb-2 text-[10.5px] text-[var(--color-gray-400)]">
+                <div className="mb-2 text-[11px] text-[var(--color-gray-400)]">
                   굵은 바 = 이번 달 · 아래 얇은 바 = 전월 동기간 · 100% 기준
                 </div>
                 <BMMixBar
@@ -1227,11 +1227,11 @@ export default async function Home({
                 <div className="mb-0.5 text-[12px] font-bold text-[var(--color-gray-600)]">
                   BM별 지표
                 </div>
-                <div className="mb-2 text-[10.5px] text-[var(--color-gray-400)]">
+                <div className="mb-2 text-[11px] text-[var(--color-gray-400)]">
                   아래 숫자는 전월 동기간 대비 변화
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-[11.5px]">
+                  <table className="w-full text-[12px]">
                     <thead>
                       <tr className="border-b border-[var(--color-gray-200)]">
                         {[
@@ -1269,17 +1269,17 @@ export default async function Home({
                                   style={{ background: b.color }}
                                 />
                                 <span>
-                                  <b className="block text-[12.5px] font-extrabold tracking-[-.2px]">
+                                  <b className="block text-[12px] font-bold tracking-[-.2px]">
                                     {b.key}
                                   </b>
-                                  <em className="mt-px block text-[9.5px] not-italic text-[var(--color-gray-400)]">
+                                  <em className="mt-px block text-[10px] not-italic text-[var(--color-gray-400)]">
                                     {b.note}
                                   </em>
                                 </span>
                               </Link>
                             </td>
                             <td className="p-[8px_7px] text-right">
-                              <div className="num text-[12.5px] font-bold tracking-[-.2px]">
+                              <div className="num text-[12px] font-bold tracking-[-.2px]">
                                 {b.cnt.toLocaleString("ko-KR")}
                               </div>
                               <div className="mt-px text-[10px] font-bold">
@@ -1287,7 +1287,7 @@ export default async function Home({
                               </div>
                             </td>
                             <td className="p-[8px_7px] text-right">
-                              <div className="num text-[12.5px] font-bold tracking-[-.2px]">
+                              <div className="num text-[12px] font-bold tracking-[-.2px]">
                                 {b.amt.toFixed(1)}억
                               </div>
                               <div className="mt-px text-[10px] font-bold">
@@ -1295,7 +1295,7 @@ export default async function Home({
                               </div>
                             </td>
                             <td className="p-[8px_7px] text-right">
-                              <div className="num text-[12.5px] font-bold tracking-[-.2px]">
+                              <div className="num text-[12px] font-bold tracking-[-.2px]">
                                 {b.sales.toFixed(1)}억
                               </div>
                               <div className="mt-px text-[10px] font-bold">
@@ -1303,7 +1303,7 @@ export default async function Home({
                               </div>
                             </td>
                             <td className="p-[8px_7px] pr-0 text-right">
-                              <div className="num text-[12.5px] font-bold tracking-[-.2px]">
+                              <div className="num text-[12px] font-bold tracking-[-.2px]">
                                 {Math.round(b.cpu).toLocaleString("ko-KR")}원
                               </div>
                               <div className="mt-px text-[10px] font-bold">
@@ -1321,7 +1321,7 @@ export default async function Home({
 
             {/* 이익률 변화 분해 — "저이익 채널이 커져서"인지 "각 채널 안에서 빠졌는지" */}
             <div className="mt-4 flex flex-wrap items-center gap-2.5 border-t border-[var(--color-line-2)] pt-[13px]">
-              <span className="mr-0.5 text-[11.5px] font-bold text-[var(--color-gray-600)]">
+              <span className="mr-0.5 text-[12px] font-bold text-[var(--color-gray-600)]">
                 건당 공헌이익 {cpuDelta > 0 ? "+" : ""}
                 {Math.round(cpuDelta).toLocaleString("ko-KR")}원 분해
               </span>
@@ -1336,11 +1336,11 @@ export default async function Home({
                     </span>
                   )}
                   <span className="flex items-baseline gap-[7px] rounded-[8px] border border-[var(--color-gray-200)] bg-[var(--color-gray-25)] px-[11px] py-1.5">
-                    <span className="text-[10.5px] text-[var(--color-gray-500)]">
+                    <span className="text-[11px] text-[var(--color-gray-500)]">
                       {d.label}
                     </span>
                     <b
-                      className="num text-[13.5px] font-extrabold tracking-[-.3px]"
+                      className="num text-[14px] font-bold tracking-[-.3px]"
                       style={{ color: dirColor(d.value, 1) }}
                     >
                       {d.value > 0 ? "+" : ""}
@@ -1353,11 +1353,11 @@ export default async function Home({
                 =
               </span>
               <span className="flex items-baseline gap-[7px] rounded-[8px] border border-[var(--color-primary-100)] bg-[var(--color-primary-50)] px-[11px] py-1.5">
-                <span className="text-[10.5px] text-[var(--color-gray-500)]">
+                <span className="text-[11px] text-[var(--color-gray-500)]">
                   전체
                 </span>
                 <b
-                  className="num text-[13.5px] font-extrabold tracking-[-.3px]"
+                  className="num text-[14px] font-bold tracking-[-.3px]"
                   style={{ color: dirColor(cpuDelta, 1) }}
                 >
                   {cpuDelta > 0 ? "+" : ""}
@@ -1372,7 +1372,7 @@ export default async function Home({
       {/* ═══ 계층 3 — 렌탈사 한 달 요약 카드 ══════════════ */}
       <section>
         <div className="mb-[11px] flex flex-wrap items-baseline gap-2.5">
-          <h2 className="text-[15px] font-extrabold tracking-[-.3px]">
+          <h2 className="text-[15px] font-bold tracking-[-.3px]">
             렌탈사 요약
           </h2>
           <span className="text-[12px] text-[var(--color-gray-500)]">
@@ -1386,7 +1386,7 @@ export default async function Home({
       {/* ═══ 계층 3b — 카테고리 한 달 요약 카드 ════════════ */}
       <section>
         <div className="mb-[11px] flex flex-wrap items-baseline gap-2.5">
-          <h2 className="text-[15px] font-extrabold tracking-[-.3px]">
+          <h2 className="text-[15px] font-bold tracking-[-.3px]">
             카테고리 요약
           </h2>
           <span className="text-[12px] text-[var(--color-gray-500)]">
@@ -1398,12 +1398,12 @@ export default async function Home({
 
       {/* ═══ 계층 4 — 원본 격자는 버리지 않고 접는다 ══════ */}
       <details className={`${panel} group overflow-hidden`}>
-        <summary className="flex cursor-pointer list-none select-none items-center gap-[9px] p-[14px_18px] text-[13.5px] font-extrabold tracking-[-.2px] [&::-webkit-details-marker]:hidden">
+        <summary className="flex cursor-pointer list-none select-none items-center gap-[9px] p-[14px_18px] text-[14px] font-bold tracking-[-.2px] [&::-webkit-details-marker]:hidden">
           <span className="inline-block text-[11px] text-[var(--color-gray-400)] transition-transform group-open:rotate-90">
             ▸
           </span>
           상세 데이터
-          <span className="ml-auto text-[11.5px] font-medium text-[var(--color-gray-400)]">
+          <span className="ml-auto text-[12px] font-medium text-[var(--color-gray-400)]">
             카테고리 월별 추이 · 월별 격자 — 숫자를 직접 확인할 때
           </span>
         </summary>

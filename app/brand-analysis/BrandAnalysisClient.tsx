@@ -503,6 +503,40 @@ type ProductPerfRow = {
   marginRate: number;
 };
 
+// 렌더 안에서 정의하면 매 렌더마다 컴포넌트 정체가 새로 생겨 React가 언마운트/재마운트한다.
+// 모듈 스코프로 올리고 정렬 상태는 props로 받는다.
+function SortTh({
+  label,
+  col,
+  sortKey,
+  sortAsc,
+  onSort,
+}: {
+  label: string;
+  col: ProductSortKey;
+  sortKey: ProductSortKey;
+  sortAsc: boolean;
+  onSort: (key: ProductSortKey) => void;
+}) {
+  const active = sortKey === col;
+  return (
+    <th
+      className="px-3 py-2.5 text-right cursor-pointer select-none whitespace-nowrap"
+      onClick={() => onSort(col)}
+    >
+      <span
+        className="text-xs font-semibold"
+        style={{ color: active ? "var(--primary, #3531FF)" : "#788093" }}
+      >
+        {label}
+        <span className="ml-0.5 text-[10px]">
+          {active ? (sortAsc ? "▲" : "▼") : ""}
+        </span>
+      </span>
+    </th>
+  );
+}
+
 function ProductPerformanceTab({
   data,
   categories,
@@ -572,31 +606,6 @@ function ProductPerformanceTab({
     });
   }, [rows, sortKey, sortAsc]);
 
-  function SortTh({
-    label,
-    col,
-  }: {
-    label: string;
-    col: ProductSortKey;
-  }) {
-    const active = sortKey === col;
-    return (
-      <th
-        className="px-3 py-2.5 text-right cursor-pointer select-none whitespace-nowrap"
-        onClick={() => handleSort(col)}
-      >
-        <span
-          className="text-xs font-semibold"
-          style={{ color: active ? "var(--primary, #3531FF)" : "#788093" }}
-        >
-          {label}
-          <span className="ml-0.5 text-[10px]">
-            {active ? (sortAsc ? "▲" : "▼") : ""}
-          </span>
-        </span>
-      </th>
-    );
-  }
 
   const selectedCatLabel = catFilter ?? "전체";
 
@@ -675,10 +684,34 @@ function ProductPerformanceTab({
                   {groupByTerm && (
                     <th className="px-3 py-2.5 text-right text-xs font-semibold text-[#788093] whitespace-nowrap">계약기간</th>
                   )}
-                  <SortTh label="건수" col="count" />
-                  <SortTh label="매출" col="sales" />
-                  <SortTh label="공헌이익" col="marginSum" />
-                  <SortTh label="공헌이익률" col="marginRate" />
+                  <SortTh
+                    label="건수"
+                    col="count"
+                    sortKey={sortKey}
+                    sortAsc={sortAsc}
+                    onSort={handleSort}
+                  />
+                  <SortTh
+                    label="매출"
+                    col="sales"
+                    sortKey={sortKey}
+                    sortAsc={sortAsc}
+                    onSort={handleSort}
+                  />
+                  <SortTh
+                    label="공헌이익"
+                    col="marginSum"
+                    sortKey={sortKey}
+                    sortAsc={sortAsc}
+                    onSort={handleSort}
+                  />
+                  <SortTh
+                    label="공헌이익률"
+                    col="marginRate"
+                    sortKey={sortKey}
+                    sortAsc={sortAsc}
+                    onSort={handleSort}
+                  />
                 </tr>
               </thead>
               <tbody>
@@ -879,7 +912,15 @@ function Collapse({
 }) {
   // 내용은 항상 마운트해 둔다 — grid-rows 0fr↔1fr이 내용 높이를 즉시 잡아야
   // 열림/닫힘 모두 매끄럽게 트랜지션된다. (닫히는 동안에도 직전 내용 유지)
+  //
+  // react-hooks/refs 를 억제한다. 렌더 중 ref 쓰기·읽기는 원칙적으로 금지지만
+  // 검토한 대안이 모두 동작을 깬다:
+  //  - 호출부의 `isOpen &&` 가드 제거 → detail은 "열린 행 하나"의 단일 useMemo라
+  //    모든 행이 같은 detail을 렌더한다.
+  //  - state로 이관 → children이 매 렌더 새 객체라 비교가 항상 불일치, 무한 루프.
+  // 닫히는 동안 직전 children을 살려두는 것이 이 캐시의 목적이라 그대로 둔다.
   const last = useRef<React.ReactNode>(children);
+  // eslint-disable-next-line react-hooks/refs
   if (children) last.current = children;
 
   return (
@@ -891,6 +932,7 @@ function Collapse({
         transition: "grid-template-rows 0.28s ease, opacity 0.22s ease",
       }}
     >
+      {/* eslint-disable-next-line react-hooks/refs */}
       <div style={{ overflow: "hidden", minHeight: 0 }}>{last.current}</div>
     </div>
   );

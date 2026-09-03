@@ -47,7 +47,7 @@ export default function Header({
 
       {/* 이 화면의 모든 수치가 어느 구간인지 상시 표기한다 */}
       {isHome && basis && (
-        <div className="flex items-center gap-[7px] rounded-full border border-[var(--color-gray-200)] bg-[var(--color-gray-100)] px-[11px] py-1 text-[11.5px] text-[var(--color-gray-600)]">
+        <div className="flex items-center gap-[7px] rounded-full border border-[var(--color-gray-200)] bg-[var(--color-gray-100)] px-[11px] py-1 text-[12px] text-[var(--color-gray-600)]">
           <span>기준</span>
           <b className="num font-mono font-semibold tracking-[-.2px] text-[var(--color-gray-900)]">
             {basis.range}

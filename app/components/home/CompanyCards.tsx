@@ -135,13 +135,13 @@ export default function CompanyCards({
             >
               <div className="flex items-start justify-between gap-[9px]">
                 <div>
-                  <div className="text-[14px] font-extrabold leading-[1.25] tracking-[-.3px]">
+                  <div className="text-[14px] font-bold leading-[1.25] tracking-[-.3px]">
                     {c.label}
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-[5px]">
                     <span className={TAG}>{c.bm}</span>
                     <span className={TAG}>{c.group}</span>
-                    <span className="num rounded-[4px] bg-[var(--color-gray-100)] px-[5px] py-0.5 font-mono text-[9.5px] font-bold text-[var(--color-gray-500)]">
+                    <span className="num rounded-[4px] bg-[var(--color-gray-100)] px-[5px] py-0.5 font-mono text-[10px] font-bold text-[var(--color-gray-500)]">
                       #{c.rank}
                       {rankMove !== 0 && (
                         <em
@@ -168,14 +168,14 @@ export default function CompanyCards({
               </div>
 
               <div className="flex items-end justify-between gap-2.5">
-                <div className="num text-[27px] font-extrabold leading-none tracking-[-1px]">
+                <div className="num text-[27px] font-bold leading-none tracking-[-1px]">
                   {c.curr.toLocaleString("ko-KR")}
                   <i className="ml-0.5 text-[12px] font-semibold not-italic tracking-normal text-[var(--color-gray-500)]">
                     건
                   </i>
                 </div>
                 <div
-                  className="num text-right text-[11.5px] font-bold leading-[1.35]"
+                  className="num text-right text-[12px] font-bold leading-[1.35]"
                   style={{ color: dirCol }}
                 >
                   {arrow} {Math.abs(chg).toFixed(1)}%
@@ -186,7 +186,7 @@ export default function CompanyCards({
               </div>
 
               <div>
-                <div className="mb-1 flex items-baseline justify-between text-[10.5px] text-[var(--color-gray-500)]">
+                <div className="mb-1 flex items-baseline justify-between text-[11px] text-[var(--color-gray-500)]">
                   <span>평소 페이스 대비</span>
                   <b className="num font-bold" style={{ color: paceColor(st.idx) }}>
                     {st.idx.toFixed(0)}%
@@ -227,17 +227,17 @@ export default function CompanyCards({
                       key={m.k}
                       className={`flex min-w-0 flex-col gap-0.5 ${i === 2 ? "items-end" : ""}`}
                     >
-                      <span className="truncate text-[9.5px] font-semibold text-[var(--color-gray-400)]">
+                      <span className="truncate text-[10px] font-semibold text-[var(--color-gray-400)]">
                         {m.k}
                       </span>
-                      <b className="num text-[12.5px] font-bold tracking-[-.2px]">
+                      <b className="num text-[12px] font-bold tracking-[-.2px]">
                         {m.v}
                       </b>
                     </div>
                   ))}
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="truncate text-[9.5px] font-semibold text-[var(--color-gray-400)]">
+                  <span className="truncate text-[10px] font-semibold text-[var(--color-gray-400)]">
                     주력 {c.topCategory} {c.topShare.toFixed(0)}%
                   </span>
                   <span className="flex flex-none gap-0.5">

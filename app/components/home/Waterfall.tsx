@@ -28,17 +28,21 @@ export default function Waterfall({ items }: { items: WaterfallItem[] }) {
   const bw = Math.min(34, slot * 0.30);
   const floor = H - padB;
 
-  // 누적 좌표: delta는 직전 누계 위에 쌓인다
+  // 누적 좌표: delta는 직전 누계 위에 쌓인다.
+  // map 콜백에서 외부 변수를 누적시키면 순서·재실행 보장이 없어 fold가 조용히 깨질 수 있다.
+  // 누계는 콜백 밖 직진 코드로 돌린다.
+  const bars: { d: WaterfallItem; y0: number; y1: number }[] = [];
   let run = 0;
-  const bars = items.map((d) => {
+  for (const d of items) {
     if (d.type === "total") {
       run = d.value;
-      return { d, y0: 0, y1: d.value };
+      bars.push({ d, y0: 0, y1: d.value });
+    } else {
+      const y0 = run;
+      run += d.value;
+      bars.push({ d, y0, y1: run });
     }
-    const y0 = run;
-    run += d.value;
-    return { d, y0, y1: run };
-  });
+  }
 
   // 표시 범위 — 합계와 누계가 모두 들어가되 여백을 남긴다
   const marks = bars.flatMap((b) =>

@@ -28,7 +28,6 @@ function colorForIndex(i: number) {
   return i < CHART_COLORS.length ? CHART_COLORS[i] : OVERFLOW_COLOR;
 }
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.[0]) return null;
   const value = payload[0].value as number;
@@ -50,7 +49,6 @@ function CustomTooltip({ active, payload, label }: any) {
     </div>
   );
 }
-/* eslint-enable @typescript-eslint/no-explicit-any */
 
 export function MarginPartnerBarChart({
   data,

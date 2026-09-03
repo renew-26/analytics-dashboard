@@ -568,7 +568,7 @@ export default async function CategoryDetailPage({
           <h1 className="text-[24px] font-bold tracking-[-0.4px] text-[var(--color-gray-900)]">
             {category}
           </h1>
-          <span className="rounded-[9999px] border border-[var(--color-gray-200)] bg-white px-3 py-1 text-[11.5px] text-[var(--color-gray-600)]">
+          <span className="rounded-[9999px] border border-[var(--color-gray-200)] bg-white px-3 py-1 text-[12px] text-[var(--color-gray-600)]">
             기준{" "}
             <b className="num font-semibold text-[var(--color-gray-900)]">
               {currRangeLabel}
@@ -642,7 +642,7 @@ export default async function CategoryDetailPage({
                   {k.unit}
                 </span>
               </div>
-              <div className="mt-1.5 text-[11.5px]">
+              <div className="mt-1.5 text-[12px]">
                 {k.delta === null ? (
                   <span className="text-[var(--color-gray-400)]">{k.foot}</span>
                 ) : (

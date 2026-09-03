@@ -1213,7 +1213,7 @@ function SmallMultiples({
                 )}
               </div>
               <div
-                className="text-base font-extrabold num"
+                className="text-base font-bold num"
                 style={{ color: "var(--color-gray-900)" }}
               >
                 {nf(latest)}
@@ -1261,7 +1261,7 @@ function BasisNotice({
 }) {
   return (
     <div
-      className="mb-5 flex flex-wrap items-baseline gap-x-2 gap-y-1 rounded-lg border-l-2 px-3 py-2 text-[11.5px] leading-[1.6]"
+      className="mb-5 flex flex-wrap items-baseline gap-x-2 gap-y-1 rounded-lg border-l-2 px-3 py-2 text-[12px] leading-[1.6]"
       style={{
         borderColor: "var(--color-primary)",
         background: "var(--color-primary-50)",
@@ -1269,7 +1269,7 @@ function BasisNotice({
       }}
     >
       <b style={{ color: "var(--color-gray-900)" }}>이 화면은 {source} 기준</b>
-      <code className="font-mono text-[10.5px] text-[var(--color-gray-500)]">
+      <code className="font-mono text-[11px] text-[var(--color-gray-500)]">
         {table}
       </code>
       <span style={{ color: "var(--color-gray-500)" }}>

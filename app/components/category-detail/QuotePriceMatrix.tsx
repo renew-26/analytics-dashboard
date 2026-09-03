@@ -37,27 +37,27 @@ export default function QuotePriceMatrix({
 
   return (
     <TableScroll>
-      <table className="w-full min-w-[860px] text-[12.5px]">
+      <table className="w-full min-w-[860px] text-[12px]">
         <thead>
           <tr className="bg-[var(--color-gray-25)]">
-            <th className="sticky left-0 z-10 min-w-[210px] bg-[var(--color-gray-25)] border-b border-[var(--color-gray-200)] px-3 py-2.5 text-left text-[10.5px] font-bold text-[var(--color-gray-400)]">
+            <th className="sticky left-0 z-10 min-w-[210px] bg-[var(--color-gray-25)] border-b border-[var(--color-gray-200)] px-3 py-2.5 text-left text-[11px] font-bold text-[var(--color-gray-400)]">
               모델
             </th>
-            <th className="border-b border-[var(--color-gray-200)] px-3 py-2.5 text-right text-[10.5px] font-bold whitespace-nowrap text-[var(--color-gray-400)]">
+            <th className="border-b border-[var(--color-gray-200)] px-3 py-2.5 text-right text-[11px] font-bold whitespace-nowrap text-[var(--color-gray-400)]">
               실거래
             </th>
-            <th className="border-b border-[var(--color-gray-200)] px-3 py-2.5 text-right text-[10.5px] font-bold whitespace-nowrap text-[var(--color-gray-400)]">
+            <th className="border-b border-[var(--color-gray-200)] px-3 py-2.5 text-right text-[11px] font-bold whitespace-nowrap text-[var(--color-gray-400)]">
               비교 기준
             </th>
             {companies.map((c) => (
               <th
                 key={c}
-                className="border-b border-[var(--color-gray-200)] px-3 py-2.5 text-right text-[10.5px] font-bold whitespace-nowrap text-[var(--color-gray-400)]"
+                className="border-b border-[var(--color-gray-200)] px-3 py-2.5 text-right text-[11px] font-bold whitespace-nowrap text-[var(--color-gray-400)]"
               >
                 {c}
               </th>
             ))}
-            <th className="border-b border-[var(--color-gray-200)] px-3 py-2.5 text-right text-[10.5px] font-bold whitespace-nowrap text-[var(--color-gray-400)]">
+            <th className="border-b border-[var(--color-gray-200)] px-3 py-2.5 text-right text-[11px] font-bold whitespace-nowrap text-[var(--color-gray-400)]">
               최저–최고 격차
             </th>
           </tr>
@@ -75,14 +75,14 @@ export default function QuotePriceMatrix({
                   <span className="block font-bold text-[var(--color-gray-800)]">
                     {r.productName || r.modelName}
                   </span>
-                  <span className="mt-[1px] block font-mono text-[10.5px] text-[var(--color-gray-400)]">
+                  <span className="mt-[1px] block font-mono text-[11px] text-[var(--color-gray-400)]">
                     {r.modelName}
                   </span>
                 </td>
                 <td className="num px-3 py-2.5 text-right whitespace-nowrap text-[var(--color-gray-600)]">
                   {n(r.dealCount)}건
                 </td>
-                <td className="px-3 py-2.5 text-right text-[10.5px] whitespace-nowrap text-[var(--color-gray-500)]">
+                <td className="px-3 py-2.5 text-right text-[11px] whitespace-nowrap text-[var(--color-gray-500)]">
                   {r.managementType}
                   <span className="num"> · {r.contractMonths}개월</span>
                 </td>
@@ -124,7 +124,7 @@ export default function QuotePriceMatrix({
                 })}
                 <td className="px-3 py-2.5 text-right whitespace-nowrap text-[var(--color-gray-800)]">
                   <span className="num font-bold">{n(gapAbs)}원</span>
-                  <span className="num ml-1 text-[10.5px] text-[var(--color-gray-500)]">
+                  <span className="num ml-1 text-[11px] text-[var(--color-gray-500)]">
                     ({pct(gapPct, 0)})
                   </span>
                 </td>

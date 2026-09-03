@@ -18,7 +18,7 @@ export default function PriceHistogram({ bins }: { bins: PriceBin[] }) {
       <ul className="flex flex-col gap-[6px]">
         {bins.map((b) => (
           <li key={b.label} className="flex items-center gap-2.5">
-            <span className="num w-[92px] shrink-0 text-right text-[11.5px] text-[var(--color-gray-600)]">
+            <span className="num w-[92px] shrink-0 text-right text-[12px] text-[var(--color-gray-600)]">
               {b.label}
             </span>
             <span className="relative block h-[18px] flex-1 rounded-[3px] bg-[var(--color-gray-100)]">
@@ -34,14 +34,14 @@ export default function PriceHistogram({ bins }: { bins: PriceBin[] }) {
                 />
               ) : null}
             </span>
-            <span className="num w-[112px] shrink-0 text-right text-[11.5px] whitespace-nowrap text-[var(--color-gray-800)]">
+            <span className="num w-[112px] shrink-0 text-right text-[12px] whitespace-nowrap text-[var(--color-gray-800)]">
               {n(b.total)}건
               <span className="text-[var(--color-gray-400)]">
                 {" "}
                 ({pct((b.total / grandTotal) * 100, 0)})
               </span>
             </span>
-            <span className="num w-[92px] shrink-0 text-right text-[11.5px] whitespace-nowrap text-[var(--color-gray-500)]">
+            <span className="num w-[92px] shrink-0 text-right text-[12px] whitespace-nowrap text-[var(--color-gray-500)]">
               렌트리 {n(b.rentre)}
             </span>
           </li>
