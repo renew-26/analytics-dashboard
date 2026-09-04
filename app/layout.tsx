@@ -3,7 +3,12 @@ import { createClient } from "@supabase/supabase-js";
 import "./globals.css";
 import Sidebar from "@/app/components/Sidebar";
 import Header from "@/app/components/Header";
-import { getPeriod, formatRange, formatShortRange } from "@/lib/period";
+import {
+  getPeriod,
+  getDataAsOf,
+  formatRange,
+  formatShortRange,
+} from "@/lib/period";
 
 export const metadata: Metadata = {
   title: "렌트리 애널리틱스 대시보드",
@@ -50,7 +55,7 @@ export default async function RootLayout({
   const syncedAt = await getLastSyncedAt();
   // 기준 구간은 서버에서 계산한다 — 클라이언트에서 new Date()를 쓰면
   // 하이드레이션 시점 차이로 표기가 흔들릴 수 있다.
-  const period = getPeriod();
+  const period = getPeriod(await getDataAsOf());
   const basis = {
     month: period.month,
     range: formatRange(period.curr.start, period.curr.end),

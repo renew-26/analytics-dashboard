@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { COMPANY_MAP, matchesEntry } from "@/lib/company-map";
-import { getPeriod, formatShortRange } from "@/lib/period";
+import { getPeriod, getDataAsOf, formatShortRange } from "@/lib/period";
 import { deltaColor as dirColor } from "@/app/components/home/cardKit";
 
 export const dynamic = "force-dynamic";
@@ -115,7 +115,7 @@ export default async function GroupPage({
   if (entries.length === 0) notFound();
 
   const mode = GROUP_MODE[group] ?? "share";
-  const { curr, prev, month } = getPeriod();
+  const { curr, prev, month } = getPeriod(await getDataAsOf());
   const dbNames = Array.from(new Set(entries.map((e) => e.dbName)));
 
   const [currRows, prevRows, currOrders] = await Promise.all([

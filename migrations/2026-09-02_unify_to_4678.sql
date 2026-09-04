@@ -103,6 +103,13 @@ COMMENT ON COLUMN raw_prop_items.gmv IS
 -- ════════════════════════════════════════════════════════════════════
 -- PHASE 2 — 구 테이블을 백업으로 밀고 동명 뷰로 교체
 --           ⚠ 백필 + USID 커버리지 검증 통과 후에만 실행
+--
+--  ⛔ 아래 PHASE 2 는 실행하지 말 것 — raw_contracts 뷰의 조건이 틀렸다.
+--     `AND sales IS NOT NULL` 을 raw_contracts 에도 걸었는데, 구 4445 는 pnl 을
+--     INNER JOIN 하지 않아 오늘의 raw_contracts 에는 sales IS NULL 인 2025년 행이
+--     그대로 있다(2025-10 은 3,453건 전부 NULL). 그대로 실행하면 2025년 계약완료가
+--     전멸한다. raw_orders 쪽 조건은 맞다.
+--     → 수정판 + 실측 근거: migrations/2026-09-04_phase2_views.sql
 -- ════════════════════════════════════════════════════════════════════
 
 -- BEGIN;

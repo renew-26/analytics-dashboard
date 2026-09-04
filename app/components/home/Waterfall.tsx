@@ -15,17 +15,32 @@ export type WaterfallItem = {
  * 축이 0에서 시작하지 않으므로(합계가 4천 단위인데 변화는 수십~수백 단위라
  * 0부터 그리면 델타가 보이지 않는다) 밑동에 시작값을 명시한다.
  */
-export default function Waterfall({ items }: { items: WaterfallItem[] }) {
+export default function Waterfall({
+  items,
+  decimals = 0,
+  unit = "",
+}: {
+  items: WaterfallItem[];
+  /** 억 단위처럼 정수로 반올림하면 델타가 0으로 뭉개지는 지표에 쓴다 */
+  decimals?: number;
+  /** 합계 막대에만 붙인다 — 델타 막대까지 붙이면 라벨이 서로 겹친다 */
+  unit?: string;
+}) {
   if (items.length < 2) return null;
 
+  // 폭 1000 고정 + width:100% 라서 렌더 배율은 칼럼 폭이 결정한다.
+  // H만 늘리면 글자 크기는 그대로 두고 세로 공간만 확보된다 —
+  // 268이면 좁은 칼럼에서 높이가 145px까지 줄어 옆 목록과 높이가 크게 벌어졌다.
+  // 360은 과했다. 330이 막대가 홀쭉하지 않으면서 공백도 안 남는 지점.
   const W = 1000;
-  const H = 268;
+  const H = 330;
   const padL = 52;
   const padR = 16;
   const padT = 28;
   const padB = 38;
   const slot = (W - padL - padR) / items.length;
-  const bw = Math.min(34, slot * 0.30);
+  // 막대 7개면 슬롯이 133이라 34는 너무 홀쭉하다
+  const bw = Math.min(48, slot * 0.34);
   const floor = H - padB;
 
   // 누적 좌표: delta는 직전 누계 위에 쌓인다.
@@ -50,22 +65,32 @@ export default function Waterfall({ items }: { items: WaterfallItem[] }) {
   );
   const dataLo = Math.min(...marks);
   const dataHi = Math.max(...marks);
-  const range = dataHi - dataLo || Math.max(1, dataHi * 0.1);
-  const rawLo = Math.max(0, dataLo - range * 0.55);
+  const range = dataHi - dataLo || Math.max(1, Math.abs(dataHi) * 0.1);
+  // 공헌이익처럼 값이 음수로 내려가는 지표는 밑동을 0에 붙이지 않는다 —
+  // 0에 붙이면 마이너스 막대가 축 밖으로 나가 아예 보이지 않는다.
+  const clampToZero = dataLo >= 0;
+  const rawLo = clampToZero
+    ? Math.max(0, dataLo - range * 0.55)
+    : dataLo - range * 0.55;
   const hi = dataHi + range * 0.35;
 
   // 격자는 "좋은" 반올림 자리를 쓰되 개수가 너무 성겨지지 않게 고른다
   const step = gridStep(hi - rawLo, 10);
   // 밑동을 격자 간격에 스냅시킨다. 안 그러면 밑동 라벨(2,645↓)과
   // 최저 격자 라벨(2,650)이 몇 px 차이로 겹쳐 읽힌다.
-  const lo = Math.max(0, Math.floor(rawLo / step) * step);
+  const snapped = Math.floor(rawLo / step) * step;
+  const lo = clampToZero ? Math.max(0, snapped) : snapped;
   const Y = (v: number) => padT + (1 - (v - lo) / (hi - lo)) * (H - padT - padB);
 
   // 밑동 자체가 이미 lo를 표시하므로 격자는 한 칸 위부터 그린다
   const grid: number[] = [];
   for (let g = lo + step; g < hi; g += step) grid.push(g);
 
-  const nf = (n: number) => Math.round(n).toLocaleString("ko-KR");
+  const nf = (n: number) =>
+    n.toLocaleString("ko-KR", {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
 
   return (
     <svg
@@ -169,7 +194,7 @@ export default function Waterfall({ items }: { items: WaterfallItem[] }) {
               style={{ fontVariantNumeric: "tabular-nums" }}
             >
               {isTotal
-                ? nf(b.d.value)
+                ? `${nf(b.d.value)}${unit}`
                 : `${b.d.value > 0 ? "+" : ""}${nf(b.d.value)}`}
             </text>
             <text

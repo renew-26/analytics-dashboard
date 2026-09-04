@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { COMPANY_MAP, getBM } from "@/lib/company-map";
-import { getPeriod } from "@/lib/period";
+import { getPeriod, getDataAsOf, shiftIso } from "@/lib/period";
 import CategoryMonthlyChart, {
   type CategoryMonthPoint,
 } from "@/app/components/CategoryMonthlyChart";
 import TransactionYearToggle from "@/app/components/TransactionYearToggle";
 import Sparkline from "@/app/components/home/Sparkline";
-import Waterfall from "@/app/components/home/Waterfall";
+import WaterfallPanel, {
+  type WaterfallMetric,
+} from "@/app/components/home/WaterfallPanel";
 import BMMixBar from "@/app/components/home/BMMixBar";
 import CompanyCards from "@/app/components/home/CompanyCards";
 import CategoryCards from "@/app/components/home/CategoryCards";
@@ -27,6 +29,15 @@ function fmt(n: number) {
 function pct(curr: number, prev: number) {
   if (prev === 0) return null;
   return ((curr - prev) / prev) * 100;
+}
+
+/**
+ * 공헌이익처럼 기준값이 음수일 수 있는 지표의 증감률.
+ * prev로 그냥 나누면 적자가 더 커졌는데 부호가 뒤집혀 "개선"으로 읽힌다.
+ */
+function pctAbs(curr: number, prev: number) {
+  if (prev === 0) return null;
+  return ((curr - prev) / Math.abs(prev)) * 100;
 }
 
 function Delta({
@@ -125,6 +136,8 @@ type YearContractRow = {
   total_rental_fee: number | null;
   /** 카테고리 카드의 12개월 매출 추이·평소 페이스에 쓴다 */
   sales: number | null;
+  /** KPI 공헌이익 타일의 12개월 추이에 쓴다 */
+  contribution_margin: number | null;
 };
 
 async function fetchAllYearContracts(
@@ -138,7 +151,7 @@ async function fetchAllYearContracts(
     const { data, error } = await supabase
       .from("raw_contracts")
       .select(
-        "contract_date, category, partner_company, rental_company, total_rental_fee, sales",
+        "contract_date, category, partner_company, rental_company, total_rental_fee, sales, contribution_margin",
       )
       .gte("contract_date", yearStart)
       .lte("contract_date", end)
@@ -246,6 +259,118 @@ const LARGE_CATEGORY_COLORS = [
   "#e87ba4",
 ];
 
+/**
+ * 조사 선택 — 렌탈사 이름이 받침으로 끝나면 "SK매직는"처럼 어긋난다.
+ * 라틴 문자·숫자로 끝나면 읽는 법이 갈려 판정이 안 되므로 받침 없는 쪽을 쓴다
+ * ("SK" → "SK는").
+ */
+function particle(word: string, withFinal: string, withoutFinal: string) {
+  const ch = word.trim().slice(-1);
+  const code = ch.charCodeAt(0);
+  if (code >= 0xac00 && code <= 0xd7a3)
+    return (code - 0xac00) % 28 !== 0 ? withFinal : withoutFinal;
+  return withoutFinal;
+}
+
+/**
+ * 스파크라인 앞쪽의 "데이터 없음" 구간을 잘라낸다.
+ *
+ * 손익(매출·공헌이익)은 raw_contracts에 2026-01부터만 채워져 있다. 그 앞 달을
+ * 0으로 그리면 선이 바닥에서 솟아올라 "그때는 0원이었다"는 거짓말이 된다.
+ * 값이 처음 잡히는 달부터만 그린다.
+ */
+function trimLeadingGap(values: number[]) {
+  const first = values.findIndex((v) => v !== 0);
+  return first > 0 ? values.slice(first) : values;
+}
+
+type Alert = {
+  sev: "crit" | "warn" | "info";
+  title: string;
+  detail: string;
+  href: string;
+  hrefBase: string;
+  hrefQuery?: string;
+};
+
+const SEV_STYLE = {
+  crit: {
+    bar: "var(--color-sev-crit)",
+    color: "var(--color-sev-crit)",
+    background: "var(--color-sev-crit-100)",
+    label: "이상",
+  },
+  warn: {
+    bar: "var(--color-sev-warn)",
+    color: "var(--color-sev-warn)",
+    background: "var(--color-sev-warn-100)",
+    label: "주의",
+  },
+  info: {
+    bar: "var(--color-primary-400)",
+    color: "var(--color-primary-700)",
+    background: "var(--color-primary-50)",
+    label: "확인",
+  },
+} as const;
+
+/** 주의 신호·확인 필요가 같은 행 모양을 쓴다 — 판정 기준만 다르다 */
+function AlertList({ items, empty }: { items: Alert[]; empty: string }) {
+  if (items.length === 0)
+    return (
+      <p className="py-6 text-center text-[12px] text-[var(--color-gray-400)]">
+        {empty}
+      </p>
+    );
+  return (
+    <ul>
+      {items.map((a, i) => {
+        const s = SEV_STYLE[a.sev];
+        return (
+          <li
+            key={`${a.title}-${i}`}
+            className="border-t border-[var(--color-line-2)] first:border-t-0"
+          >
+            <Link
+              href={a.href}
+              className="group grid grid-cols-[3px_auto_minmax(0,1fr)_auto] items-center gap-[11px] py-[11px]"
+            >
+              <span
+                className="h-[30px] w-[3px] rounded-full"
+                style={{ background: s.bar }}
+              />
+              {/* 색 단독 금지 — 항상 텍스트 라벨을 붙인다 */}
+              <span
+                className="rounded-[4px] px-1.5 py-[3px] text-[10px] font-bold whitespace-nowrap"
+                style={{ color: s.color, background: s.background }}
+              >
+                {s.label}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[12px] font-bold leading-[1.4] tracking-[-.1px] group-hover:text-[var(--color-primary)]">
+                  {a.title}
+                </span>
+                <span className="mt-0.5 block text-[12px] leading-[1.5] text-[var(--color-gray-500)]">
+                  {a.detail}
+                </span>
+              </span>
+              {/* 목적지를 숨기지 않는다 */}
+              <span className="inline-flex items-center gap-1 font-mono text-[10px] font-semibold whitespace-nowrap text-[var(--color-gray-400)] before:text-[9px] before:content-['↗'] group-hover:text-[var(--color-primary)]">
+                <b className="font-semibold">{a.hrefBase}</b>
+                {a.hrefQuery && (
+                  <q className="font-bold text-[var(--color-primary)] [quotes:none]">
+                    {a.hrefQuery}
+                  </q>
+                )}
+              </span>
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 export default async function Home({
   searchParams,
 }: {
@@ -254,7 +379,9 @@ export default async function Home({
   const { hide2025 } = await searchParams;
   const hideOld2025 = hide2025 === "1";
   // 헤더(기준일 표기)와 동일한 구간을 쓴다 — lib/period.ts 단일 소스
-  const { curr, prev, month, day: dayCut } = getPeriod();
+  const { curr, prev, month, day: dayCut, shiftDays } = getPeriod(
+    await getDataAsOf(),
+  );
   const end = curr.end;
   const yearStart = "2025-01-01"; // 섹션 2 월별 거래건수 조회 시작 시점
 
@@ -379,22 +506,18 @@ export default async function Home({
   // ══════════════════════════════════════════════════════════════
   //  계층 1~3 집계
   //  판정 기준은 전부 "자기 과거 대비"다 — 렌탈사별 목표를 따로
-  //  입력받지 않아도 최근 3개월 같은 기간 평균만으로 성립한다.
+  //  입력받지 않아도 요일을 맞춘 직전 3개 구간 평균만으로 성립한다.
   // ══════════════════════════════════════════════════════════════
   const rate = (num: number, den: number) => (den > 0 ? (num / den) * 100 : 0);
   const EOK = 100_000_000; // 억
+  const MAN = 10_000; // 만원
 
-  // ── 주문확정: 월별 시계열 + BM별 집계 (한 소스에서 뽑는다) ──
-  const orderByMonth = new Map<string, number>();
+  // ── 주문확정: BM별 집계 ────────────────────────────────
   const bmOrderCurr = { BM1: 0, BM2: 0, BM3: 0, total: 0 };
   const bmOrderPrev = { BM1: 0, BM2: 0, BM3: 0, total: 0 };
   for (const r of allOrders) {
     const d = r.order_confirmed_at;
     if (!d) continue;
-    // 스파크라인은 매월 같은 기간(1~dayCut일)만 센다
-    if (Number(d.slice(8, 10)) <= dayCut) {
-      orderByMonth.set(d.slice(0, 7), (orderByMonth.get(d.slice(0, 7)) ?? 0) + 1);
-    }
     const bucket =
       d >= curr.start && d <= curr.end
         ? bmOrderCurr
@@ -408,12 +531,18 @@ export default async function Home({
   }
 
   // ── KPI ────────────────────────────────────────────────
+  //  상단은 공헌이익까지 끌어올린다 — "매출은 성장했는데 돈을 못 벌었다"가
+  //  운영자에게 더 중요한 달이 있고, 그건 거래액·매출만으로는 안 보인다.
   const orderCurr = currOrders.count ?? 0;
   const orderPrev = prevOrders.count ?? 0;
   const contractCurr = currAgg.counts.total;
   const contractPrev = prevAgg.counts.total;
   const amountCurr = currAgg.revenue.total / EOK;
   const amountPrev = prevAgg.revenue.total / EOK;
+  const salesCurr = currAgg.salesTotal.total / EOK;
+  const salesPrev = prevAgg.salesTotal.total / EOK;
+  const marginCurr = currAgg.margin.total / MAN;
+  const marginPrev = prevAgg.margin.total / MAN;
   // 설치인증률 = 계약완료 / 주문확정 (앱 전반이 raw_contracts를 '설치인증'으로 부른다)
   const certCurr = rate(contractCurr, orderCurr);
   const certPrev = rate(contractPrev, orderPrev);
@@ -439,6 +568,8 @@ export default async function Home({
     amtPrev: prevAgg.revenue[k] / EOK,
     sales: currAgg.salesTotal[k] / EOK,
     salesPrev: prevAgg.salesTotal[k] / EOK,
+    margin: currAgg.margin[k] / MAN,
+    marginPrev: prevAgg.margin[k] / MAN,
     cpu: perDeal(currAgg.margin[k], currAgg.counts[k]),
     cpuPrev: perDeal(prevAgg.margin[k], prevAgg.counts[k]),
     ord: bmOrderCurr[k],
@@ -469,7 +600,6 @@ export default async function Home({
     0,
   );
 
-  // ── 워터폴: 대카테고리 기여도 ──────────────────────────
   function largeGroupOf(category: string | null): string {
     const cat = KNOWN_CATS.has(category ?? "") ? category : null;
     for (const g of LARGE_CATEGORY_GROUPS) {
@@ -477,40 +607,6 @@ export default async function Home({
     }
     return "그외 카테고리";
   }
-  const groupDelta = new Map<string, number>();
-  for (const r of currContracts)
-    groupDelta.set(
-      largeGroupOf(r.category),
-      (groupDelta.get(largeGroupOf(r.category)) ?? 0) + 1,
-    );
-  for (const r of prevContracts)
-    groupDelta.set(
-      largeGroupOf(r.category),
-      (groupDelta.get(largeGroupOf(r.category)) ?? 0) - 1,
-    );
-
-  // 캡션도 규칙 생성 — 합계 뒤에 가려진 최대 증가/감소 카테고리를 짚어준다
-  const deltaRanked = Array.from(groupDelta.entries())
-    .filter(([, v]) => v !== 0)
-    .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
-  const topPos = deltaRanked.find(([, v]) => v > 0);
-  const topNeg = deltaRanked.find(([, v]) => v < 0);
-  const netDelta = contractCurr - contractPrev;
-
-  const waterfallItems = [
-    { label: "전월 동기간", type: "total" as const, value: contractPrev },
-    ...Array.from(groupDelta.entries())
-      .filter(([, v]) => v !== 0)
-      .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
-      .map(([label, value]) => ({
-        // 축 라벨은 잘리지 않게 줄여 쓴다 (링크는 원래 이름 유지)
-        label: WATERFALL_SHORT[label] ?? label,
-        type: "delta" as const,
-        value,
-        href: `/category-trends?group=${encodeURIComponent(label)}`,
-      })),
-    { label: "이번 달", type: "total" as const, value: contractCurr },
-  ];
 
   // ── 렌탈사 카드 ────────────────────────────────────────
   // 정수기·가전&상조뿐 아니라 통신까지 — 그룹 필터가 실제로 동작하려면
@@ -559,6 +655,8 @@ export default async function Home({
   //  종점을 속 빈 원으로 그려 "진행 중"임을 표시한다.
   const contractByMonth = new Map<string, number>();
   const amountByMonth = new Map<string, number>();
+  const salesByMonth = new Map<string, number>();
+  const marginByMonth = new Map<string, number>();
   for (const r of catRaw) {
     // 이번 달은 1~dayCut일까지만 쌓여 있다. 과거 달을 월 전체로 그리면
     // 마지막 점만 반 달치라 매번 절벽처럼 떨어져 추세가 거짓말이 된다.
@@ -569,16 +667,46 @@ export default async function Home({
       ym,
       (amountByMonth.get(ym) ?? 0) + (r.total_rental_fee ?? 0),
     );
+    salesByMonth.set(ym, (salesByMonth.get(ym) ?? 0) + (r.sales ?? 0));
+    marginByMonth.set(
+      ym,
+      (marginByMonth.get(ym) ?? 0) + (r.contribution_margin ?? 0),
+    );
   }
-  const orderSpark = recentYms.map((ym) => orderByMonth.get(ym) ?? 0);
-  const contractSpark = recentYms.map((ym) => contractByMonth.get(ym) ?? 0);
-  const amountSpark = recentYms.map((ym) => (amountByMonth.get(ym) ?? 0) / EOK);
-  const certSpark = recentYms.map((ym) =>
-    rate(contractByMonth.get(ym) ?? 0, orderByMonth.get(ym) ?? 0),
+  const contractSpark = trimLeadingGap(
+    recentYms.map((ym) => contractByMonth.get(ym) ?? 0),
+  );
+  const amountSpark = trimLeadingGap(
+    recentYms.map((ym) => (amountByMonth.get(ym) ?? 0) / EOK),
+  );
+  const salesSpark = trimLeadingGap(
+    recentYms.map((ym) => (salesByMonth.get(ym) ?? 0) / EOK),
+  );
+  // 건당 공헌이익 추이 — 총액이 아니라 "한 건 팔면 얼마 남나"의 흐름
+  const cpuSpark = trimLeadingGap(
+    recentYms.map((ym) => {
+      const cnt = contractByMonth.get(ym) ?? 0;
+      return cnt > 0 ? (marginByMonth.get(ym) ?? 0) / cnt : 0;
+    }),
   );
 
-  // 렌탈사 × 월 카운트 — 1~dayCut일 창(스파크라인·평소 페이스 공용)
+  // 평소 페이스의 기준 창 — 전월 비교와 같은 방식으로 요일을 맞춘다.
+  //
+  // 달의 1~N일로 자르면 어떤 달은 주말이 2일이고 어떤 달은 0일이라 분모가
+  // 들쭉날쭉해진다. 2026-06/07 의 1~3일은 주말이 없고 2026-08 은 2일이라,
+  // 그대로 평균하면 "평소"가 실제보다 낮게 잡혀 급증이 과장된다.
+  const PACE_WINDOWS = 3;
+  const paceRanges = Array.from({ length: PACE_WINDOWS }, (_, i) => ({
+    start: shiftIso(curr.start, -shiftDays * (i + 1)),
+    end: shiftIso(curr.end, -shiftDays * (i + 1)),
+  }));
+  const inPaceRange = (d: string) =>
+    paceRanges.some((r) => d >= r.start && d <= r.end);
+
+  // 렌탈사 × 월 카운트 — 1~dayCut일 창 (12개월 스파크라인 전용)
   const rcWindow = new Map<string, Map<string, number>>();
+  // 렌탈사별 평소 페이스 누계 (요일 맞춘 3개 창 합)
+  const rcPace = new Map<string, number>();
   for (const r of catRaw) {
     const def = CARD_DEFS.find((d) => matchesCompany(d, r));
     if (!def) continue;
@@ -588,20 +716,16 @@ export default async function Home({
       const wm = rcWindow.get(def.label)!;
       wm.set(ym, (wm.get(ym) ?? 0) + 1);
     }
+    if (inPaceRange(r.contract_date))
+      rcPace.set(def.label, (rcPace.get(def.label) ?? 0) + 1);
   }
 
   const companyCards = CARD_DEFS.map((def) => {
     const cRows = currContracts.filter((r) => matchesCompany(def, r));
     const pRows = prevContracts.filter((r) => matchesCompany(def, r));
 
-    // 평소 페이스 = 직전 3개월의 같은 기간(1~dayCut일) 평균
-    const paceMonths = recentYms.slice(-4, -1);
-    const paceVals = paceMonths.map(
-      (ym) => rcWindow.get(def.label)?.get(ym) ?? 0,
-    );
-    const pace = paceVals.length
-      ? paceVals.reduce((s, v) => s + v, 0) / paceVals.length
-      : 0;
+    // 평소 페이스 = 요일을 맞춘 직전 3개 창의 평균
+    const pace = (rcPace.get(def.label) ?? 0) / PACE_WINDOWS;
 
     const catCount = new Map<string, number>();
     const bmCount = { BM1: 0, BM2: 0, BM3: 0 };
@@ -616,6 +740,10 @@ export default async function Home({
       margin += r.contribution_margin ?? 0;
       revenue += r.total_rental_fee ?? 0;
     }
+    // 전월 매출은 "매출 급증/급감" 신호를 만들기 위해서만 쌓는다
+    let salesPrevSum = 0;
+    for (const r of pRows) salesPrevSum += r.sales ?? 0;
+
     const topCats = Array.from(catCount.entries()).sort((a, b) => b[1] - a[1]);
     const total = cRows.length || 1;
 
@@ -629,6 +757,7 @@ export default async function Home({
       pace,
       amount: revenue / EOK,
       sales: sales / EOK,
+      salesPrev: salesPrevSum / EOK,
       cpu: perDeal(margin, cRows.length),
       topCategory: topCats[0]?.[0] ?? "-",
       topShare: ((topCats[0]?.[1] ?? 0) / total) * 100,
@@ -663,11 +792,15 @@ export default async function Home({
   const catKeyOf = (r: { category: string | null }) =>
     KNOWN_CATS.has(r.category ?? "") ? (r.category as string) : "그 외";
 
-  // 상품 카테고리 × 월 매출 — 1~dayCut일 창 (스파크라인·평소 페이스 공용)
+  // 상품 카테고리 × 월 매출 — 1~dayCut일 창 (12개월 스파크라인 전용)
   const catSalesWindow = new Map<string, Map<string, number>>();
+  // 카테고리별 평소 페이스 매출 누계 (요일 맞춘 3개 창 합)
+  const catPace = new Map<string, number>();
   for (const r of catRaw) {
-    if (Number(r.contract_date.slice(8, 10)) > dayCut) continue;
     const key = catKeyOf(r);
+    if (inPaceRange(r.contract_date))
+      catPace.set(key, (catPace.get(key) ?? 0) + (r.sales ?? 0));
+    if (Number(r.contract_date.slice(8, 10)) > dayCut) continue;
     const ym = r.contract_date.slice(0, 7);
     if (!catSalesWindow.has(key)) catSalesWindow.set(key, new Map());
     const wm = catSalesWindow.get(key)!;
@@ -722,12 +855,7 @@ export default async function Home({
     const c = catCurrAcc.get(key) ?? emptyAcc();
     const p = catPrevAcc.get(key) ?? emptyAcc();
 
-    const paceVals = recentYms
-      .slice(-4, -1)
-      .map((ym) => (catSalesWindow.get(key)?.get(ym) ?? 0) / EOK);
-    const pace = paceVals.length
-      ? paceVals.reduce((s, v) => s + v, 0) / paceVals.length
-      : 0;
+    const pace = (catPace.get(key) ?? 0) / PACE_WINDOWS / EOK;
 
     const topCompany = Array.from(c.companies.entries()).sort(
       (a, b) => b[1] - a[1],
@@ -742,6 +870,7 @@ export default async function Home({
       count: c.count,
       countPrev: p.count,
       amount: c.amount / EOK,
+      margin: c.margin / MAN,
       cpu: perDeal(c.margin, c.count),
       topCompany: topCompany?.[0] ?? "-",
       topShare: rate(topCompany?.[1] ?? 0, c.count),
@@ -768,16 +897,186 @@ export default async function Home({
     visibleCatCards.some((c) => c.group === g),
   );
 
-  // ── 주의 신호 ──────────────────────────────────────────
-  type Alert = {
-    sev: "crit" | "warn";
-    title: string;
-    detail: string;
-    href: string;
-    hrefBase: string;
-    hrefQuery?: string;
-  };
+  // ══════════════════════════════════════════════════════════════
+  //  ② 왜 변했나 — 지표 4종을 같은 방식으로 분해한다.
+  //  건수만 분해하면 "건수는 +66%인데 매출은 +56%" 같은 괴리를 못 잡는다.
+  //  그 괴리가 곧 건당 매출·건당 이익이 빠지고 있다는 신호다.
+  // ══════════════════════════════════════════════════════════════
+  const METRIC_DEFS: {
+    key: string;
+    label: string;
+    unit: string;
+    decimals: number;
+    of: (r: ContractRow) => number;
+  }[] = [
+    {
+      key: "count",
+      label: "계약건수",
+      unit: "건",
+      decimals: 0,
+      of: () => 1,
+    },
+    {
+      key: "amount",
+      label: "거래액",
+      unit: "억",
+      decimals: 1,
+      of: (r: ContractRow) => (r.total_rental_fee ?? 0) / EOK,
+    },
+    {
+      key: "sales",
+      label: "매출",
+      unit: "만원",
+      decimals: 0,
+      of: (r: ContractRow) => (r.sales ?? 0) / MAN,
+    },
+  ];
+
+  function contributionOf(rows: ContractRow[], of: (r: ContractRow) => number) {
+    const byGroup = new Map<string, number>();
+    const byCompany = new Map<string, number>();
+    let total = 0;
+    for (const r of rows) {
+      const v = of(r);
+      total += v;
+      const g = largeGroupOf(r.category);
+      byGroup.set(g, (byGroup.get(g) ?? 0) + v);
+      const c = companyLabelOf(r);
+      byCompany.set(c, (byCompany.get(c) ?? 0) + v);
+    }
+    return { total, byGroup, byCompany };
+  }
+
+  /** 두 기간 맵의 차이 — 기여도가 큰 것부터 */
+  function diffMap(c: Map<string, number>, p: Map<string, number>) {
+    const keys = new Set([...c.keys(), ...p.keys()]);
+    return Array.from(keys)
+      .map((k) => ({ key: k, value: (c.get(k) ?? 0) - (p.get(k) ?? 0) }))
+      .filter((x) => x.value !== 0)
+      .sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+  }
+
+  const COMPANY_LABELS = new Set(CARD_DEFS.map((d) => d.label));
+
+  /**
+   * 건당 공헌이익 변화의 가법 분해.
+   *
+   * 건당은 비율(공헌이익÷건수)이라 카테고리별 값을 그냥 더해도 전체 건당이
+   * 나오지 않는다. 그래서 ④ BM 분해와 같은 식을 쓴다:
+   *   Δ = Σ w_p(v_c − v_p) + Σ (w_c − w_p)v_c
+   * 앞항은 카테고리 내부 효율 변화, 뒷항은 카테고리 간 물량 비중 이동이고
+   * 두 항의 합은 전체 Δ와 정확히 일치한다 — 그래서 워터폴이 성립한다.
+   */
+  function cpuContribution(keyOf: (r: ContractRow) => string) {
+    const acc = (rows: ContractRow[]) => {
+      const m = new Map<string, { cnt: number; mg: number }>();
+      for (const r of rows) {
+        const k = keyOf(r);
+        if (!m.has(k)) m.set(k, { cnt: 0, mg: 0 });
+        const a = m.get(k)!;
+        a.cnt += 1;
+        a.mg += r.contribution_margin ?? 0;
+      }
+      return { m, total: rows.length };
+    };
+    const c = acc(currContracts);
+    const p = acc(prevContracts);
+    const zero = { cnt: 0, mg: 0 };
+    return Array.from(new Set([...c.m.keys(), ...p.m.keys()]))
+      .map((key) => {
+        const cc = c.m.get(key) ?? zero;
+        const pp = p.m.get(key) ?? zero;
+        const wc = c.total > 0 ? cc.cnt / c.total : 0;
+        const wp = p.total > 0 ? pp.cnt / p.total : 0;
+        const vc = cc.cnt > 0 ? cc.mg / cc.cnt : 0;
+        const vp = pp.cnt > 0 ? pp.mg / pp.cnt : 0;
+        return { key, value: wp * (vc - vp) + (wc - wp) * vc };
+      })
+      // 1원 미만 기여는 막대로 세우지 않는다 (라벨만 겹친다)
+      .filter((x) => Math.abs(x.value) >= 0.5)
+      .sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+  }
+
+  const metricAgg = METRIC_DEFS.map((def) => {
+    const c = contributionOf(currContracts, def.of);
+    const p = contributionOf(prevContracts, def.of);
+    return {
+      def,
+      currTotal: c.total,
+      prevTotal: p.total,
+      groups: diffMap(c.byGroup, p.byGroup),
+      companies: diffMap(c.byCompany, p.byCompany),
+    };
+  });
+  const countAgg = metricAgg[0];
+
+  const waterfallMetrics: WaterfallMetric[] = metricAgg.map((a) => ({
+    key: a.def.key,
+    label: a.def.label,
+    unit: a.def.unit,
+    decimals: a.def.decimals,
+    changePct: pctAbs(a.currTotal, a.prevTotal),
+    items: [
+      { label: "전월 동기간", type: "total" as const, value: a.prevTotal },
+      ...a.groups.map((g) => ({
+        // 축 라벨은 잘리지 않게 줄여 쓴다 (링크는 원래 이름 유지)
+        label: WATERFALL_SHORT[g.key] ?? g.key,
+        type: "delta" as const,
+        value: g.value,
+        href: `/category-trends?group=${encodeURIComponent(g.key)}`,
+      })),
+      { label: "이번 달", type: "total" as const, value: a.currTotal },
+    ],
+    // 상세 페이지가 있는 이름(카드로 세워진 렌탈사)에만 링크를 건다 —
+    // COMPANY_MAP에 없는 rental_company는 /company/ 경로가 없다.
+    movers: a.companies.map((x) => ({
+      label: x.key,
+      value: x.value,
+      href: COMPANY_LABELS.has(x.key)
+        ? `/company/${encodeURIComponent(x.key)}`
+        : undefined,
+    })),
+  }));
+
+  // 건당 공헌이익 — 상단 KPI 타일과 같은 지표를 같은 값으로 보여준다
+  waterfallMetrics.push({
+    key: "cpu",
+    label: "건당 공헌이익",
+    unit: "원",
+    decimals: 0,
+    changePct: pctAbs(cpuCurr, cpuPrev),
+    items: [
+      { label: "전월 동기간", type: "total" as const, value: cpuPrev },
+      ...cpuContribution((r) => largeGroupOf(r.category)).map((g) => ({
+        label: WATERFALL_SHORT[g.key] ?? g.key,
+        type: "delta" as const,
+        value: g.value,
+        href: `/category-trends?group=${encodeURIComponent(g.key)}`,
+      })),
+      { label: "이번 달", type: "total" as const, value: cpuCurr },
+    ],
+    movers: cpuContribution(companyLabelOf).map((x) => ({
+      label: x.key,
+      value: x.value,
+      href: COMPANY_LABELS.has(x.key)
+        ? `/company/${encodeURIComponent(x.key)}`
+        : undefined,
+    })),
+  });
+
+  // 최대 증가·감소 대카테고리 — 아래 주의 신호·확인 필요에서 이름으로 짚는다.
+  const topPosGroup = countAgg.groups.find((g) => g.value > 0);
+  const topNegGroup = countAgg.groups.find((g) => g.value < 0);
+  const netDelta = contractCurr - contractPrev;
+  /** 순증 대비 기여 비율. 증가·감소가 서로 상쇄하면 100%를 넘으므로 잘라 쓴다. */
+  const shareOfNet = (v: number) =>
+    netDelta > 0 ? Math.min(100, rate(v, netDelta)) : 0;
+
+  // ── 주의 신호 / 확인 필요 ──────────────────────────────
+  //  두 줄로 나눈다. 빨강은 "문제", 파랑은 "이상하진 않은데 원인은 확인해야
+  //  하는 것"이다. 급증을 빨강에 섞으면 빨강이 위험과 호조를 동시에 뜻한다.
   const alerts: Alert[] = [];
+  const checks: Alert[] = [];
 
   // 렌탈사 신호는 상위 3건만 — 안 그러면 목록을 독식해서
   // BM·카테고리·전환 신호가 밀려난다.
@@ -792,6 +1091,24 @@ export default async function Home({
         sev: idx < 80 ? "crit" : "warn",
         title: `${c.label} 거래건수가 평소의 ${idx.toFixed(0)}% 수준`,
         detail: `${c.curr.toLocaleString("ko-KR")}건 · 평소 페이스 ${Math.round(c.pace).toLocaleString("ko-KR")}건`,
+        href: `/company/${c.label}`,
+        hrefBase: "/company/",
+        hrefQuery: c.label,
+      }),
+    );
+
+  // 매출이 통째로 빠진 렌탈사 — 건수는 유지됐는데 단가가 빠진 경우를 잡는다
+  visibleCards
+    .filter((c) => c.salesPrev >= 0.2) // 2천만원 미만은 비율이 요동쳐 판정하지 않는다
+    .map((c) => ({ c, chg: (c.sales / c.salesPrev - 1) * 100 }))
+    .filter((x) => x.chg <= -25)
+    .sort((a, b) => a.chg - b.chg)
+    .slice(0, 2)
+    .forEach(({ c, chg }) =>
+      alerts.push({
+        sev: chg <= -40 ? "crit" : "warn",
+        title: `${c.label} 매출 ${chg.toFixed(0)}%`,
+        detail: `전월 동기간 ${c.salesPrev.toFixed(2)}억 → ${c.sales.toFixed(2)}억 · 거래건수는 ${c.prev.toLocaleString("ko-KR")}→${c.curr.toLocaleString("ko-KR")}건`,
         href: `/company/${c.label}`,
         hrefBase: "/company/",
         hrefQuery: c.label,
@@ -813,17 +1130,30 @@ export default async function Home({
     });
   }
 
-  const worstGroup = Array.from(groupDelta.entries())
-    .filter(([, v]) => v < 0)
-    .sort((a, b) => a[1] - b[1])[0];
-  if (worstGroup && worstGroup[1] <= -20) {
+  // 역마진 — 팔면 손해인 카테고리. 건수가 받쳐줘야 우연이 아니다.
+  visibleCatCards
+    .filter((c) => c.count >= 20 && c.margin < 0)
+    .sort((a, b) => a.margin - b.margin)
+    .slice(0, 2)
+    .forEach((c) =>
+      alerts.push({
+        sev: c.margin <= -1000 ? "crit" : "warn",
+        title: `${c.label} 역마진 ${Math.round(c.margin).toLocaleString("ko-KR")}만원`,
+        detail: `${c.count.toLocaleString("ko-KR")}건 · 건당 ${Math.round(c.cpu).toLocaleString("ko-KR")}원 · 팔면 손해인 구간`,
+        href: `/category/${encodeURIComponent(c.label)}`,
+        hrefBase: "/category/",
+        hrefQuery: c.label,
+      }),
+    );
+
+  if (topNegGroup && topNegGroup.value <= -20) {
     alerts.push({
       sev: "warn",
-      title: `${worstGroup[0]} ${worstGroup[1].toLocaleString("ko-KR")}건`,
+      title: `${topNegGroup.key} ${topNegGroup.value.toLocaleString("ko-KR")}건`,
       detail: `전월 동기간 대비 감소 · 대카테고리 중 낙폭 최대`,
-      href: `/category-trends?group=${encodeURIComponent(worstGroup[0])}`,
+      href: `/category-trends?group=${encodeURIComponent(topNegGroup.key)}`,
       hrefBase: "/category-trends",
-      hrefQuery: `?group=${worstGroup[0]}`,
+      hrefQuery: `?group=${topNegGroup.key}`,
     });
   }
 
@@ -837,12 +1167,81 @@ export default async function Home({
     });
   }
 
+  // ── 확인 필요 — 나쁜 신호는 아니지만 원인을 알아야 하는 것들 ──
+  visibleCards
+    .filter((c) => c.pace >= 5)
+    .map((c) => ({ c, idx: (c.curr / c.pace) * 100 }))
+    .filter((x) => x.idx >= 130)
+    .sort((a, b) => b.idx - a.idx)
+    .slice(0, 2)
+    .forEach(({ c, idx }) =>
+      checks.push({
+        sev: "info",
+        title: `${c.label} 거래건수가 평소의 ${idx.toFixed(0)}% 수준`,
+        detail: `${c.curr.toLocaleString("ko-KR")}건 · 평소 페이스 ${Math.round(c.pace).toLocaleString("ko-KR")}건 · 이 달 성장의 출처`,
+        href: `/company/${c.label}`,
+        hrefBase: "/company/",
+        hrefQuery: c.label,
+      }),
+    );
+
+  if (topPosGroup && topPosGroup.value >= 20) {
+    checks.push({
+      sev: "info",
+      title: `${topPosGroup.key} +${topPosGroup.value.toLocaleString("ko-KR")}건`,
+      detail: `대카테고리 중 증가폭 최대 · ${netDelta > 0 ? `이번 달 순증의 ${shareOfNet(topPosGroup.value).toFixed(0)}%가 여기서 나왔습니다` : "이 달 성장의 주요 출처"}`,
+      href: `/category-trends?group=${encodeURIComponent(topPosGroup.key)}`,
+      hrefBase: "/category-trends",
+      hrefQuery: `?group=${topPosGroup.key}`,
+    });
+  }
+
+  // BM 계약 비중 이동 — 저마진 채널이 커지면 총 이익률이 조용히 빠진다
+  for (const b of bmStats) {
+    const shareCurr = rate(b.cnt, totalCntC);
+    const sharePrev = rate(b.cntPrev, totalCntP);
+    const diff = shareCurr - sharePrev;
+    if (Math.abs(diff) < 3) continue;
+    checks.push({
+      sev: "info",
+      title: `${b.key} 계약 비중 ${diff > 0 ? "+" : ""}${diff.toFixed(1)}%p`,
+      detail: `전월 동기간 ${sharePrev.toFixed(1)}% → ${shareCurr.toFixed(1)}% · 건당 공헌이익 ${Math.round(b.cpu).toLocaleString("ko-KR")}원 채널`,
+      href: `/revenue-analysis?bm=${b.key}`,
+      hrefBase: "/revenue-analysis",
+      hrefQuery: `?bm=${b.key}`,
+    });
+  }
+
+  visibleCards
+    .filter((c) => c.salesPrev >= 0.2)
+    .map((c) => ({ c, chg: (c.sales / c.salesPrev - 1) * 100 }))
+    .filter((x) => x.chg >= 50)
+    .sort((a, b) => b.chg - a.chg)
+    .slice(0, 2)
+    .forEach(({ c, chg }) =>
+      checks.push({
+        sev: "info",
+        title: `${c.label} 매출 +${chg.toFixed(0)}%`,
+        detail: `전월 동기간 ${c.salesPrev.toFixed(2)}억 → ${c.sales.toFixed(2)}억 · 건당 공헌이익 ${Math.round(c.cpu).toLocaleString("ko-KR")}원`,
+        href: `/company/${c.label}`,
+        hrefBase: "/company/",
+        hrefQuery: c.label,
+      }),
+    );
+
   alerts.sort((a, b) => (a.sev === b.sev ? 0 : a.sev === "crit" ? -1 : 1));
-  const topAlerts = alerts.slice(0, 5);
+  const topAlerts = alerts.slice(0, 6);
+  const topChecks = checks.slice(0, 5);
 
   // ── 한 줄 요약 (규칙 생성) ─────────────────────────────
-  const cntChange = orderPrev > 0 ? (contractCurr / contractPrev - 1) * 100 : 0;
-  const amtChange = amountPrev > 0 ? (amountCurr / amountPrev - 1) * 100 : 0;
+  const cntChange = pct(contractCurr, contractPrev) ?? 0;
+  const amtChange = pct(amountCurr, amountPrev) ?? 0;
+  const salesChange = pct(salesCurr, salesPrev) ?? 0;
+  const marginChange = pctAbs(marginCurr, marginPrev);
+  /** 증감 서술어 — 부호를 문장 밖으로 빼서 "-15% 증가" 같은 말이 안 나오게 한다 */
+  const dirWord = (v: number) => (v > 0 ? "증가" : v < 0 ? "감소" : "보합");
+  const abs1 = (v: number) => Math.abs(v).toFixed(1);
+  const abs0 = (v: number) => Math.abs(v).toFixed(0);
   const movers = visibleCards
     .filter((c) => c.prev >= 20)
     .map((c) => ({ label: c.label, chg: (c.curr / c.prev - 1) * 100 }))
@@ -850,333 +1249,344 @@ export default async function Home({
   const topUp = movers[0];
   const topDown = movers[movers.length - 1];
 
+  // 성장했는데 이익이 못 따라온 달인지 — 상단에서 먼저 말해야 하는 문장
+  const marginLagging =
+    marginChange !== null && cntChange > 1.5 && marginChange < -1.5;
+
   const panel =
     "rounded-[12px] border border-[var(--color-gray-200)] bg-white shadow-[0_1px_2px_rgba(28,35,56,.04),0_2px_8px_rgba(28,35,56,.05)]";
+  const sectionHead = "text-[15px] font-bold tracking-[-.3px]";
+  const sectionNo = "mr-1.5 font-bold text-[var(--color-gray-400)]";
 
   return (
     <div className="min-h-screen bg-[var(--color-page)] px-10 pt-8 pb-16 space-y-[26px]">
       {/* 기준 구간 표기는 헤더(app/components/Header.tsx)로 승격됐다 */}
 
-      {/* ═══ 계층 1 — 30초 안에 끝나는 판단 ═══════════════ */}
+      {/* ═══ ① 이번 달 한눈에 보기 ════════════════════════ */}
       <section>
-        <div className={`${panel} overflow-hidden`}>
-          <div className="grid grid-cols-1 gap-[26px] p-[20px_22px_18px] xl:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
-            <div>
-              <div className="mb-[9px] text-[11px] font-bold uppercase tracking-[.06em] text-[var(--color-gray-400)]">
-                {month}월 한 줄 요약
-              </div>
-              {/* 규칙 생성: 계약 증감 + 최대 상승/하락 렌탈사 + 이익률 괴리 */}
-              <p className="text-[19px] font-bold leading-[1.52] tracking-[-.4px] text-balance">
-                계약완료는{" "}
-                <span style={{ color: dirColor(cntChange) }}>
-                  {Math.abs(cntChange) < 1.5
-                    ? "사실상 제자리"
-                    : cntChange > 0
-                      ? "증가"
-                      : "감소"}
-                  ({cntChange > 0 ? "+" : ""}
-                  {cntChange.toFixed(1)}%)
-                </span>
-                {topUp && topDown && topUp.label !== topDown.label ? (
-                  <>
-                    지만, 안에서는{" "}
-                    <span style={{ color: "var(--color-up)" }}>
-                      {topUp.label} {topUp.chg > 0 ? "+" : ""}
-                      {topUp.chg.toFixed(0)}%
-                    </span>
-                    와{" "}
-                    <span style={{ color: "var(--color-down)" }}>
-                      {topDown.label} {topDown.chg.toFixed(0)}%
-                    </span>
-                    가 서로를 상쇄하고 있습니다.
-                  </>
-                ) : (
-                  <>입니다.</>
-                )}
-              </p>
-              <p className="mt-2.5 max-w-[46ch] text-[12px] leading-[1.65] text-[var(--color-gray-600)]">
-                거래액은 {amtChange > 0 ? "+" : ""}
-                {amtChange.toFixed(1)}% {amtChange >= 0 ? "늘었" : "줄었"}고
-                건당 공헌이익은 {Math.round(cpuCurr).toLocaleString("ko-KR")}
-                원으로 {cpuDelta > 0 ? "+" : ""}
-                {Math.round(cpuDelta).toLocaleString("ko-KR")}원{" "}
-                {cpuDelta >= 0 ? "올랐습니다" : "빠졌습니다"}.
-                {amtChange > 0 && cpuDelta < 0 && (
-                  <>
-                    {" "}
-                    <b>이익 성장이 매출 성장을 따라가지 못하는 달</b>입니다.
-                  </>
-                )}{" "}
-                설치인증률은 {certCurr.toFixed(1)}%
-                {certPrev > 0 && (
-                  <>
-                    {" "}
-                    (전월 동기간 {certPrev.toFixed(1)}% 대비{" "}
-                    {(certCurr - certPrev).toFixed(1)}%p)
-                  </>
-                )}
-                입니다.
-              </p>
-            </div>
+        <div className="mb-[11px] flex flex-wrap items-baseline gap-2.5">
+          <h2 className={sectionHead}>
+            <span className={sectionNo}>①</span>
+            이번 달 한눈에 보기
+          </h2>
+          <span className="text-[12px] text-[var(--color-gray-500)]">
+            {month}월 1–{dayCut}일 누계 · 전월 동기간 대비
+          </span>
+        </div>
 
-            {/* KPI 4타일 */}
-            <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-[8px] border border-[var(--color-line-2)] bg-[var(--color-line-2)]">
-              {[
-                {
-                  label: "주문확정",
-                  value: orderCurr.toLocaleString("ko-KR"),
-                  unit: "건",
-                  delta: pct(orderCurr, orderPrev),
-                  deltaUnit: "%",
-                  spark: orderSpark,
-                  href: "/conversion",
-                },
-                {
-                  label: "계약완료",
-                  value: contractCurr.toLocaleString("ko-KR"),
-                  unit: "건",
-                  delta: pct(contractCurr, contractPrev),
-                  deltaUnit: "%",
-                  spark: contractSpark,
-                  href: "/revenue-analysis",
-                },
-                {
-                  label: "총 거래액",
-                  value: amountCurr.toFixed(1),
-                  unit: "억",
-                  delta: pct(amountCurr, amountPrev),
-                  deltaUnit: "%",
-                  spark: amountSpark,
-                  href: "/revenue-analysis",
-                },
-                {
-                  label: "설치인증률",
-                  value: certCurr.toFixed(1),
-                  unit: "%",
-                  delta: certPrev > 0 ? certCurr - certPrev : null,
-                  deltaUnit: "%p",
-                  spark: certSpark,
-                  href: "/conversion",
-                },
-              ].map((k) => (
-                <Link
-                  key={k.label}
-                  href={k.href}
-                  className="bg-white p-[11px_13px_9px] transition-colors hover:bg-[var(--color-gray-25)]"
-                >
-                  <dt className="mb-[3px] text-[11px] font-semibold text-[var(--color-gray-500)]">
-                    {k.label}
-                  </dt>
-                  <div className="flex items-end justify-between gap-2">
-                    <div className="num text-[21px] font-bold leading-none tracking-[-.6px]">
-                      {k.value}
-                      <i className="ml-0.5 text-[12px] font-semibold not-italic tracking-normal text-[var(--color-gray-500)]">
-                        {k.unit}
-                      </i>
-                    </div>
-                    <div className="text-[12px] font-bold whitespace-nowrap">
-                      <Delta
-                        value={k.delta}
-                        unit={k.deltaUnit}
-                        flatBand={k.deltaUnit === "%p" ? 0.3 : 1.5}
-                      />
-                    </div>
-                  </div>
-                  <div className="mt-[6px]">
-                    <Sparkline
-                      values={k.spark}
-                      // 선 색은 선 자신의 12개월 추세로 칠한다.
-                      // 전월 대비(델타 칩)와 12개월 추세는 반대일 수 있어
-                      // 델타 색을 쓰면 색과 모양이 서로 다른 말을 하게 된다.
-                      color={dirColor(
-                        k.spark[0] > 0
-                          ? (k.spark[k.spark.length - 1] / k.spark[0] - 1) * 100
-                          : 0,
-                        1.5,
-                      )}
-                      width={132}
-                      height={26}
-                    />
-                  </div>
-                </Link>
-              ))}
-            </dl>
-              <p className="col-span-full mt-2 text-[11px] text-[var(--color-gray-400)]">
-                선 = 최근 12개월 추이 (매월 1–{dayCut}일 같은 기간 기준) · 오른쪽 숫자 = 전월 동기간 대비
+        <div className={`${panel} overflow-hidden`}>
+          {/* 한 줄 요약 — 숫자·강조 스타일은 그대로, 문장만 짧게 끊는다 */}
+          <div className="p-[16px_22px_15px]">
+            <div className="mb-[9px] text-[11px] font-bold uppercase tracking-[.06em] text-[var(--color-gray-400)]">
+              {month}월 한 줄 요약
+            </div>
+            {/* 리드 문장 — DESIGN.md 스케일의 20/28/600 */}
+            <p className="text-[20px] font-semibold leading-[28px] tracking-[-.4px] text-balance">
+              계약완료는{" "}
+              {Math.abs(cntChange) < 1.5 ? (
+                <span style={{ color: dirColor(cntChange) }}>
+                  전월 동기간과 거의 같습니다.
+                </span>
+              ) : (
+                <>
+                  <span style={{ color: dirColor(cntChange) }}>
+                    {abs1(cntChange)}% {dirWord(cntChange)}
+                  </span>
+                  했습니다.
+                </>
+              )}
+              {topUp && topDown && topUp.label !== topDown.label && (
+                <>
+                  {" "}
+                  <span style={{ color: dirColor(topUp.chg) }}>
+                    {topUp.label}
+                    {particle(topUp.label, "이", "가")} {abs0(topUp.chg)}%{" "}
+                    {dirWord(topUp.chg)}
+                  </span>
+                  {topUp.chg * topDown.chg < 0 ? "한 반면, " : "하고, "}
+                  <span style={{ color: dirColor(topDown.chg) }}>
+                    {topDown.label}
+                    {particle(topDown.label, "은", "는")} {abs0(topDown.chg)}%{" "}
+                    {dirWord(topDown.chg)}
+                  </span>
+                  해 브랜드별 성과 차이가 나타났습니다.
+                </>
+              )}
+            </p>
+
+            {/* 한 문장 = 한 줄. 숫자와 서술어가 줄바꿈으로 갈라지지 않게 measure를 넉넉히 준다 */}
+            {/* 거래액·매출은 한 문장에 붙여 대조한다 — 물량과 단가가 엇갈리는
+                달에는 그 엇갈림 자체가 이 달의 사건이다 */}
+            <p className="mt-2.5 max-w-[70ch] text-[12px] leading-[1.65] text-[var(--color-gray-600)]">
+              거래액은 {abs1(amtChange)}% {dirWord(amtChange)}
+              {amtChange * salesChange < 0 ? "했지만, " : "했고, "}매출은{" "}
+              {abs1(salesChange)}% {dirWord(salesChange)}했습니다.
+            </p>
+
+            <p className="mt-1.5 max-w-[70ch] text-[12px] leading-[1.65] text-[var(--color-gray-600)]">
+              건당 공헌이익은{" "}
+              {Math.round(cpuCurr).toLocaleString("ko-KR")}원으로{" "}
+              {Math.abs(Math.round(cpuDelta)).toLocaleString("ko-KR")}원{" "}
+              {dirWord(cpuDelta)}했습니다.
+            </p>
+
+            {salesChange > 0 && cpuDelta < 0 && (
+              <p className="mt-1.5 max-w-[70ch] text-[12px] leading-[1.65] text-[var(--color-gray-600)]">
+                매출 성장 대비 이익 개선은 제한적인 달입니다.
               </p>
+            )}
+
+            <p className="mt-1.5 max-w-[70ch] text-[12px] leading-[1.65] text-[var(--color-gray-600)]">
+              설치인증률은 {certCurr.toFixed(1)}%
+              {certPrev <= 0
+                ? "입니다."
+                : Math.abs(certCurr - certPrev) < 0.05
+                  ? "로, 전월 동기간과 같습니다."
+                  : `로, 전월 동기간 대비 ${abs1(certCurr - certPrev)}%p ${
+                      certCurr - certPrev > 0 ? "상승" : "하락"
+                    }했습니다.`}
+            </p>
           </div>
 
-          {/* BM 수익성 — 대손율은 심각도색으로만 칠한다 */}
-          <div className="grid grid-cols-1 items-center gap-[18px] border-t border-[var(--color-gray-200)] bg-[var(--color-gray-25)] p-[13px_22px] lg:grid-cols-[auto_repeat(3,minmax(0,1fr))]">
-            <div className="text-[12px] font-bold whitespace-nowrap text-[var(--color-gray-600)]">
-              BM별 실적
-            </div>
-            {bmStats.map((b) => (
-              <div key={b.key} className="flex items-center gap-3">
-                <div className="w-[30px] flex-none text-[11px] font-bold text-[var(--color-gray-500)]">
-                  {b.key}
+          {/* 매출은 늘었는데 이익이 못 따라온 달이면 먼저 말한다 */}
+          {marginLagging && (
+            <p
+              className="flex items-start gap-2 border-t border-[var(--color-gray-200)] px-[22px] py-[11px] text-[12px] leading-[1.6] font-semibold"
+              style={{
+                color: "var(--color-sev-warn)",
+                background: "var(--color-sev-warn-100)",
+              }}
+            >
+              <span aria-hidden>⚠</span>
+              <span>
+                계약은 {cntChange > 0 ? "+" : ""}
+                {cntChange.toFixed(1)}% 증가했지만 공헌이익은{" "}
+                {marginChange!.toFixed(1)}% 감소했습니다 — 이번 달은 &ldquo;매출이
+                잘 나온 달&rdquo;이 아니라 &ldquo;성장한 만큼 벌지 못한
+                달&rdquo;입니다.
+              </span>
+            </p>
+          )}
+
+          {/* KPI 4타일 — 거래액·매출에서 끝내지 않고 공헌이익까지 세운다 */}
+          <dl className="grid grid-cols-2 gap-px border-t border-[var(--color-gray-200)] bg-[var(--color-line-2)] lg:grid-cols-4">
+            {[
+              {
+                label: "계약완료",
+                value: contractCurr.toLocaleString("ko-KR"),
+                unit: "건",
+                delta: pct(contractCurr, contractPrev),
+                deltaUnit: "%",
+                spark: contractSpark,
+                href: "/revenue-analysis",
+                negative: false,
+              },
+              {
+                label: "거래액",
+                value: amountCurr.toFixed(1),
+                unit: "억",
+                delta: pct(amountCurr, amountPrev),
+                deltaUnit: "%",
+                spark: amountSpark,
+                href: "/revenue-analysis",
+                negative: false,
+              },
+              {
+                label: "매출",
+                value: salesCurr.toFixed(1),
+                unit: "억",
+                delta: pct(salesCurr, salesPrev),
+                deltaUnit: "%",
+                spark: salesSpark,
+                href: "/revenue-analysis",
+                negative: false,
+              },
+              {
+                label: "건당 공헌이익",
+                value: Math.round(cpuCurr).toLocaleString("ko-KR"),
+                unit: "원",
+                delta: pctAbs(cpuCurr, cpuPrev),
+                deltaUnit: "%",
+                spark: cpuSpark,
+                href: "/revenue-analysis",
+                // 값의 좋고 나쁨은 방향색이 아니라 텍스트 라벨로 말한다
+                negative: cpuCurr < 0,
+              },
+            ].map((k) => (
+              <Link
+                key={k.label}
+                href={k.href}
+                className="bg-white p-[13px_15px_11px] transition-colors hover:bg-[var(--color-gray-25)]"
+              >
+                <dt className="mb-[5px] flex items-center gap-1.5 text-[11px] font-semibold text-[var(--color-gray-500)]">
+                  {k.label}
+                  {k.negative && (
+                    <span
+                      className="rounded-[4px] px-1.5 py-px text-[10px] font-bold"
+                      style={{
+                        color: "var(--color-sev-crit)",
+                        background: "var(--color-sev-crit-100)",
+                      }}
+                    >
+                      적자
+                    </span>
+                  )}
+                </dt>
+                <div className="flex items-end justify-between gap-2">
+                  <div className="num text-[24px] font-bold leading-[28px] tracking-[-.6px]">
+                    {k.value}
+                    <i className="ml-0.5 text-[12px] font-semibold not-italic tracking-normal text-[var(--color-gray-500)]">
+                      {k.unit}
+                    </i>
+                  </div>
+                  <div className="text-[12px] font-bold whitespace-nowrap">
+                    <Delta value={k.delta} unit={k.deltaUnit} />
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-[14px]">
-                  {[
-                    {
-                      k: "주문확정",
-                      v: `${b.ord.toLocaleString("ko-KR")}건`,
-                      d: pct(b.ord, b.ordPrev),
-                    },
-                    {
-                      k: "계약완료",
-                      v: `${b.cnt.toLocaleString("ko-KR")}건`,
-                      d: pct(b.cnt, b.cntPrev),
-                    },
-                    {
-                      k: "거래액",
-                      v: `${b.amt.toFixed(1)}억`,
-                      d: pct(b.amt, b.amtPrev),
-                    },
-                  ].map((m) => (
-                    <div key={m.k} className="flex items-baseline gap-1">
-                      <span className="text-[11px] text-[var(--color-gray-400)]">
-                        {m.k}
-                      </span>
-                      <b className="num text-[13px] font-bold tracking-[-.2px]">
-                        {m.v}
-                      </b>
-                      <span className="ml-0.5 text-[11px] font-bold">
-                        <Delta value={m.d} />
-                      </span>
-                    </div>
-                  ))}
+                <div className="mt-[6px]">
+                  <Sparkline
+                    values={k.spark}
+                    // 선 색은 선 자신의 12개월 추세로 칠한다.
+                    // 전월 대비(델타 칩)와 12개월 추세는 반대일 수 있어
+                    // 델타 색을 쓰면 색과 모양이 서로 다른 말을 하게 된다.
+                    color={dirColor(
+                      k.spark[0] !== 0
+                        ? ((k.spark[k.spark.length - 1] - k.spark[0]) /
+                            Math.abs(k.spark[0])) *
+                            100
+                        : 0,
+                      1.5,
+                    )}
+                    width={132}
+                    height={26}
+                  />
                 </div>
-              </div>
+              </Link>
             ))}
+          </dl>
+
+          {/* 보조 지표 — 상단 4타일과 경쟁하지 않게 한 줄로 눕힌다 */}
+          <div className="flex flex-wrap items-center gap-x-[18px] gap-y-2 border-t border-[var(--color-gray-200)] bg-[var(--color-gray-25)] p-[11px_22px]">
+            <span className="text-[11px] font-bold whitespace-nowrap text-[var(--color-gray-400)]">
+              앞단
+            </span>
+            {[
+              {
+                label: "주문확정",
+                value: `${orderCurr.toLocaleString("ko-KR")}건`,
+                delta: pct(orderCurr, orderPrev),
+                unit: "%",
+                flat: 1.5,
+                href: "/conversion",
+              },
+              {
+                label: "설치인증률",
+                value: `${certCurr.toFixed(1)}%`,
+                delta: certPrev > 0 ? certCurr - certPrev : null,
+                unit: "%p",
+                flat: 0.3,
+                href: "/conversion",
+              },
+            ].map((s) => (
+              <Link
+                key={s.label}
+                href={s.href}
+                className="flex items-baseline gap-1.5 hover:text-[var(--color-primary)]"
+              >
+                <span className="text-[11px] text-[var(--color-gray-500)]">
+                  {s.label}
+                </span>
+                <b className="num text-[12px] font-bold tracking-[-.2px]">
+                  {s.value}
+                </b>
+                <span className="text-[11px] font-bold">
+                  <Delta value={s.delta} unit={s.unit} flatBand={s.flat} />
+                </span>
+              </Link>
+            ))}
+            <span className="text-[11px] text-[var(--color-gray-400)]">
+              타일의 선 = 월별 추이 (매월 1–{dayCut}일 같은 기간 · 값이 잡히는
+              달부터)
+            </span>
           </div>
         </div>
       </section>
 
-      {/* ═══ 계층 2 — 화면이 먼저 짚어주는 것 ═════════════ */}
-      <section className="space-y-4">
+      {/* ═══ ② 이번 달 실적은 왜 변했나 ═══════════════════ */}
+      <section>
+        <div className="mb-[11px] flex flex-wrap items-baseline gap-2.5">
+          <h2 className={sectionHead}>
+            <span className={sectionNo}>②</span>
+            이번 달 실적은 왜 변했나
+          </h2>
+          <span className="text-[12px] text-[var(--color-gray-500)]">
+            지표를 바꿔가며 같은 변화를 건수·거래액·매출·건당 공헌이익 축으로 분해한다
+          </span>
+        </div>
+        <WaterfallPanel metrics={waterfallMetrics} panelClass={panel} />
+      </section>
+
+      {/* ═══ ③ 어디에서 문제가 생겼나 ═════════════════════ */}
+      <section>
+        <div className="mb-[11px] flex flex-wrap items-baseline gap-2.5">
+          <h2 className={sectionHead}>
+            <span className={sectionNo}>③</span>
+            어디에서 문제가 생겼나
+          </h2>
+          <span className="text-[12px] text-[var(--color-gray-500)]">
+            판정은 자기 과거 대비 — 직전 3개 동기간 평균이 기준 · 클릭하면 해당
+            상세로 이동
+          </span>
+        </div>
         {/* items-start — 두 패널 높이를 맞추면 짧은 쪽에 빈 공간이 크게 남는다 */}
-        <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.12fr)]">
-          {/* 주의 신호 */}
+        <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
           <div className={panel}>
             <div className="flex items-baseline justify-between gap-2.5 p-[14px_17px_11px]">
               <h3 className="text-[14px] font-bold tracking-[-.2px]">
                 주의 신호
               </h3>
               <span className="text-[11px] text-[var(--color-gray-400)]">
-                {topAlerts.length}건 · 클릭 시 상세 페이지
+                {topAlerts.length}건 · 지금 손을 써야 하는 것
               </span>
             </div>
             <div className="px-[17px] pb-4">
-              {topAlerts.length === 0 ? (
-                <p className="py-6 text-center text-[12px] text-[var(--color-gray-400)]">
-                  기준을 넘은 신호가 없습니다 — 평소 페이스 안에서 움직이고
-                  있습니다.
-                </p>
-              ) : (
-                <ul>
-                  {topAlerts.map((a, i) => (
-                    <li
-                      key={`${a.title}-${i}`}
-                      className="border-t border-[var(--color-line-2)] first:border-t-0"
-                    >
-                      <Link
-                        href={a.href}
-                        className="group grid grid-cols-[3px_auto_minmax(0,1fr)_auto] items-center gap-[11px] py-[11px]"
-                      >
-                        <span
-                          className="h-[30px] w-[3px] rounded-full"
-                          style={{
-                            background:
-                              a.sev === "crit"
-                                ? "var(--color-sev-crit)"
-                                : "var(--color-sev-warn)",
-                          }}
-                        />
-                        {/* 색 단독 금지 — 항상 텍스트 라벨을 붙인다 */}
-                        <span
-                          className="rounded-[4px] px-1.5 py-[3px] text-[10px] font-bold whitespace-nowrap"
-                          style={
-                            a.sev === "crit"
-                              ? {
-                                  color: "var(--color-sev-crit)",
-                                  background: "var(--color-sev-crit-100)",
-                                }
-                              : {
-                                  color: "var(--color-sev-warn)",
-                                  background: "var(--color-sev-warn-100)",
-                                }
-                          }
-                        >
-                          {a.sev === "crit" ? "이상" : "주의"}
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block text-[12px] font-bold leading-[1.4] tracking-[-.1px] group-hover:text-[var(--color-primary)]">
-                            {a.title}
-                          </span>
-                          <span className="mt-0.5 block text-[12px] leading-[1.5] text-[var(--color-gray-500)]">
-                            {a.detail}
-                          </span>
-                        </span>
-                        {/* 목적지를 숨기지 않는다 */}
-                        <span className="inline-flex items-center gap-1 font-mono text-[10px] font-semibold whitespace-nowrap text-[var(--color-gray-400)] before:text-[9px] before:content-['↗'] group-hover:text-[var(--color-primary)]">
-                          <b className="font-semibold">{a.hrefBase}</b>
-                          {a.hrefQuery && (
-                            <q className="font-bold text-[var(--color-primary)] [quotes:none]">
-                              {a.hrefQuery}
-                            </q>
-                          )}
-                        </span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <AlertList
+                items={topAlerts}
+                empty="기준을 넘은 신호가 없습니다 — 평소 페이스 안에서 움직이고 있습니다."
+              />
             </div>
           </div>
 
-          {/* 워터폴 */}
+          {/* 급증도 원인을 모르면 신호다 — 다만 빨강에 섞지 않는다 */}
           <div className={panel}>
             <div className="flex items-baseline justify-between gap-2.5 p-[14px_17px_11px]">
               <h3 className="text-[14px] font-bold tracking-[-.2px]">
-                무엇이 이 달을 만들었나
+                확인 필요
               </h3>
               <span className="text-[11px] text-[var(--color-gray-400)]">
-                전월 동기간 → 이번 달 · 대카테고리 기여도
+                {topChecks.length}건 · 나쁘진 않지만 원인은 알아야 하는 것
               </span>
             </div>
             <div className="px-[17px] pb-4">
-              <Waterfall items={waterfallItems} />
-              {(topPos || topNeg) && (
-                <p className="mt-3 rounded-r-[6px] border-l-2 border-[var(--color-primary)] bg-[var(--color-primary-50)] px-[11px] py-[7px] text-[12px] leading-[1.6] text-[var(--color-primary-700)]">
-                  합계{" "}
-                  <b>
-                    {netDelta > 0 ? "+" : ""}
-                    {netDelta.toLocaleString("ko-KR")}건
-                  </b>{" "}
-                  안에 가려진 것 —{" "}
-                  {topPos && (
-                    <>
-                      최대 증가{" "}
-                      <b>
-                        {topPos[0]} +{topPos[1].toLocaleString("ko-KR")}건
-                      </b>
-                      {topNeg && ", "}
-                    </>
-                  )}
-                  {topNeg && (
-                    <>
-                      최대 감소{" "}
-                      <b>
-                        {topNeg[0]} {topNeg[1].toLocaleString("ko-KR")}건
-                      </b>
-                    </>
-                  )}
-                  . 합계만 보면 읽어낼 수 없는 부분입니다.
-                </p>
-              )}
+              <AlertList
+                items={topChecks}
+                empty="평소와 크게 다른 움직임이 없습니다."
+              />
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* ═══ ④ 어디서 성과가 났나 ═════════════════════════ */}
+      <section className="space-y-4">
+        <div className="mb-[11px] flex flex-wrap items-baseline gap-2.5">
+          <h2 className={sectionHead}>
+            <span className={sectionNo}>④</span>
+            어디서 성과가 났나
+          </h2>
+          <span className="text-[12px] text-[var(--color-gray-500)]">
+            채널(BM) → 렌탈사 → 카테고리 순으로 내려간다
+          </span>
         </div>
 
         {/* BM별 비교 */}
@@ -1192,7 +1602,7 @@ export default async function Home({
             </span>
           </div>
           <div className="px-[17px] pb-4">
-            <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,.92fr)_minmax(0,1.28fr)]">
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,.72fr)_minmax(0,1.48fr)]">
               <div>
                 <div className="mb-0.5 text-[12px] font-bold text-[var(--color-gray-600)]">
                   BM 구성이 어디로 움직였나
@@ -1228,7 +1638,7 @@ export default async function Home({
                   BM별 지표
                 </div>
                 <div className="mb-2 text-[11px] text-[var(--color-gray-400)]">
-                  아래 숫자는 전월 동기간 대비 변화
+                  아래 숫자는 전월 동기간 대비 변화 · 비중은 계약건수 기준
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-[12px]">
@@ -1236,14 +1646,17 @@ export default async function Home({
                       <tr className="border-b border-[var(--color-gray-200)]">
                         {[
                           "BM",
-                          "거래건수",
+                          "주문확정",
+                          "계약건수",
+                          "계약 비중",
                           "거래액",
                           "매출",
+                          "공헌이익",
                           "건당 공헌이익",
-                        ].map((h, i) => (
+                        ].map((h, i, arr) => (
                           <th
                             key={h}
-                            className={`p-[8px_7px] text-[10px] font-bold text-[var(--color-gray-400)] whitespace-nowrap ${i === 0 ? "pl-0 text-left" : "text-right"} ${i === 4 ? "pr-0" : ""}`}
+                            className={`p-[8px_7px] text-[10px] font-bold text-[var(--color-gray-400)] whitespace-nowrap ${i === 0 ? "pl-0 text-left" : "text-right"} ${i === arr.length - 1 ? "pr-0" : ""}`}
                           >
                             {h}
                           </th>
@@ -1252,8 +1665,8 @@ export default async function Home({
                     </thead>
                     <tbody>
                       {bmStats.map((b) => {
-                        const cntChg = pct(b.cnt, b.cntPrev);
-                        const amtChg = pct(b.amt, b.amtPrev);
+                        const shareCurr = rate(b.cnt, totalCntC);
+                        const sharePrev = rate(b.cntPrev, totalCntP);
                         return (
                           <tr
                             key={b.key}
@@ -1280,10 +1693,30 @@ export default async function Home({
                             </td>
                             <td className="p-[8px_7px] text-right">
                               <div className="num text-[12px] font-bold tracking-[-.2px]">
+                                {b.ord.toLocaleString("ko-KR")}
+                              </div>
+                              <div className="mt-px text-[10px] font-bold">
+                                <Delta value={pct(b.ord, b.ordPrev)} />
+                              </div>
+                            </td>
+                            <td className="p-[8px_7px] text-right">
+                              <div className="num text-[12px] font-bold tracking-[-.2px]">
                                 {b.cnt.toLocaleString("ko-KR")}
                               </div>
                               <div className="mt-px text-[10px] font-bold">
-                                <Delta value={cntChg} />
+                                <Delta value={pct(b.cnt, b.cntPrev)} />
+                              </div>
+                            </td>
+                            <td className="p-[8px_7px] text-right">
+                              <div className="num text-[12px] font-bold tracking-[-.2px]">
+                                {shareCurr.toFixed(1)}%
+                              </div>
+                              <div className="mt-px text-[10px] font-bold">
+                                <Delta
+                                  value={shareCurr - sharePrev}
+                                  unit="%p"
+                                  flatBand={0.5}
+                                />
                               </div>
                             </td>
                             <td className="p-[8px_7px] text-right">
@@ -1291,7 +1724,7 @@ export default async function Home({
                                 {b.amt.toFixed(1)}억
                               </div>
                               <div className="mt-px text-[10px] font-bold">
-                                <Delta value={amtChg} />
+                                <Delta value={pct(b.amt, b.amtPrev)} />
                               </div>
                             </td>
                             <td className="p-[8px_7px] text-right">
@@ -1302,12 +1735,21 @@ export default async function Home({
                                 <Delta value={pct(b.sales, b.salesPrev)} />
                               </div>
                             </td>
+                            <td className="p-[8px_7px] text-right">
+                              <div className="num text-[12px] font-bold tracking-[-.2px]">
+                                {Math.round(b.margin).toLocaleString("ko-KR")}
+                                만원
+                              </div>
+                              <div className="mt-px text-[10px] font-bold">
+                                <Delta value={pctAbs(b.margin, b.marginPrev)} />
+                              </div>
+                            </td>
                             <td className="p-[8px_7px] pr-0 text-right">
                               <div className="num text-[12px] font-bold tracking-[-.2px]">
                                 {Math.round(b.cpu).toLocaleString("ko-KR")}원
                               </div>
                               <div className="mt-px text-[10px] font-bold">
-                                <Delta value={pct(b.cpu, b.cpuPrev)} />
+                                <Delta value={pctAbs(b.cpu, b.cpuPrev)} />
                               </div>
                             </td>
                           </tr>
@@ -1331,7 +1773,7 @@ export default async function Home({
               ].map((d, i) => (
                 <span key={d.label} className="flex items-center gap-2.5">
                   {i > 0 && (
-                    <span className="text-[13px] font-bold text-[var(--color-gray-400)]">
+                    <span className="text-[12px] font-bold text-[var(--color-gray-400)]">
                       +
                     </span>
                   )}
@@ -1349,7 +1791,7 @@ export default async function Home({
                   </span>
                 </span>
               ))}
-              <span className="text-[13px] font-bold text-[var(--color-gray-400)]">
+              <span className="text-[12px] font-bold text-[var(--color-gray-400)]">
                 =
               </span>
               <span className="flex items-baseline gap-[7px] rounded-[8px] border border-[var(--color-primary-100)] bg-[var(--color-primary-50)] px-[11px] py-1.5">
@@ -1367,36 +1809,35 @@ export default async function Home({
             </div>
           </div>
         </div>
-      </section>
 
-      {/* ═══ 계층 3 — 렌탈사 한 달 요약 카드 ══════════════ */}
-      <section>
-        <div className="mb-[11px] flex flex-wrap items-baseline gap-2.5">
-          <h2 className="text-[15px] font-bold tracking-[-.3px]">
-            렌탈사 요약
-          </h2>
-          <span className="text-[12px] text-[var(--color-gray-500)]">
-            판정은 자기 과거 대비 — 최근 3개월 같은 기간(1–{dayCut}일) 평균이
-            기준
-          </span>
+        {/* 렌탈사 요약 카드 */}
+        <div>
+          <div className="mb-[11px] flex flex-wrap items-baseline gap-2.5">
+            <h3 className="text-[14px] font-bold tracking-[-.2px]">
+              렌탈사 요약
+            </h3>
+            <span className="text-[12px] text-[var(--color-gray-500)]">
+              판정은 자기 과거 대비 — 직전 3개 동기간 평균이 기준
+            </span>
+          </div>
+          <CompanyCards companies={visibleCards} groups={cardGroups} />
         </div>
-        <CompanyCards companies={visibleCards} groups={cardGroups} />
-      </section>
 
-      {/* ═══ 계층 3b — 카테고리 한 달 요약 카드 ════════════ */}
-      <section>
-        <div className="mb-[11px] flex flex-wrap items-baseline gap-2.5">
-          <h2 className="text-[15px] font-bold tracking-[-.3px]">
-            카테고리 요약
-          </h2>
-          <span className="text-[12px] text-[var(--color-gray-500)]">
-            매출이 어느 상품에서 빠졌는지 · 물량 탓인지 단가 탓인지까지
-          </span>
+        {/* 카테고리 요약 카드 */}
+        <div>
+          <div className="mb-[11px] flex flex-wrap items-baseline gap-2.5">
+            <h3 className="text-[14px] font-bold tracking-[-.2px]">
+              카테고리 요약
+            </h3>
+            <span className="text-[12px] text-[var(--color-gray-500)]">
+              매출이 어느 상품에서 빠졌는지 · 물량 탓인지 단가 탓인지까지
+            </span>
+          </div>
+          <CategoryCards categories={visibleCatCards} groups={catCardGroups} />
         </div>
-        <CategoryCards categories={visibleCatCards} groups={catCardGroups} />
       </section>
 
-      {/* ═══ 계층 4 — 원본 격자는 버리지 않고 접는다 ══════ */}
+      {/* ═══ 원본 격자는 버리지 않고 접는다 ═══════════════ */}
       <details className={`${panel} group overflow-hidden`}>
         <summary className="flex cursor-pointer list-none select-none items-center gap-[9px] p-[14px_18px] text-[14px] font-bold tracking-[-.2px] [&::-webkit-details-marker]:hidden">
           <span className="inline-block text-[11px] text-[var(--color-gray-400)] transition-transform group-open:rotate-90">
@@ -1409,7 +1850,7 @@ export default async function Home({
         </summary>
         <div className="space-y-6 border-t border-[var(--color-line-2)] p-[16px_18px_20px]">
           <div className="flex items-center gap-2">
-            <h2 className="text-base font-semibold text-gray-700">거래건수</h2>
+            <h2 className="text-[15px] font-bold text-gray-700">거래건수</h2>
             <TransactionYearToggle hidden={hideOld2025} />
           </div>
 
