@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { COMPANY_MAP, getBM } from "@/lib/company-map";
-import { getPeriod, getDataAsOf, shiftIso } from "@/lib/period";
+import { getPeriod, getDataAsOf } from "@/lib/period";
 import CategoryMonthlyChart, {
   type CategoryMonthPoint,
 } from "@/app/components/CategoryMonthlyChart";
@@ -379,9 +379,7 @@ export default async function Home({
   const { hide2025 } = await searchParams;
   const hideOld2025 = hide2025 === "1";
   // 헤더(기준일 표기)와 동일한 구간을 쓴다 — lib/period.ts 단일 소스
-  const { curr, prev, month, day: dayCut, shiftDays } = getPeriod(
-    await getDataAsOf(),
-  );
+  const { curr, prev, month, day: dayCut } = getPeriod(await getDataAsOf());
   const end = curr.end;
   const yearStart = "2025-01-01"; // 섹션 2 월별 거래건수 조회 시작 시점
 
@@ -506,7 +504,7 @@ export default async function Home({
   // ══════════════════════════════════════════════════════════════
   //  계층 1~3 집계
   //  판정 기준은 전부 "자기 과거 대비"다 — 렌탈사별 목표를 따로
-  //  입력받지 않아도 요일을 맞춘 직전 3개 구간 평균만으로 성립한다.
+  //  입력받지 않아도 최근 3개월 같은 기간 평균만으로 성립한다.
   // ══════════════════════════════════════════════════════════════
   const rate = (num: number, den: number) => (den > 0 ? (num / den) * 100 : 0);
   const EOK = 100_000_000; // 억
@@ -690,23 +688,8 @@ export default async function Home({
     }),
   );
 
-  // 평소 페이스의 기준 창 — 전월 비교와 같은 방식으로 요일을 맞춘다.
-  //
-  // 달의 1~N일로 자르면 어떤 달은 주말이 2일이고 어떤 달은 0일이라 분모가
-  // 들쭉날쭉해진다. 2026-06/07 의 1~3일은 주말이 없고 2026-08 은 2일이라,
-  // 그대로 평균하면 "평소"가 실제보다 낮게 잡혀 급증이 과장된다.
-  const PACE_WINDOWS = 3;
-  const paceRanges = Array.from({ length: PACE_WINDOWS }, (_, i) => ({
-    start: shiftIso(curr.start, -shiftDays * (i + 1)),
-    end: shiftIso(curr.end, -shiftDays * (i + 1)),
-  }));
-  const inPaceRange = (d: string) =>
-    paceRanges.some((r) => d >= r.start && d <= r.end);
-
-  // 렌탈사 × 월 카운트 — 1~dayCut일 창 (12개월 스파크라인 전용)
+  // 렌탈사 × 월 카운트 — 1~dayCut일 창(스파크라인·평소 페이스 공용)
   const rcWindow = new Map<string, Map<string, number>>();
-  // 렌탈사별 평소 페이스 누계 (요일 맞춘 3개 창 합)
-  const rcPace = new Map<string, number>();
   for (const r of catRaw) {
     const def = CARD_DEFS.find((d) => matchesCompany(d, r));
     if (!def) continue;
@@ -716,16 +699,20 @@ export default async function Home({
       const wm = rcWindow.get(def.label)!;
       wm.set(ym, (wm.get(ym) ?? 0) + 1);
     }
-    if (inPaceRange(r.contract_date))
-      rcPace.set(def.label, (rcPace.get(def.label) ?? 0) + 1);
   }
 
   const companyCards = CARD_DEFS.map((def) => {
     const cRows = currContracts.filter((r) => matchesCompany(def, r));
     const pRows = prevContracts.filter((r) => matchesCompany(def, r));
 
-    // 평소 페이스 = 요일을 맞춘 직전 3개 창의 평균
-    const pace = (rcPace.get(def.label) ?? 0) / PACE_WINDOWS;
+    // 평소 페이스 = 직전 3개월의 같은 기간(1~dayCut일) 평균
+    const paceMonths = recentYms.slice(-4, -1);
+    const paceVals = paceMonths.map(
+      (ym) => rcWindow.get(def.label)?.get(ym) ?? 0,
+    );
+    const pace = paceVals.length
+      ? paceVals.reduce((s, v) => s + v, 0) / paceVals.length
+      : 0;
 
     const catCount = new Map<string, number>();
     const bmCount = { BM1: 0, BM2: 0, BM3: 0 };
@@ -792,15 +779,11 @@ export default async function Home({
   const catKeyOf = (r: { category: string | null }) =>
     KNOWN_CATS.has(r.category ?? "") ? (r.category as string) : "그 외";
 
-  // 상품 카테고리 × 월 매출 — 1~dayCut일 창 (12개월 스파크라인 전용)
+  // 상품 카테고리 × 월 매출 — 1~dayCut일 창 (스파크라인·평소 페이스 공용)
   const catSalesWindow = new Map<string, Map<string, number>>();
-  // 카테고리별 평소 페이스 매출 누계 (요일 맞춘 3개 창 합)
-  const catPace = new Map<string, number>();
   for (const r of catRaw) {
-    const key = catKeyOf(r);
-    if (inPaceRange(r.contract_date))
-      catPace.set(key, (catPace.get(key) ?? 0) + (r.sales ?? 0));
     if (Number(r.contract_date.slice(8, 10)) > dayCut) continue;
+    const key = catKeyOf(r);
     const ym = r.contract_date.slice(0, 7);
     if (!catSalesWindow.has(key)) catSalesWindow.set(key, new Map());
     const wm = catSalesWindow.get(key)!;
@@ -855,7 +838,12 @@ export default async function Home({
     const c = catCurrAcc.get(key) ?? emptyAcc();
     const p = catPrevAcc.get(key) ?? emptyAcc();
 
-    const pace = (catPace.get(key) ?? 0) / PACE_WINDOWS / EOK;
+    const paceVals = recentYms
+      .slice(-4, -1)
+      .map((ym) => (catSalesWindow.get(key)?.get(ym) ?? 0) / EOK);
+    const pace = paceVals.length
+      ? paceVals.reduce((s, v) => s + v, 0) / paceVals.length
+      : 0;
 
     const topCompany = Array.from(c.companies.entries()).sort(
       (a, b) => b[1] - a[1],
@@ -1534,8 +1522,8 @@ export default async function Home({
             어디에서 문제가 생겼나
           </h2>
           <span className="text-[12px] text-[var(--color-gray-500)]">
-            판정은 자기 과거 대비 — 직전 3개 동기간 평균이 기준 · 클릭하면 해당
-            상세로 이동
+            판정은 자기 과거 대비 — 최근 3개월 같은 기간(1–{dayCut}일) 평균이
+            기준 · 클릭하면 해당 상세로 이동
           </span>
         </div>
         {/* items-start — 두 패널 높이를 맞추면 짧은 쪽에 빈 공간이 크게 남는다 */}
@@ -1817,7 +1805,8 @@ export default async function Home({
               렌탈사 요약
             </h3>
             <span className="text-[12px] text-[var(--color-gray-500)]">
-              판정은 자기 과거 대비 — 직전 3개 동기간 평균이 기준
+              판정은 자기 과거 대비 — 최근 3개월 같은 기간(1–{dayCut}일) 평균이
+              기준
             </span>
           </div>
           <CompanyCards companies={visibleCards} groups={cardGroups} />

@@ -25,7 +25,7 @@ export type CategoryCard = {
   /** 매출 (억) */
   sales: number;
   salesPrev: number;
-  /** 요일을 맞춘 직전 3개 구간의 매출 평균 = "평소 페이스" (억) */
+  /** 최근 3개월 같은 기간(1일~기준일) 매출 평균 = "평소 페이스" (억) */
   pace: number;
   count: number;
   countPrev: number;
