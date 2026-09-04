@@ -20,7 +20,7 @@ export default function Header({
   const pathname = decodeURIComponent(rawPathname);
 
   let group: string | null = null;
-  let title = "이달 한눈에 보기";
+  let title = "이달의 요약";
 
   if (pathname === "/weekly-products") {
     title = "렌탈사별 상품 현황";
@@ -47,7 +47,7 @@ export default function Header({
             {group} /{" "}
           </span>
         )}
-        {isHome && basis ? `${basis.month}월 한눈에 보기` : title}
+        {isHome && basis ? `${basis.month}월 요약` : title}
       </h1>
 
       {/* 이 화면의 모든 수치가 어느 구간인지 상시 표기한다 */}

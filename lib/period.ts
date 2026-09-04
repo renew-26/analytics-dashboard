@@ -119,7 +119,12 @@ export function formatRange(start: string, end: string) {
   return `${start.replace(/-/g, ".")} – ${end.slice(5).replace("-", ".")}`;
 }
 
-/** "07.01–07.15" */
+/**
+ * "07.01 – 07.15"
+ *
+ * 구분자는 formatRange 와 같게 둔다 — 헤더 배지에 두 표기가 나란히 붙어서
+ * 한쪽만 공백이 없으면 같은 종류의 값인데 다른 규칙처럼 읽힌다.
+ */
 export function formatShortRange(start: string, end: string) {
-  return `${start.slice(5).replace("-", ".")}–${end.slice(5).replace("-", ".")}`;
+  return `${start.slice(5).replace("-", ".")} – ${end.slice(5).replace("-", ".")}`;
 }
