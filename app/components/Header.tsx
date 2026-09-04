@@ -9,13 +9,18 @@ export default function Header({
 }: {
   lastUpdated?: string | null;
   /** 홈 전용 기준 구간 표기 — 서버에서 계산해 넘긴다 */
-  basis?: { month: number; range: string; prevRange: string } | null;
+  basis?: {
+    month: number;
+    prevMonth: number;
+    range: string;
+    prevRange: string;
+  } | null;
 }) {
   const rawPathname = usePathname();
   const pathname = decodeURIComponent(rawPathname);
 
   let group: string | null = null;
-  let title = "이달의 요약";
+  let title = "이달 한눈에 보기";
 
   if (pathname === "/weekly-products") {
     title = "렌탈사별 상품 현황";
@@ -42,7 +47,7 @@ export default function Header({
             {group} /{" "}
           </span>
         )}
-        {isHome && basis ? `${basis.month}월 요약` : title}
+        {isHome && basis ? `${basis.month}월 한눈에 보기` : title}
       </h1>
 
       {/* 이 화면의 모든 수치가 어느 구간인지 상시 표기한다 */}
@@ -53,7 +58,8 @@ export default function Header({
             {basis.range}
           </b>
           <span className="text-[var(--color-gray-400)]">
-            누계 · 전월 동기간({basis.prevRange}) 대비
+            {basis.month}월 누계 · {basis.prevMonth}월 동기간(
+            {basis.prevRange}) 대비
           </span>
         </div>
       )}
