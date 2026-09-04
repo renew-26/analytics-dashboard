@@ -18,10 +18,10 @@ type Props = {
   months: string[];
 };
 
+const GROUP_ORDER = ["가전&상조", "정수기", "통신"];
+
 export default function ConversionClient({ data, months }: Props) {
   const [selectedMonth, setSelectedMonth] = useState(months[months.length - 1]);
-
-  const GROUP_ORDER = ["가전&상조", "정수기", "통신"];
 
   // 선택 월 렌탈사별 데이터
   const tableRows = useMemo(() => {

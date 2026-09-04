@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { COMPANY_MAP } from "@/lib/company-map";
 
 // COMPANY_MAP에서 그룹 내 중복 라벨 제거 후 그룹별로 묶기
@@ -29,34 +29,35 @@ export default function Sidebar() {
     s.items.some((item) => item.href === pathname),
   );
 
-  const [openIndex, setOpenIndex] = useState<number | null>(
-    activeGroupIndex !== -1 ? activeGroupIndex : null,
-  );
+  // 기본으로 열리는 그룹은 활성 그룹이고, 사용자가 직접 접거나 펼친 경우에만 그걸 덮는다.
+  // override에 "그때의 활성 그룹"(at)을 함께 담아두면 페이지를 옮겨 activeGroupIndex가
+  // 바뀐 순간 override가 스스로 무효가 된다 — 수동으로 펼친 그룹이 이동과 함께 접힌다.
+  // effect로 state를 되맞추던 걸 파생값으로 바꾼 것이라 이동마다 나던 추가 렌더가 사라진다.
+  const [override, setOverride] = useState<{
+    at: number;
+    index: number | null;
+  } | null>(null);
 
-  useEffect(() => {
-    if (activeGroupIndex !== -1) {
-      setOpenIndex(activeGroupIndex);
-    }
-  }, [activeGroupIndex]);
+  const openIndex =
+    override && override.at === activeGroupIndex
+      ? override.index
+      : activeGroupIndex !== -1
+        ? activeGroupIndex
+        : null;
 
   const toggle = (index: number) => {
-    setOpenIndex((prev) =>
-      prev === index && activeGroupIndex !== index ? null : index,
-    );
+    // 활성 그룹은 접지 않는다 — 현재 위치를 내비에서 잃게 된다.
+    const next =
+      openIndex === index && activeGroupIndex !== index ? null : index;
+    setOverride({ at: activeGroupIndex, index: next });
   };
 
   return (
     <aside className="w-56 h-full bg-white border-r border-[#e2e6ec] flex flex-col flex-shrink-0">
       {/* 로고 / 홈 버튼 */}
       <div className="px-5 py-4">
-        <Link
-          href="/"
-          className="flex items-baseline gap-1 hover:opacity-70 transition"
-        >
-          <span
-            className="text-lg font-bold"
-            style={{ color: "var(--color-primary)" }}
-          >
+        <Link href="/" className="group flex items-baseline gap-1">
+          <span className="text-lg font-bold text-[var(--color-gray-900)] transition-colors duration-[120ms] group-hover:text-[var(--color-gray-600)]">
             렌트리
           </span>
           <span className="text-xs text-[#a1a5ac]">애널리틱스</span>
@@ -237,7 +238,7 @@ function NavItem({
       style={
         active
           ? {
-              backgroundColor: "var(--color-tint-sky)",
+              backgroundColor: "var(--color-gray-200)",
               color: "var(--color-ink)",
             }
           : {}

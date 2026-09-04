@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { getCompanyLabel, RENTRE_PARTNER_NAMES } from "@/lib/company-map";
-import { getPeriod, formatRange, formatShortRange } from "@/lib/period";
+import {
+  getPeriod,
+  getDataAsOf,
+  formatRange,
+  formatShortRange,
+} from "@/lib/period";
 import CategoryTabs from "@/app/components/category-detail/CategoryTabs";
 import RentalShare, {
   type ShareItem,
@@ -412,7 +417,7 @@ export default async function CategoryDetailPage({
   params: Promise<{ category: string }>;
 }) {
   const category = decodeURIComponent((await params).category);
-  const period = getPeriod();
+  const period = getPeriod(await getDataAsOf());
 
   // 헤더·홈과 같은 기준 구간 (getPeriod). 모델 단위 지표는 이 구간만으로는
   // 표본이 너무 얇아 판단이 안 되므로 "최근 3개월" 창을 따로 쓰고 화면에 명시한다.
@@ -568,7 +573,7 @@ export default async function CategoryDetailPage({
           <h1 className="text-[24px] font-bold tracking-[-0.4px] text-[var(--color-gray-900)]">
             {category}
           </h1>
-          <span className="rounded-[9999px] border border-[var(--color-gray-200)] bg-white px-3 py-1 text-[11.5px] text-[var(--color-gray-600)]">
+          <span className="rounded-[9999px] border border-[var(--color-gray-200)] bg-white px-3 py-1 text-[12px] text-[var(--color-gray-600)]">
             기준{" "}
             <b className="num font-semibold text-[var(--color-gray-900)]">
               {currRangeLabel}
@@ -642,7 +647,7 @@ export default async function CategoryDetailPage({
                   {k.unit}
                 </span>
               </div>
-              <div className="mt-1.5 text-[11.5px]">
+              <div className="mt-1.5 text-[12px]">
                 {k.delta === null ? (
                   <span className="text-[var(--color-gray-400)]">{k.foot}</span>
                 ) : (

@@ -71,7 +71,7 @@ export const CAT_COLORS = [
 ];
 
 export function filterChip(active: boolean) {
-  return `rounded-full border px-3 py-[5px] text-[11.5px] font-semibold transition-colors ${
+  return `rounded-full border px-3 py-[5px] text-[12px] font-semibold transition-colors ${
     active
       ? "border-[var(--color-gray-900)] bg-[var(--color-gray-900)] text-white"
       : "border-[var(--color-gray-200)] bg-white text-[var(--color-gray-600)] hover:border-[var(--color-gray-400)] hover:text-[var(--color-gray-900)]"
@@ -85,7 +85,7 @@ export const CARD_GRID =
   "grid grid-cols-[repeat(auto-fill,minmax(272px,1fr))] gap-[13px]";
 
 export const STATE_PILL =
-  "inline-flex flex-none items-center gap-[5px] rounded-full px-[9px] py-[3px] text-[10.5px] font-extrabold whitespace-nowrap before:h-[5px] before:w-[5px] before:rounded-full before:bg-current before:content-['']";
+  "inline-flex flex-none items-center gap-[5px] rounded-full px-[9px] py-[3px] text-[11px] font-bold whitespace-nowrap before:h-[5px] before:w-[5px] before:rounded-full before:bg-current before:content-['']";
 
 export const TAG =
-  "rounded-[4px] bg-[var(--color-gray-100)] px-[5px] py-0.5 text-[9.5px] font-bold text-[var(--color-gray-500)]";
+  "rounded-[4px] bg-[var(--color-gray-100)] px-[5px] py-0.5 text-[10px] font-bold text-[var(--color-gray-500)]";

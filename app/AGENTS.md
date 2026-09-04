@@ -11,7 +11,7 @@ Next.js App Router 루트 디렉토리. 전역 레이아웃(사이드바+헤더)
 | File | Description |
 |------|-------------|
 | `layout.tsx` | 전역 레이아웃 — Sidebar + Header 래핑, Geist 폰트, 한국어 lang 설정 |
-| `page.tsx` | 홈 대시보드 — 카테고리 목표(섹션 0), 동기간 비교(섹션 1), 거래건수(섹션 2) 3개 섹션 테이블 |
+| `page.tsx` | 홈 대시보드 — ① 한눈에 보기(KPI 4종: 계약완료·거래액·매출·공헌이익) ② 왜 변했나(지표별 워터폴 + 렌탈사 기여) ③ 어디서 문제(주의 신호 / 확인 필요) ④ 어디서 성과(BM·렌탈사·카테고리) + 접힌 상세 격자 |
 | `globals.css` | 전역 CSS — Tailwind 설정, CSS 변수 (color-up, color-down, color-tint-sky 등) |
 
 ## Subdirectories
@@ -37,7 +37,8 @@ Next.js App Router 루트 디렉토리. 전역 레이아웃(사이드바+헤더)
 - `layout.tsx`는 모든 페이지를 감싸므로 변경 시 전체 UI에 영향
 - `page.tsx`(홈)는 Server Component — Supabase를 직접 쿼리하며 `Promise.all`로 병렬 fetch
 - 홈 페이지 데이터 기준: 어제 날짜 기준 당월 1일~어제, 전월 동기간 비교
-- 섹션 0 목표값(`GOAL_ROWS`)은 하드코딩 — 변경 시 `page.tsx` 내 상수 수정
+- 홈 지표 분해는 `METRIC_DEFS`(계약건수·거래액·매출·공헌이익) 단일 소스 — 워터폴·렌탈사 기여가 같은 정의를 쓴다
+- 주의 신호는 `alerts`(문제), 확인 필요는 `checks`(급증 등 원인 확인) 로 분리 — 급증을 심각도색에 섞지 않는다
 
 ### Testing Requirements
 - 레이아웃 변경 후 모든 페이지 렌더링 확인

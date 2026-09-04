@@ -27,7 +27,7 @@ export default function TopModelTable({
 
   return (
     <TableScroll>
-      <table className="w-full min-w-[820px] text-[12.5px]">
+      <table className="w-full min-w-[820px] text-[12px]">
         <thead>
           <tr className="bg-[var(--color-gray-25)]">
             {[
@@ -42,7 +42,7 @@ export default function TopModelTable({
             ].map(([label, align], i) => (
               <th
                 key={label}
-                className={`border-b border-[var(--color-gray-200)] px-3 py-2.5 text-[10.5px] font-bold whitespace-nowrap text-[var(--color-gray-400)] ${
+                className={`border-b border-[var(--color-gray-200)] px-3 py-2.5 text-[11px] font-bold whitespace-nowrap text-[var(--color-gray-400)] ${
                   align === "left" ? "text-left" : "text-right"
                 } ${
                   i === 0
@@ -65,7 +65,7 @@ export default function TopModelTable({
                 <span className="block font-bold text-[var(--color-gray-800)]">
                   {r.productName || r.modelName}
                 </span>
-                <span className="mt-[1px] block font-mono text-[10.5px] text-[var(--color-gray-400)]">
+                <span className="mt-[1px] block font-mono text-[11px] text-[var(--color-gray-400)]">
                   {r.modelName}
                 </span>
               </td>
@@ -101,7 +101,7 @@ export default function TopModelTable({
               </td>
               <td className="px-3 py-2.5 text-right whitespace-nowrap text-[var(--color-gray-600)]">
                 {r.leadCompany}
-                <span className="num ml-1 text-[10.5px] text-[var(--color-gray-400)]">
+                <span className="num ml-1 text-[11px] text-[var(--color-gray-400)]">
                   {pct(r.leadShare, 0)}
                 </span>
               </td>

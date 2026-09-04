@@ -142,6 +142,10 @@ export default function MonthlyRevenueChart({
   const [hide2025, setHide2025] = useState(false);
 
   useEffect(() => {
+    // localStorage는 클라이언트 전용이다. 렌더 중에 읽으면 SSR에서 터지고, 서버와
+    // 클라이언트 결과가 달라 하이드레이션이 깨진다. 마운트 후 읽어 state에 넣는 이 형태가
+    // 표준 해법이고, 추가 렌더는 키(회사·view·bm)가 바뀔 때 1회뿐이다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (companyDbName) setTargets(loadTargets(companyDbName, view, bm));
   }, [companyDbName, view, bm]);
 

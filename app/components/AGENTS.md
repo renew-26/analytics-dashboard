@@ -18,6 +18,8 @@
 | `ViewToggle.tsx` | 주문확정/계약완료 탭 전환 버튼 (URL searchParams `?tab=contract`) |
 | `CategoryCompetitiveSection.tsx` | 가전&상조 카테고리별 경쟁 분석 — 상위 5개 모델 × 렌탈사 분포 + 가격표 |
 | `BrandCompetitiveSection.tsx` | 정수기 브랜드별 경쟁 분석 — 내 브랜드 상위 상품 vs 동일 관리방식 경쟁군 |
+| `home/WaterfallPanel.tsx` | 홈 ② 섹션 — 지표(건수·거래액·매출·공헌이익) 전환 탭 + 워터폴 + 렌탈사 증감 기여 |
+| `home/Waterfall.tsx` | 워터폴 SVG — `decimals`/`unit` 으로 억·만원 지표까지 그린다 (음수 밑동 지원) |
 
 ## For AI Agents
 

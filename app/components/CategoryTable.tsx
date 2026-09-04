@@ -129,7 +129,7 @@ export default function CategoryTable({
                         <td
                           key={i}
                           className={`px-4 py-3 text-center text-[#222222] ${clickable ? "cursor-pointer" : ""} ${i === 0 && !isOpen ? "cell-highlight" : ""}`}
-                          style={isOpen ? { backgroundColor: "var(--color-tint-sky)", fontWeight: 600 } : {}}
+                          style={isOpen ? { backgroundColor: "var(--color-gray-200)", fontWeight: 600 } : {}}
                           onClick={(e) => {
                             if (!clickable) return;
                             e.stopPropagation();

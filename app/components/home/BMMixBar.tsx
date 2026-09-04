@@ -37,7 +37,7 @@ export default function BMMixBar({
   return (
     <div className="mt-[17px] first:mt-0">
       <div className="mb-1.5 flex items-baseline justify-between gap-2">
-        <b className="text-[11.5px] font-bold text-[var(--color-gray-600)]">
+        <b className="text-[12px] font-bold text-[var(--color-gray-600)]">
           {title}
         </b>
         <span className="num text-[11px] text-[var(--color-gray-400)]">
@@ -53,7 +53,7 @@ export default function BMMixBar({
           return (
             <div
               key={s.key}
-              className="flex min-w-[3px] items-center justify-center overflow-hidden rounded-[3px] whitespace-nowrap text-[10.5px] font-bold text-white"
+              className="flex min-w-[3px] items-center justify-center overflow-hidden rounded-[3px] whitespace-nowrap text-[11px] font-bold text-white"
               style={{ flex: `0 0 ${sc}%`, background: s.color }}
               title={`${s.key} · ${nf(s.curr)}${unit} (${sc.toFixed(1)}%)`}
             >

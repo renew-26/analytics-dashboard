@@ -1,20 +1,14 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import { createClient } from "@supabase/supabase-js";
 import "./globals.css";
 import Sidebar from "@/app/components/Sidebar";
 import Header from "@/app/components/Header";
-import { getPeriod, formatRange, formatShortRange } from "@/lib/period";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+import {
+  getPeriod,
+  getDataAsOf,
+  formatRange,
+  formatShortRange,
+} from "@/lib/period";
 
 export const metadata: Metadata = {
   title: "렌트리 애널리틱스 대시보드",
@@ -61,7 +55,7 @@ export default async function RootLayout({
   const syncedAt = await getLastSyncedAt();
   // 기준 구간은 서버에서 계산한다 — 클라이언트에서 new Date()를 쓰면
   // 하이드레이션 시점 차이로 표기가 흔들릴 수 있다.
-  const period = getPeriod();
+  const period = getPeriod(await getDataAsOf());
   const basis = {
     month: period.month,
     range: formatRange(period.curr.start, period.curr.end),
@@ -71,8 +65,17 @@ export default async function RootLayout({
   return (
     <html
       lang="ko"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className="h-full antialiased"
     >
+      <head>
+        {/* Pretendard Variable (OFL 1.1) — 동적 서브셋이라 실제로 쓰인 글자의 청크만 받는다.
+            globals.css에서 @import 하면 Turbopack이 산출물에서 제거하므로 여기서 <link>로 받는다. */}
+        <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="" />
+        <link
+          rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css"
+        />
+      </head>
       <body className="h-full flex overflow-hidden">
         <Sidebar />
         <div className="flex-1 flex flex-col overflow-hidden">

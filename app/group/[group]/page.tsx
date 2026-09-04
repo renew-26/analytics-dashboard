@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { COMPANY_MAP, matchesEntry } from "@/lib/company-map";
-import { getPeriod, formatShortRange } from "@/lib/period";
+import { getPeriod, getDataAsOf, formatShortRange } from "@/lib/period";
 import { deltaColor as dirColor } from "@/app/components/home/cardKit";
 
 export const dynamic = "force-dynamic";
@@ -115,7 +115,7 @@ export default async function GroupPage({
   if (entries.length === 0) notFound();
 
   const mode = GROUP_MODE[group] ?? "share";
-  const { curr, prev, month } = getPeriod();
+  const { curr, prev, month } = getPeriod(await getDataAsOf());
   const dbNames = Array.from(new Set(entries.map((e) => e.dbName)));
 
   const [currRows, prevRows, currOrders] = await Promise.all([
@@ -264,7 +264,7 @@ export default async function GroupPage({
   );
 
   const th =
-    "bg-[var(--color-gray-25)] p-[9px_12px] text-right text-[10.5px] font-bold whitespace-nowrap text-[var(--color-gray-400)]";
+    "bg-[var(--color-gray-25)] p-[9px_12px] text-right text-[11px] font-bold whitespace-nowrap text-[var(--color-gray-400)]";
   const td = "p-[9px_12px] text-right whitespace-nowrap";
 
   return (
@@ -281,7 +281,7 @@ export default async function GroupPage({
           <span>›</span>
           <span>그룹 요약</span>
         </div>
-        <h1 className="text-[24px] font-extrabold tracking-[-.5px]">{group}</h1>
+        <h1 className="text-[24px] font-bold tracking-[-.5px]">{group}</h1>
       </div>
 
       <nav className="flex flex-wrap gap-[6px]">
@@ -304,7 +304,7 @@ export default async function GroupPage({
               }`}
             >
               {g}
-              <span className="num text-[10.5px] font-semibold opacity-75">
+              <span className="num text-[11px] font-semibold opacity-75">
                 {n}개사
               </span>
             </Link>
@@ -314,7 +314,7 @@ export default async function GroupPage({
 
       {/* ── 시장 요약 ───────────────────────────────── */}
       <section>
-        <h2 className="mb-[11px] text-[15px] font-extrabold tracking-[-.3px]">
+        <h2 className="mb-[11px] text-[15px] font-bold tracking-[-.3px]">
           시장 요약
         </h2>
         <div className={`${panel} overflow-hidden`}>
@@ -331,7 +331,7 @@ export default async function GroupPage({
                 </span>
                 입니다.
               </p>
-              <p className="mt-[10px] max-w-[62ch] text-[12.5px] leading-[1.7] text-[var(--color-gray-600)]">
+              <p className="mt-[10px] max-w-[62ch] text-[12px] leading-[1.7] text-[var(--color-gray-600)]">
                 {movers.length > 0 && (
                   <>
                     건수 변화가 가장 큰 곳은{" "}
@@ -368,27 +368,27 @@ export default async function GroupPage({
             </div>
             <dl className="flex gap-[22px]">
               <div className="text-right">
-                <dt className="mb-[5px] text-[10.5px] text-[var(--color-gray-500)]">
+                <dt className="mb-[5px] text-[11px] text-[var(--color-gray-500)]">
                   그룹 전체 거래건수
                 </dt>
-                <dd className="num text-[22px] leading-none font-extrabold tracking-[-.7px]">
+                <dd className="num text-[22px] leading-none font-bold tracking-[-.7px]">
                   {nf(tot)}
                 </dd>
                 <div
-                  className="num mt-[5px] text-[11.5px] font-bold"
+                  className="num mt-[5px] text-[12px] font-bold"
                   style={{ color: dirColor(totChg) }}
                 >
                   {signed(totChg)}%
                 </div>
               </div>
               <div className="text-right">
-                <dt className="mb-[5px] text-[10.5px] text-[var(--color-gray-500)]">
+                <dt className="mb-[5px] text-[11px] text-[var(--color-gray-500)]">
                   참여 렌탈사
                 </dt>
-                <dd className="num text-[22px] leading-none font-extrabold tracking-[-.7px]">
+                <dd className="num text-[22px] leading-none font-bold tracking-[-.7px]">
                   {cos.length}
                 </dd>
-                <div className="num mt-[5px] text-[11.5px] font-bold text-[var(--color-gray-400)]">
+                <div className="num mt-[5px] text-[12px] font-bold text-[var(--color-gray-400)]">
                   전월 동기간 {nf(ptot)}건
                 </div>
               </div>
@@ -401,7 +401,7 @@ export default async function GroupPage({
       {mode === "share" && (
         <section>
           <div className="mb-[11px] flex flex-wrap items-baseline gap-[10px]">
-            <h2 className="text-[15px] font-extrabold tracking-[-.3px]">
+            <h2 className="text-[15px] font-bold tracking-[-.3px]">
               점유율 이동
             </h2>
             <span className="text-[12px] text-[var(--color-gray-500)]">
@@ -450,7 +450,7 @@ export default async function GroupPage({
                             style={{ width: `${p}%`, background: s.color }}
                           >
                             {p > 7 && (
-                              <em className="num absolute inset-0 flex items-center justify-center text-[10.5px] font-bold text-white not-italic">
+                              <em className="num absolute inset-0 flex items-center justify-center text-[11px] font-bold text-white not-italic">
                                 {p.toFixed(1)}%
                               </em>
                             )}
@@ -466,7 +466,7 @@ export default async function GroupPage({
                 {cos.slice(0, SERIES_MAX).map((c, i) => (
                   <span
                     key={c.label}
-                    className="inline-flex items-center gap-[5px] text-[10.5px] text-[var(--color-gray-600)]"
+                    className="inline-flex items-center gap-[5px] text-[11px] text-[var(--color-gray-600)]"
                   >
                     <i
                       className="h-[9px] w-[9px] flex-none rounded-[2px]"
@@ -476,7 +476,7 @@ export default async function GroupPage({
                   </span>
                 ))}
                 {cos.length > SERIES_MAX && (
-                  <span className="inline-flex items-center gap-[5px] text-[10.5px] text-[var(--color-gray-600)]">
+                  <span className="inline-flex items-center gap-[5px] text-[11px] text-[var(--color-gray-600)]">
                     <i
                       className="h-[9px] w-[9px] flex-none rounded-[2px]"
                       style={{ background: REST_COLOR }}
@@ -487,7 +487,7 @@ export default async function GroupPage({
               </div>
 
               <div className="mt-[20px]">
-                <div className="mb-[9px] text-[11.5px] font-bold text-[var(--color-gray-600)]">
+                <div className="mb-[9px] text-[12px] font-bold text-[var(--color-gray-600)]">
                   점유율 변동 (%p)
                 </div>
                 <svg
@@ -580,7 +580,7 @@ export default async function GroupPage({
       {mode === "matrix" && (
         <section>
           <div className="mb-[11px] flex flex-wrap items-baseline gap-[10px]">
-            <h2 className="text-[15px] font-extrabold tracking-[-.3px]">
+            <h2 className="text-[15px] font-bold tracking-[-.3px]">
               카테고리별 강점
             </h2>
             <span className="text-[12px] text-[var(--color-gray-500)]">
@@ -597,12 +597,12 @@ export default async function GroupPage({
                       {hmCols.map((c) => (
                         <th
                           key={c}
-                          className="p-[5px_6px] align-bottom text-center text-[10.5px] font-bold whitespace-nowrap text-[var(--color-gray-500)]"
+                          className="p-[5px_6px] align-bottom text-center text-[11px] font-bold whitespace-nowrap text-[var(--color-gray-500)]"
                         >
                           {c}
                         </th>
                       ))}
-                      <th className="p-[5px_6px] text-center text-[10.5px] font-bold text-[var(--color-gray-500)]">
+                      <th className="p-[5px_6px] text-center text-[11px] font-bold text-[var(--color-gray-500)]">
                         합계
                       </th>
                     </tr>
@@ -610,7 +610,7 @@ export default async function GroupPage({
                   <tbody>
                     {cos.map((c) => (
                       <tr key={c.label}>
-                        <th className="p-[5px_10px_5px_6px] text-left text-[10.5px] font-bold whitespace-nowrap">
+                        <th className="p-[5px_10px_5px_6px] text-left text-[11px] font-bold whitespace-nowrap">
                           <Link
                             href={`/company/${encodeURIComponent(c.label)}`}
                             className="font-bold text-[var(--color-gray-600)] hover:text-[var(--color-primary)]"
@@ -648,7 +648,7 @@ export default async function GroupPage({
                             </td>
                           );
                         })}
-                        <td className="num rounded-[4px] p-[8px_6px] text-center font-extrabold">
+                        <td className="num rounded-[4px] p-[8px_6px] text-center font-bold">
                           {nf(c.cur)}
                         </td>
                       </tr>
@@ -656,7 +656,7 @@ export default async function GroupPage({
                   </tbody>
                 </table>
               </div>
-              <div className="mt-[12px] flex items-center gap-[8px] text-[10.5px] text-[var(--color-gray-500)]">
+              <div className="mt-[12px] flex items-center gap-[8px] text-[11px] text-[var(--color-gray-500)]">
                 <span>적음</span>
                 <span className="flex gap-[2px]">
                   {[8, 25, 42, 58, 70].map((p) => (
@@ -682,7 +682,7 @@ export default async function GroupPage({
       {/* ── 렌탈사 비교 ─────────────────────────────── */}
       <section>
         <div className="mb-[11px] flex flex-wrap items-baseline gap-[10px]">
-          <h2 className="text-[15px] font-extrabold tracking-[-.3px]">
+          <h2 className="text-[15px] font-bold tracking-[-.3px]">
             렌탈사 비교
           </h2>
           <span className="text-[12px] text-[var(--color-gray-500)]">
@@ -692,7 +692,7 @@ export default async function GroupPage({
         <div className={panel}>
           <div className="px-[17px] pt-[16px] pb-[16px]">
             <div className="overflow-x-auto rounded-[8px] border border-[var(--color-gray-200)]">
-              <table className="w-full min-w-[860px] bg-white text-[12.5px]">
+              <table className="w-full min-w-[860px] bg-white text-[12px]">
                 <thead>
                   <tr className="border-b border-[var(--color-gray-200)]">
                     <th className={`${th} text-left`}>렌탈사</th>
@@ -741,7 +741,7 @@ export default async function GroupPage({
                             {c.label}
                           </Link>
                         </td>
-                        <td className={`${td} num font-extrabold`}>
+                        <td className={`${td} num font-bold`}>
                           {nf(c.cur)}
                         </td>
                         <td
@@ -821,7 +821,7 @@ export default async function GroupPage({
 
       {/* ── 개별 렌탈사 이동 ────────────────────────── */}
       <details className={`${panel} overflow-hidden`}>
-        <summary className="cursor-pointer list-none p-[14px_18px] text-[13.5px] font-extrabold tracking-[-.2px]">
+        <summary className="cursor-pointer list-none p-[14px_18px] text-[14px] font-bold tracking-[-.2px]">
           렌탈사별 상세로 이동
         </summary>
         <div className="flex flex-wrap gap-[8px] border-t border-[var(--color-line-2)] p-[14px_18px_20px]">
@@ -846,7 +846,7 @@ export default async function GroupPage({
 /** 그룹 내 1위 — 색만으로 좋고 나쁨을 말하지 않도록 텍스트 라벨을 붙인다 */
 function Best() {
   return (
-    <span className="ml-[5px] rounded-[4px] bg-[var(--color-primary-50)] px-[4px] py-[1px] align-middle text-[9.5px] font-bold text-[var(--color-primary)]">
+    <span className="ml-[5px] rounded-[4px] bg-[var(--color-primary-50)] px-[4px] py-[1px] align-middle text-[10px] font-bold text-[var(--color-primary)]">
       1위
     </span>
   );
