@@ -9,7 +9,12 @@ export default function Header({
 }: {
   lastUpdated?: string | null;
   /** 홈 전용 기준 구간 표기 — 서버에서 계산해 넘긴다 */
-  basis?: { month: number; range: string; prevRange: string } | null;
+  basis?: {
+    month: number;
+    prevMonth: number;
+    range: string;
+    prevRange: string;
+  } | null;
 }) {
   const rawPathname = usePathname();
   const pathname = decodeURIComponent(rawPathname);
@@ -53,7 +58,8 @@ export default function Header({
             {basis.range}
           </b>
           <span className="text-[var(--color-gray-400)]">
-            누계 · 전월 동기간({basis.prevRange}) 대비
+            {basis.month}월 누계 · {basis.prevMonth}월 동기간(
+            {basis.prevRange}) 대비
           </span>
         </div>
       )}

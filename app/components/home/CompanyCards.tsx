@@ -24,7 +24,7 @@ export type CompanyCard = {
   group: string;
   curr: number;
   prev: number;
-  /** 요일을 맞춘 직전 3개 동기간의 평균 = "평소 페이스" */
+  /** 최근 3개월 같은 기간(1일~기준일) 평균 = "평소 페이스" */
   pace: number;
   /** 거래액 GMV (억) */
   amount: number;
@@ -207,7 +207,7 @@ export default function CompanyCards({
                   />
                 </div>
                 <div className="mt-1 text-[10px] text-[var(--color-gray-400)]">
-                  직전 3개 동기간 평균 {Math.round(c.pace).toLocaleString("ko-KR")}건
+                  최근 3개월 같은 기간 평균 {Math.round(c.pace).toLocaleString("ko-KR")}건
                 </div>
               </div>
 

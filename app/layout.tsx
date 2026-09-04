@@ -58,6 +58,7 @@ export default async function RootLayout({
   const period = getPeriod(await getDataAsOf());
   const basis = {
     month: period.month,
+    prevMonth: Number(period.prev.start.slice(5, 7)),
     range: formatRange(period.curr.start, period.curr.end),
     prevRange: formatShortRange(period.prev.start, period.prev.end),
   };
