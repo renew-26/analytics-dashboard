@@ -12,6 +12,7 @@ import {
   Tooltip,
   Cell,
 } from "recharts";
+import { CHART_ANIM } from "@/lib/chart";
 import type { CategoryBrandSummary, OpEfficiencyRow, SummaryTotals } from "./page";
 
 type SectionData = {
@@ -252,9 +253,9 @@ function RankingChart({ summary }: { summary: CategoryBrandSummary[] }) {
               formatter={(value) => formatKRW(Number(value), true)}
               contentStyle={{ borderRadius: 8, border: "1px solid #e2e6ec", fontSize: 12 }}
             />
-            <Bar dataKey="운영효율" radius={[0, 4, 4, 0]}>
+            <Bar {...CHART_ANIM} dataKey="운영효율" radius={[0, 4, 4, 0]}>
               {chartData.map((d, i) => (
-                <Cell key={i} fill={d.운영효율 < 0 ? "#F90000" : "#3531FF"} />
+                <Cell key={i} fill={d.운영효율 < 0 ? "#F90000" : "var(--color-primary)"} />
               ))}
             </Bar>
           </BarChart>
@@ -368,7 +369,7 @@ function TargetMarginSimulation({ rows }: { rows: OpEfficiencyRow[] }) {
               setThreshold(100);
               setFlatFee(55000);
             }}
-            className="text-xs text-[#3531FF] hover:underline"
+            className="text-xs text-[var(--color-primary)] hover:underline"
           >
             기본값으로 초기화
           </button>
@@ -392,7 +393,7 @@ function TargetMarginSimulation({ rows }: { rows: OpEfficiencyRow[] }) {
                   <td className="px-4 py-2 text-right text-[#222222]">{b.count.toLocaleString("ko-KR")}건</td>
                   <td className="px-4 py-2 text-right text-[#222222]">{formatKRW(b.avgFee)}</td>
                   <td className="px-4 py-2 text-right text-[#222222]">{b.currentRate.toFixed(1)}%</td>
-                  <td className="px-4 py-2 text-right font-semibold text-[#3531FF]">{b.simRate.toFixed(1)}%</td>
+                  <td className="px-4 py-2 text-right font-semibold text-[var(--color-primary)]">{b.simRate.toFixed(1)}%</td>
                 </tr>
               ))}
             </tbody>
@@ -554,7 +555,7 @@ function DrillDownTable({
           <div className="flex justify-center py-3 border-t border-[#f3f5f9]">
             <button
               onClick={() => setVisibleCount((v) => v + TABLE_PAGE)}
-              className="text-sm text-[#3531FF] hover:underline"
+              className="text-sm text-[var(--color-primary)] hover:underline"
             >
               더 보기 ({filteredRows.length - visibleCount}건 남음)
             </button>

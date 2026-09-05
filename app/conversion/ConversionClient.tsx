@@ -11,6 +11,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+import { CHART_ANIM } from "@/lib/chart";
 import type { MonthCompanyData } from "./page";
 
 type Props = {
@@ -77,7 +78,7 @@ export default function ConversionClient({ data, months }: Props) {
         <select
           value={selectedMonth}
           onChange={(e) => setSelectedMonth(e.target.value)}
-          className="border border-[#ebebe9] rounded-lg px-3 py-1.5 text-sm text-[#393939] bg-white focus:outline-none focus:border-[#6366f1]"
+          className="border border-[#ebebe9] rounded-lg px-3 py-1.5 text-sm text-[#393939] bg-white focus:border-[var(--color-primary)]"
         >
           {months.map((m) => (
             <option key={m} value={m}>
@@ -236,13 +237,13 @@ export default function ConversionClient({ data, months }: Props) {
               }}
             />
             <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Line
+            <Line {...CHART_ANIM}
               type="monotone"
               dataKey="rate"
               name="전환율"
-              stroke="#6366f1"
+              stroke="var(--color-primary-500)"
               strokeWidth={2}
-              dot={{ r: 4, fill: "#6366f1" }}
+              dot={{ r: 4, fill: "var(--color-primary-500)" }}
               activeDot={{ r: 6 }}
             />
           </LineChart>

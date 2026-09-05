@@ -10,6 +10,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+import { CHART_ANIM } from "@/lib/chart";
 
 export interface CategorySeries {
   key: string;
@@ -117,7 +118,7 @@ export default function CategoryMonthlyChart({
           />
           <Legend wrapperStyle={{ fontSize: 12 }} />
           {series.map((s) => (
-            <Line
+            <Line {...CHART_ANIM}
               key={s.key}
               type="monotone"
               dataKey={s.key}

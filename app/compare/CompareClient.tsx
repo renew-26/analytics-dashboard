@@ -13,6 +13,7 @@ import {
   BarChart,
   Bar,
 } from "recharts";
+import { CHART_ANIM } from "@/lib/chart";
 import type { CompanyMonthData, CompanyOrderData } from "./page";
 
 type CompanyMapEntry = {
@@ -739,7 +740,7 @@ export default function CompareClient({
           <select
             value={companyA}
             onChange={(e) => setCompanyA(e.target.value)}
-            className="border border-[#ebebe9] rounded-lg px-3 py-1.5 text-sm text-[#393939] bg-white focus:outline-none focus:border-[#6366f1] min-w-36"
+            className="border border-[#ebebe9] rounded-lg px-3 py-1.5 text-sm text-[#393939] bg-white focus:border-[var(--color-primary)] min-w-36"
           >
             <option value="">선택...</option>
             {companies.map((c) => (
@@ -757,7 +758,7 @@ export default function CompareClient({
           <select
             value={companyB}
             onChange={(e) => setCompanyB(e.target.value)}
-            className="border border-[#ebebe9] rounded-lg px-3 py-1.5 text-sm text-[#393939] bg-white focus:outline-none focus:border-[#6366f1] min-w-36"
+            className="border border-[#ebebe9] rounded-lg px-3 py-1.5 text-sm text-[#393939] bg-white focus:border-[var(--color-primary)] min-w-36"
           >
             <option value="">선택...</option>
             {companies.map((c) => (
@@ -778,7 +779,7 @@ export default function CompareClient({
       {bothSelected && (
         <>
           {/* 분석 기준 설명 */}
-          <div className="bg-[#edf2ff] border border-[#a9b1ff] rounded-xl px-5 py-3 flex items-center gap-2">
+          <div className="bg-[var(--color-primary-50)] border border-[#a9b1ff] rounded-xl px-5 py-3 flex items-center gap-2">
             <span className="text-sm font-bold" style={{ color: COLOR_A }}>
               {companyA}
             </span>
@@ -833,7 +834,7 @@ export default function CompareClient({
                       fontSize: 12,
                     }}
                   />
-                  <Bar dataKey="pct" fill={COLOR_A} radius={[0, 3, 3, 0]} />
+                  <Bar {...CHART_ANIM} dataKey="pct" fill={COLOR_A} radius={[0, 3, 3, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -875,7 +876,7 @@ export default function CompareClient({
                       fontSize: 12,
                     }}
                   />
-                  <Bar dataKey="pct" fill={COLOR_B} radius={[0, 3, 3, 0]} />
+                  <Bar {...CHART_ANIM} dataKey="pct" fill={COLOR_B} radius={[0, 3, 3, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -1074,7 +1075,7 @@ export default function CompareClient({
                   }}
                 />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Line
+                <Line {...CHART_ANIM}
                   type="monotone"
                   dataKey={companyA}
                   stroke={COLOR_A}
@@ -1082,7 +1083,7 @@ export default function CompareClient({
                   dot={{ r: 4, fill: COLOR_A }}
                   activeDot={{ r: 6 }}
                 />
-                <Line
+                <Line {...CHART_ANIM}
                   type="monotone"
                   dataKey={companyB}
                   stroke={COLOR_B}
@@ -1105,7 +1106,7 @@ export default function CompareClient({
                   <button
                     key={f}
                     onClick={() => setTrendFilter(f)}
-                    className="px-2.5 py-1 rounded-full text-xs font-medium transition-colors"
+                    className="press px-2.5 py-1 rounded-full text-xs font-medium transition-colors"
                     style={
                       trendFilter === f
                         ? {
@@ -1114,7 +1115,7 @@ export default function CompareClient({
                                 ? COLOR_A
                                 : f === "down"
                                   ? "#FF5252"
-                                  : "#3531FF",
+                                  : "var(--color-primary)",
                             color: "#fff",
                           }
                         : { background: "#f3f5f9", color: "#788093" }

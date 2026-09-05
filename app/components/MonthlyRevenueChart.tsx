@@ -11,6 +11,7 @@ import {
   ReferenceLine,
   ResponsiveContainer,
 } from "recharts";
+import { CHART_ANIM } from "@/lib/chart";
 
 export interface MonthStat {
   month: string;
@@ -222,7 +223,7 @@ export default function MonthlyRevenueChart({
             width={52}
           />
           <Tooltip content={<CustomTooltip />} cursor={{ stroke: "var(--color-gray-200)" }} />
-          <Line
+          <Line {...CHART_ANIM}
             type="monotone"
             dataKey="totalRentalFee"
             stroke={color}

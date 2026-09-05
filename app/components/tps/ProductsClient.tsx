@@ -131,9 +131,20 @@ function ProductModal({
       }}
     >
       <Dialog.Portal>
-        <Dialog.Backdrop className="fixed inset-0 bg-black/40 z-50" />
+        <Dialog.Backdrop className="fixed inset-0 bg-black/40 z-50
+          transition-opacity duration-200 ease-[var(--ease-out)]
+          data-[starting-style]:opacity-0 data-[ending-style]:opacity-0" />
         <Dialog.Viewport className="fixed inset-0 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <Dialog.Popup className="bg-white rounded-2xl shadow-xl w-full max-w-lg my-4">
+          <Dialog.Popup
+            // 모달은 트리거에 앵커되지 않으므로 transform-origin 은 center 를 유지한다.
+            // (팝오버와 다르게 처리하는 지점)
+            className="bg-white rounded-2xl shadow-xl w-full max-w-lg my-4
+              transition-[opacity,transform] duration-200 ease-[var(--ease-out)]
+              data-[starting-style]:opacity-0 data-[starting-style]:scale-[0.96]
+              data-[ending-style]:opacity-0 data-[ending-style]:scale-[0.96]
+              motion-reduce:transition-[opacity] motion-reduce:data-[starting-style]:scale-100
+              motion-reduce:data-[ending-style]:scale-100"
+          >
             <div className="px-6 py-4 border-b border-gray-100">
               <Dialog.Title className="font-semibold text-gray-900">
                 {isEdit ? '상품 수정' : '상품 등록'} — {CATEGORY_LABELS[form.category]}
@@ -521,7 +532,7 @@ export function ProductsClient({ initialProducts }: { initialProducts: Product[]
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+              className={`press flex-1 px-4 py-3 text-sm font-medium transition-colors ${
                 activeTab === tab.key
                   ? 'border-b-2 border-blue-600 text-blue-600 bg-blue-50/50'
                   : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'

@@ -385,7 +385,7 @@ export function MarginAnalysisClient({
           className="w-full text-left px-4 py-3 bg-gray-50/60 hover:bg-gray-100/60 border-b border-gray-100 flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5"
         >
           <div className="flex items-center gap-2 flex-wrap">
-            <span className={`text-xs text-gray-400 transition-transform ${expanded ? 'rotate-90' : ''}`}>▶</span>
+            <span className={`text-xs text-gray-400 transition-transform duration-150 ease-[var(--ease-out)] ${expanded ? 'rotate-90' : ''}`}>▶</span>
             <span className="text-sm font-semibold text-gray-900">{group.product.name}</span>
             {activeTab === 'tps' && group.product.telecom && (
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">{TELECOM_LABELS[group.product.telecom]}</span>
@@ -421,12 +421,28 @@ export function MarginAnalysisClient({
                 <th className="text-left py-2 px-4 font-medium">경쟁사</th>
                 <th className="text-right py-2 px-3 font-medium">경쟁사 지원금</th>
                 <th className="text-right py-2 px-3 font-medium cursor-pointer select-none hover:text-gray-700"
-                  onClick={() => handleSort('subsidyDiff')}>
+                  onClick={() => handleSort('subsidyDiff')}
+                  tabIndex={0}
+                  aria-sort={sortColumn === 'subsidyDiff' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      handleSort('subsidyDiff')
+                    }
+                  }}>
                   지원금 차이{sortColumn === 'subsidyDiff' && (sortDir === 'asc' ? ' ▲' : ' ▼')}
                 </th>
                 <th className="text-right py-2 px-3 font-medium">추정 타겟마진</th>
                 <th className="text-right py-2 px-4 font-medium cursor-pointer select-none hover:text-gray-700"
-                  onClick={() => handleSort('estimatedMarginRate')}>
+                  onClick={() => handleSort('estimatedMarginRate')}
+                  tabIndex={0}
+                  aria-sort={sortColumn === 'estimatedMarginRate' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      handleSort('estimatedMarginRate')
+                    }
+                  }}>
                   경쟁사 추정 타겟마진율{sortColumn === 'estimatedMarginRate' && (sortDir === 'asc' ? ' ▲' : ' ▼')}
                 </th>
               </tr>
@@ -611,7 +627,7 @@ export function MarginAnalysisClient({
           <button onClick={handleSurveyUpload} disabled={uploading}
             className="px-3 py-1.5 text-xs font-medium bg-gray-800 text-white rounded-lg hover:bg-gray-900 disabled:bg-gray-400 disabled:cursor-not-allowed inline-flex items-center gap-1.5">
             {uploading && (
-              <span className="inline-block w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+              <span className="inline-block w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin [animation-duration:700ms]" />
             )}
             {uploading ? '업로드 중... (최대 2분 소요)' : '업로드 및 비교'}
           </button>

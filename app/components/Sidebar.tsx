@@ -57,7 +57,7 @@ export default function Sidebar() {
       {/* 로고 / 홈 버튼 */}
       <div className="px-5 py-4">
         <Link href="/" className="group flex items-baseline gap-1">
-          <span className="text-lg font-bold text-[var(--color-gray-900)] transition-colors duration-[120ms] group-hover:text-[var(--color-gray-600)]">
+          <span className="text-lg font-bold text-[var(--color-gray-900)] transition-colors duration-[var(--dur-hover)] ease-[var(--ease-out)] group-hover:text-[var(--color-gray-600)]">
             렌트리
           </span>
           <span className="text-xs text-[#a1a5ac]">애널리틱스</span>
@@ -92,7 +92,7 @@ export default function Sidebar() {
             <div key={section.group} className="mt-2">
               <button
                 onClick={() => toggle(index)}
-                className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg group transition ${
+                className={`press w-full flex items-center justify-between px-3 py-1.5 rounded-lg group transition ${
                   isOpen ? "bg-[#f3f5f9]" : "hover:bg-[#f3f5f9]"
                 }`}
               >
@@ -104,7 +104,7 @@ export default function Sidebar() {
                   {section.group}
                 </span>
                 <span
-                  className={`text-[#a1a5ac] text-xs transition-transform duration-200 group-hover:text-[#586177] ${
+                  className={`text-[#a1a5ac] text-xs transition-transform duration-150 ease-[var(--ease-out)] group-hover:text-[#586177] ${
                     isOpen ? "rotate-180" : ""
                   }`}
                 >
@@ -112,24 +112,36 @@ export default function Sidebar() {
                 </span>
               </button>
 
-              {isOpen && (
-                <div className="mt-1 pl-2">
-                  {/* 그룹 요약 — 개별 렌탈사보다 상위 개념이라 목록 맨 위 */}
-                  <NavItem
-                    href={`/group/${section.group}`}
-                    label="그룹 요약"
-                    active={pathname === `/group/${section.group}`}
-                  />
-                  {section.items.map((item) => (
+              {/* 0fr→1fr 그리드 전환. 조건부 렌더(`isOpen &&`)로 두면 순간 등장·소멸이라
+                  같은 앱의 브랜드분석 아코디언과 느낌이 갈린다.
+                  닫힌 동안 링크가 탭 순회에 남지 않도록 inert 를 건다. */}
+              <div
+                className="grid transition-[grid-template-rows,opacity] duration-200 ease-[var(--ease-out)] motion-reduce:transition-none"
+                style={{
+                  gridTemplateRows: isOpen ? "1fr" : "0fr",
+                  opacity: isOpen ? 1 : 0,
+                }}
+                inert={!isOpen}
+              >
+                <div className="overflow-hidden min-h-0">
+                  <div className="mt-1 pl-2">
+                    {/* 그룹 요약 — 개별 렌탈사보다 상위 개념이라 목록 맨 위 */}
                     <NavItem
-                      key={item.href}
-                      href={item.href}
-                      label={item.label}
-                      active={pathname === item.href}
+                      href={`/group/${section.group}`}
+                      label="그룹 요약"
+                      active={pathname === `/group/${section.group}`}
                     />
-                  ))}
+                    {section.items.map((item) => (
+                      <NavItem
+                        key={item.href}
+                        href={item.href}
+                        label={item.label}
+                        active={pathname === item.href}
+                      />
+                    ))}
+                  </div>
                 </div>
-              )}
+              </div>
             </div>
           );
         })}
@@ -232,7 +244,7 @@ function NavItem({
   return (
     <Link
       href={href}
-      className={`w-full text-left px-3 py-2 rounded-lg text-sm mb-0.5 flex items-center gap-2 transition ${
+      className={`press w-full text-left px-3 py-2 rounded-lg text-sm mb-0.5 flex items-center gap-2 transition ${
         active ? "font-semibold" : "text-[#586177] hover:bg-[#f3f5f9]"
       }`}
       style={

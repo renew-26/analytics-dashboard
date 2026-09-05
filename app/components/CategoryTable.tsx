@@ -181,7 +181,7 @@ export default function CategoryTable({
                 </div>
                 <button
                   onClick={() => setExpandedKey(null)}
-                  className="shrink-0 rounded-md border border-[#e2e6ec] bg-white px-2.5 py-1 text-xs font-medium text-[#586177] shadow-sm hover:bg-[#f3f5f9] transition"
+                  className="press shrink-0 rounded-md border border-[#e2e6ec] bg-white px-2.5 py-1 text-xs font-medium text-[#586177] shadow-sm hover:bg-[#f3f5f9] transition"
                 >
                   닫기 ✕
                 </button>
@@ -196,7 +196,7 @@ export default function CategoryTable({
           onClick={() => setExpanded((p) => !p)}
           className="mt-2 text-xs text-[#a1a5ac] hover:text-[#586177] transition flex items-center gap-1"
         >
-          <span className={`transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}>▾</span>
+          <span className={`transition-transform duration-150 ease-[var(--ease-out)] ${expanded ? "rotate-180" : ""}`}>▾</span>
           {expanded ? "접기" : `${hiddenCount}개 카테고리 더보기`}
         </button>
       )}

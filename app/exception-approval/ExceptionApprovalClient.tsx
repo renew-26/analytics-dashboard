@@ -17,6 +17,7 @@ import {
   Area,
   AreaChart,
 } from "recharts";
+import { CHART_ANIM } from "@/lib/chart";
 import type { MonthlySummary, OverallSummary, ExceptionDetail, BrandBreakdown, SimulationData } from "./page";
 
 type Props = {
@@ -182,16 +183,16 @@ function MonthlyChart({
               }}
             />
             <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Line
+            <Line {...CHART_ANIM}
               yAxisId="left"
               type="monotone"
               dataKey="건수"
-              stroke="#3531FF"
+              stroke="var(--color-primary)"
               strokeWidth={2}
-              dot={{ r: 4, fill: "#3531FF" }}
+              dot={{ r: 4, fill: "var(--color-primary)" }}
               activeDot={{ r: 6 }}
             />
-            <Line
+            <Line {...CHART_ANIM}
               yAxisId="right"
               type="monotone"
               dataKey="비율"
@@ -276,9 +277,9 @@ function MonthlyDetailSection({
                 return (
                   <React.Fragment key={m.month}>
                     <tr
-                      className={`border-b border-[#f3f5f9] cursor-pointer transition hover:bg-[#EDF2FF] ${
+                      className={`border-b border-[#f3f5f9] cursor-pointer transition hover:bg-[var(--color-primary-50)] ${
                         isExpanded
-                          ? "bg-[#EDF2FF]"
+                          ? "bg-[var(--color-primary-50)]"
                           : i % 2 === 1
                             ? "bg-[#f9fafb]"
                             : "bg-white"
@@ -286,11 +287,21 @@ function MonthlyDetailSection({
                       onClick={() =>
                         setExpandedMonth(isExpanded ? null : m.month)
                       }
+                      // 행 자체가 토글이므로 키보드로도 닿아야 한다.
+                      // role="button" 을 씌우면 행(row) 시맨틱을 잃으므로 걸지 않는다.
+                      tabIndex={0}
+                      aria-expanded={isExpanded}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setExpandedMonth(isExpanded ? null : m.month);
+                        }
+                      }}
                     >
                       <td className="px-4 py-2.5 font-medium text-[#222222]">
                         <span className="flex items-center gap-2">
                           <span
-                            className={`text-[10px] text-[#a1a5ac] transition-transform duration-200 ${
+                            className={`text-[10px] text-[#a1a5ac] transition-transform duration-150 ease-[var(--ease-out)] ${
                               isExpanded ? "rotate-90" : ""
                             }`}
                           >
@@ -720,7 +731,7 @@ function SimulationSection({ data }: { data: SimulationData }) {
             step={0.5}
             value={simRate}
             onChange={(e) => setSimRate(Number(e.target.value))}
-            className="w-full h-2 bg-[#e2e6ec] rounded-full appearance-none cursor-pointer accent-[#3531FF]"
+            className="w-full h-2 bg-[#e2e6ec] rounded-full appearance-none cursor-pointer accent-[var(--color-primary)]"
           />
           <div className="flex justify-between text-[10px] text-[#a1a5ac] mt-1">
             <span>0%</span>
@@ -799,8 +810,8 @@ function SimulationSection({ data }: { data: SimulationData }) {
             <AreaChart data={curveData}>
               <defs>
                 <linearGradient id="cmGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3531FF" stopOpacity={0.1} />
-                  <stop offset="95%" stopColor="#3531FF" stopOpacity={0} />
+                  <stop offset="5%" stopColor="var(--color-primary)" stopOpacity={0.1} />
+                  <stop offset="95%" stopColor="var(--color-primary)" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f3f5f9" />
@@ -823,10 +834,10 @@ function SimulationSection({ data }: { data: SimulationData }) {
                 labelFormatter={(v) => `예외승인 ${v}%`}
                 formatter={(v) => [formatKRW(Number(v)), "건당 공헌이익"]}
               />
-              <Area
+              <Area {...CHART_ANIM}
                 type="monotone"
                 dataKey="건당 공헌이익"
-                stroke="#3531FF"
+                stroke="var(--color-primary)"
                 strokeWidth={2}
                 fill="url(#cmGradient)"
                 dot={false}
@@ -834,10 +845,10 @@ function SimulationSection({ data }: { data: SimulationData }) {
               {/* 현재 비율 마커 */}
               <ReferenceLine
                 x={data.currentExceptionRate}
-                stroke="#3531FF"
+                stroke="var(--color-primary)"
                 strokeDasharray="4 4"
                 strokeWidth={1.5}
-                label={{ value: `현재 ${data.currentExceptionRate}%`, position: "top", fontSize: 11, fill: "#3531FF" }}
+                label={{ value: `현재 ${data.currentExceptionRate}%`, position: "top", fontSize: 11, fill: "var(--color-primary)" }}
               />
               {/* 시뮬레이션 비율 마커 */}
               {Math.abs(simRate - data.currentExceptionRate) > 0.3 && (
@@ -878,12 +889,22 @@ function FormulaPopover({
 }) {
   return (
     <Popover.Root>
-      <Popover.Trigger className="w-5 h-5 rounded-full border border-[#a1a5ac] text-[#a1a5ac] text-xs font-bold hover:border-[#3531FF] hover:text-[#3531FF] transition flex items-center justify-center">
+      <Popover.Trigger className="w-5 h-5 rounded-full border border-[#a1a5ac] text-[#a1a5ac] text-xs font-bold hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition flex items-center justify-center">
         ?
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Positioner side="bottom" align="start" sideOffset={8} className="z-50">
-          <Popover.Popup className="w-[420px] bg-white border border-[#e2e6ec] rounded-xl shadow-lg p-5">
+          <Popover.Popup
+            // 팝오버는 트리거에서 자라나야 한다 — Base UI 가 --transform-origin 을 노출한다.
+            // scale(0) 이 아니라 0.96 에서 시작한다: 현실에서 무언가 무(無)에서 나타나지는 않는다.
+            className="w-[420px] bg-white border border-[#e2e6ec] rounded-xl shadow-lg p-5
+              origin-[var(--transform-origin)]
+              transition-[opacity,transform] duration-150 ease-[var(--ease-out)]
+              data-[starting-style]:opacity-0 data-[starting-style]:scale-[0.96]
+              data-[ending-style]:opacity-0 data-[ending-style]:scale-[0.96]
+              motion-reduce:transition-[opacity] motion-reduce:data-[starting-style]:scale-100
+              motion-reduce:data-[ending-style]:scale-100"
+          >
             <div className="flex items-center justify-between mb-3">
               <Popover.Title className="text-sm font-bold text-[#222222]">
                 {title}

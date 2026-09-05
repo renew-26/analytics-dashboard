@@ -922,7 +922,7 @@ export default async function DashboardSections({
       {/* ── Section 3: BM 수익성 ── */}
       <details className="group">
         <summary className="text-base font-semibold text-gray-700 cursor-pointer list-none flex items-center gap-2 select-none">
-          <span className="text-gray-400 group-open:rotate-90 transition-transform inline-block">▶</span>
+          <span className="text-gray-400 group-open:rotate-90 transition-transform duration-150 ease-[var(--ease-out)] inline-block">▶</span>
           3. BM 수익성 분석
         </summary>
         <div className="mt-3 grid grid-cols-3 gap-4">

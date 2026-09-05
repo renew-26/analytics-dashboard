@@ -12,6 +12,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { CHART_ANIM } from "@/lib/chart";
 import type {
   KpiData,
   DailyPoint,
@@ -284,7 +285,7 @@ export default function RevenueAnalysisClient({
                 width={52}
               />
               <Tooltip content={<CustomTooltip />} cursor={{ stroke: "var(--color-gray-200)" }} />
-              <Line
+              <Line {...CHART_ANIM}
                 type="monotone"
                 dataKey="revenue"
                 stroke="var(--color-primary-500)"
@@ -327,7 +328,7 @@ export default function RevenueAnalysisClient({
                 width={52}
               />
               <Tooltip content={<CustomTooltip />} cursor={{ fill: "var(--color-gray-50)" }} />
-              <Bar
+              <Bar {...CHART_ANIM}
                 dataKey="revenue"
                 fill="var(--color-primary-400)"
                 radius={[4, 4, 0, 0]}

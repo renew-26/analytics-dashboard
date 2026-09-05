@@ -201,9 +201,9 @@ function TabButton({
   return (
     <button
       onClick={onClick}
-      className={`px-3 py-1.5 text-sm font-medium border-b-2 transition -mb-px ${
+      className={`press px-3 py-1.5 text-sm font-medium border-b-2 transition -mb-px ${
         active
-          ? "border-[#3531FF] text-[#3531FF]"
+          ? "border-[var(--color-primary)] text-[var(--color-primary)]"
           : "border-transparent text-gray-400 hover:text-gray-600"
       }`}
     >

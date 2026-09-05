@@ -71,7 +71,7 @@ export const CAT_COLORS = [
 ];
 
 export function filterChip(active: boolean) {
-  return `rounded-full border px-3 py-[5px] text-[12px] font-semibold transition-colors ${
+  return `press rounded-full border px-3 py-[5px] text-[12px] font-semibold transition-colors ${
     active
       ? "border-[var(--color-gray-900)] bg-[var(--color-gray-900)] text-white"
       : "border-[var(--color-gray-200)] bg-white text-[var(--color-gray-600)] hover:border-[var(--color-gray-400)] hover:text-[var(--color-gray-900)]"
@@ -79,7 +79,7 @@ export function filterChip(active: boolean) {
 }
 
 export const CARD_SHELL =
-  "group flex flex-col gap-[11px] rounded-[12px] border border-[var(--color-gray-200)] bg-white p-[14px_15px_12px] shadow-[0_1px_2px_rgba(28,35,56,.04),0_2px_8px_rgba(28,35,56,.05)] transition-[border-color,box-shadow,transform] duration-[120ms] hover:-translate-y-px hover:border-[var(--color-primary-500)] hover:shadow-[0_2px_4px_rgba(67,56,202,.06),0_8px_20px_rgba(67,56,202,.10)] motion-reduce:transform-none motion-reduce:transition-none";
+  "group hover-lift flex flex-col gap-[11px] rounded-[12px] border border-[var(--color-gray-200)] bg-white p-[14px_15px_12px] shadow-[0_1px_2px_rgba(28,35,56,.04),0_2px_8px_rgba(28,35,56,.05)] transition-[border-color,box-shadow,transform] duration-[var(--dur-hover)] ease-[var(--ease-out)] hover:-translate-y-px hover:border-[var(--color-primary-500)] hover:shadow-[0_2px_4px_rgba(67,56,202,.06),0_8px_20px_rgba(67,56,202,.10)] motion-reduce:transform-none motion-reduce:transition-none";
 
 export const CARD_GRID =
   "grid grid-cols-[repeat(auto-fill,minmax(272px,1fr))] gap-[13px]";
@@ -89,3 +89,16 @@ export const STATE_PILL =
 
 export const TAG =
   "rounded-[4px] bg-[var(--color-gray-100)] px-[5px] py-0.5 text-[10px] font-bold text-[var(--color-gray-500)]";
+
+/**
+ * 홈은 관제 화면이라 자릿수보다 크기가 먼저 읽혀야 한다.
+ * 110,418원을 "11.0만원"으로 접는다 — 정확한 원 단위는 상세 페이지가 맡는다.
+ */
+export function manwon(won: number) {
+  const abs = Math.abs(won);
+  if (abs < 10000) return `${Math.round(won).toLocaleString("ko-KR")}원`;
+  return `${(won / 10000).toLocaleString("ko-KR", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  })}만원`;
+}
