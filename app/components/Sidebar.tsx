@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { COMPANY_MAP } from "@/lib/company-map";
+import { BIZ_CATEGORY_KEYS } from "@/lib/biz-category";
 
 // COMPANY_MAP에서 그룹 내 중복 라벨 제거 후 그룹별로 묶기
 // (seen은 그룹별로 분리 — LG 헬스케어처럼 여러 그룹에 속하는 라벨이 누락되지 않도록)
@@ -66,6 +67,33 @@ export default function Sidebar() {
 
       {/* 네비게이션 */}
       <nav className="flex-1 min-h-0 overflow-y-auto px-2 py-2">
+        {/* ── 새 IA: 홈 → 카테고리 → 렌탈사 (분석이 내려가는 순서) ── */}
+        <NavItem href="/" label="홈" active={pathname === "/"} />
+
+        <SectionHeader label="카테고리" />
+        {BIZ_CATEGORY_KEYS.map((key) => (
+          <NavItem
+            key={key}
+            href={`/categories/${key}`}
+            label={key}
+            // 카테고리 × 렌탈사 상세까지 이 축의 하위로 본다
+            active={
+              pathname === `/categories/${key}` ||
+              pathname.startsWith(`/categories/${key}/`)
+            }
+          />
+        ))}
+
+        <SectionHeader label="렌탈사" />
+        <NavItem
+          href="/companies"
+          label="전체 렌탈사"
+          active={pathname === "/companies"}
+        />
+
+        {/* ── 기존 메뉴 — 새 IA 아래에 그대로 둔다 ── */}
+        <div className="mx-3 mt-4 border-t border-[var(--color-line-2)]" />
+
         {/* 매출 분석 섹션 */}
         <SectionHeader label="매출 분석" />
         <NavItem

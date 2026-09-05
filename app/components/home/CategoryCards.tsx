@@ -143,29 +143,34 @@ export default function CategoryCards({
             {s.label}
           </button>
         ))}
-        <span className="w-3" />
-        <span className="mr-0.5 text-[11px] font-bold text-[var(--color-gray-400)]">
-          대카테고리
-        </span>
-        <button
-          type="button"
-          aria-pressed={group === "all"}
-          onClick={() => setGroup("all")}
-          className={filterChip(group === "all")}
-        >
-          전체
-        </button>
-        {groups.map((g) => (
-          <button
-            key={g}
-            type="button"
-            aria-pressed={group === g}
-            onClick={() => setGroup(g)}
-            className={filterChip(group === g)}
-          >
-            {g}
-          </button>
-        ))}
+        {/* 그룹이 하나뿐인 화면(카테고리 상세)에서는 필터가 정보가 아니다 */}
+        {groups.length > 0 && (
+          <>
+            <span className="w-3" />
+            <span className="mr-0.5 text-[11px] font-bold text-[var(--color-gray-400)]">
+              그룹
+            </span>
+            <button
+              type="button"
+              aria-pressed={group === "all"}
+              onClick={() => setGroup("all")}
+              className={filterChip(group === "all")}
+            >
+              전체
+            </button>
+            {groups.map((g) => (
+              <button
+                key={g}
+                type="button"
+                aria-pressed={group === g}
+                onClick={() => setGroup(g)}
+                className={filterChip(group === g)}
+              >
+                {g}
+              </button>
+            ))}
+          </>
+        )}
       </div>
 
       <div className={CARD_GRID}>
@@ -178,11 +183,17 @@ export default function CategoryCards({
           const rankMove = c.prevRank - c.rank;
           const paceFrac = paceFraction(st.idx);
           const dec = decompose(c);
+          // 카드는 세부 카테고리 상세로 내려간다 — 새 IA의 드릴다운 흐름.
+          // "그 외"는 상세 페이지가 없으므로 트렌드 화면으로 보낸다.
+          const isRest = c.label === "그 외";
+          const href = isRest
+            ? `/category-trends?group=${encodeURIComponent(c.group)}`
+            : `/category/${encodeURIComponent(c.label)}`;
 
           return (
             <Link
               key={c.label}
-              href={`/category-trends?group=${encodeURIComponent(c.group)}`}
+              href={href}
               aria-label={`${c.label} 매출 ${moneyText(c.sales)}, ${st.text}`}
               className={CARD_SHELL}
             >
@@ -330,14 +341,14 @@ export default function CategoryCards({
               <div className="flex items-center justify-between gap-1.5 border-t border-dashed border-[var(--color-gray-200)] pt-2">
                 <span className="inline-flex items-center gap-1 font-mono text-[10px] font-semibold tracking-[-.2px] text-[var(--color-gray-400)] before:text-[9px] before:content-['↗'] group-hover:text-[var(--color-primary)]">
                   <b className="font-semibold text-[var(--color-gray-500)] group-hover:text-[var(--color-primary)]">
-                    /category-trends
+                    {isRest ? "/category-trends" : "/category/"}
                   </b>
                   <q className="font-bold text-[var(--color-primary)] [quotes:none]">
-                    ?group={c.group}
+                    {isRest ? `?group=${c.group}` : c.label}
                   </q>
                 </span>
                 <span className="text-[10px] text-[var(--color-gray-400)]">
-                  월별·주차별 상세
+                  {isRest ? "월별·주차별 상세" : "모델·가격 상세"}
                 </span>
               </div>
             </Link>

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import Sparkline from "./Sparkline";
+import { TIER_META, TIER_ORDER, type Tier } from "@/lib/tiers";
 import {
   CARD_GRID,
   CARD_SHELL,
@@ -31,6 +32,8 @@ export type CompanyCard = {
   amount: number;
   /** 매출 (억) */
   sales: number;
+  /** 전월 동기간 매출 (억) — 홈 매출 급증/급감 신호 판정에 쓴다 */
+  salesPrev: number;
   /** 건당 공헌이익 (원) */
   cpu: number;
   topCategory: string;
@@ -40,6 +43,8 @@ export type CompanyCard = {
   spark: number[];
   /** 상위 5개 카테고리 비중 */
   heat: number[];
+  /** 렌탈사 티어 — /companies에서만 채워 넣는다 (lib/tiers.ts) */
+  tier?: Tier;
 };
 
 const SORTS = [
@@ -60,9 +65,13 @@ export default function CompanyCards({
   // 정보가 없다. 이번 달 뭐가 달라졌는지가 정보다.
   const [sort, setSort] = useState<string>("change");
   const [group, setGroup] = useState<string>("all");
+  const [tier, setTier] = useState<string>("all");
+
+  const hasTiers = companies.some((c) => c.tier);
 
   const list = companies
     .filter((c) => group === "all" || c.group === group)
+    .filter((c) => tier === "all" || c.tier === tier)
     .slice()
     .sort((a, b) => {
       if (sort === "volume") return b.curr - a.curr;
@@ -115,6 +124,35 @@ export default function CompanyCards({
             {g}
           </button>
         ))}
+        {/* 티어 필터 — 티어가 채워진 화면(/companies)에서만 */}
+        {hasTiers && (
+          <>
+            <span className="w-3" />
+            <span className="mr-0.5 text-[11px] font-bold text-[var(--color-gray-400)]">
+              티어
+            </span>
+            <button
+              type="button"
+              aria-pressed={tier === "all"}
+              onClick={() => setTier("all")}
+              className={chip(tier === "all")}
+            >
+              전체
+            </button>
+            {TIER_ORDER.map((t) => (
+              <button
+                key={t}
+                type="button"
+                aria-pressed={tier === t}
+                onClick={() => setTier(t)}
+                className={chip(tier === t)}
+                title={TIER_META[t].desc}
+              >
+                {t}
+              </button>
+            ))}
+          </>
+        )}
       </div>
 
       <div className={CARD_GRID}>
@@ -140,6 +178,15 @@ export default function CompanyCards({
                     {c.label}
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-[5px]">
+                    {c.tier && (
+                      <span
+                        className="rounded-[4px] px-[5px] py-0.5 text-[10px] font-bold"
+                        style={TIER_META[c.tier].chip}
+                        title={TIER_META[c.tier].desc}
+                      >
+                        {c.tier}
+                      </span>
+                    )}
                     <span className={TAG}>{c.bm}</span>
                     <span className={TAG}>{c.group}</span>
                     <span className="num rounded-[4px] bg-[var(--color-gray-100)] px-[5px] py-0.5 font-mono text-[10px] font-bold text-[var(--color-gray-500)]">

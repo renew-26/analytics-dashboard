@@ -12,6 +12,10 @@
 |------|-------------|
 | `supabase.ts` | Supabase 클라이언트 싱글톤 (`NEXT_PUBLIC_*` 환경변수 사용, anon key) |
 | `company-map.ts` | 렌탈사 매핑(`COMPANY_MAP`), 주요 렌탈사 목록(`MAIN_RENTAL_COMPANIES`), BM 분류(`getBM()`) |
+| `tiers.ts` | 렌탈사 티어 T1/T2/T3 — 문서 스냅샷(2026-07-10) 우선 + 직전 90일 설치량 폴백(`resolveTier()`), 칩 스타일(`TIER_META`) |
+| `biz-category.ts` | 카테고리 계층 단일 소스 — 3축(가전&상조/정수기/인터넷) → 카테고리 그룹 6그룹(PDF 현행 체계 이식: `CATEGORY_GROUPS`) → 세부 카테고리. `bizCategoryOf()`, `catGroupOf()` |
+| `company-cards.ts` | 렌탈사 요약 카드 빌더 — 홈·`/companies` 공유(`buildCompanyCards()`, `matchesCompany()`, `companyLabelOf()`, `countInstall90d()`) |
+| `decompose.ts` | 변화 분해 유틸 — `diffMap()`, `sumBy()`, 건당 공헌이익 가법 분해(`cpuContribution()`) |
 
 ## For AI Agents
 

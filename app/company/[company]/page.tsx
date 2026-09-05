@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { COMPANY_MAP, getBM } from "@/lib/company-map";
+import { BIZ_CATEGORY_KEYS, bizCategoryOf } from "@/lib/biz-category";
 import CategoryTable from "@/app/components/CategoryTable";
 import BMFilter from "@/app/components/BMFilter";
 import PositionChartModal from "@/app/components/PositionChartModal";
@@ -1269,8 +1271,55 @@ export default async function CompanyPage({
     return results;
   })();
 
+  // 이 렌탈사가 실제로 거래한 상위 카테고리 축만 진입점으로 세운다
+  const bizAxes = BIZ_CATEGORY_KEYS.filter((k) =>
+    normalizedRows.some((r) => bizCategoryOf(r.category) === k),
+  );
+
   return (
     <div className="px-12 py-6">
+      {/* 현재 위치 + 카테고리 × 렌탈사 상세 진입 */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div className="flex items-center gap-[7px] text-[12px] text-[var(--color-gray-400)]">
+          <Link
+            href="/"
+            className="font-semibold text-[var(--color-primary)] hover:underline"
+          >
+            홈
+          </Link>
+          <span>›</span>
+          <Link
+            href="/companies"
+            className="font-semibold text-[var(--color-primary)] hover:underline"
+          >
+            렌탈사
+          </Link>
+          <span>›</span>
+          <span className="font-semibold text-[var(--color-gray-600)]">
+            {label}
+          </span>
+        </div>
+        {bizAxes.length > 0 && (
+          <div className="flex flex-wrap items-center gap-[6px]">
+            <span className="text-[11px] font-bold text-[var(--color-gray-400)]">
+              카테고리 × {label}
+            </span>
+            {bizAxes.map((k) => (
+              <Link
+                key={k}
+                href={`/categories/${encodeURIComponent(k)}/${encodeURIComponent(label)}`}
+                className="inline-flex items-center gap-[6px] rounded-full border border-[var(--color-gray-200)] bg-white px-3 py-[5px] text-[12px] font-semibold text-[var(--color-gray-600)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+              >
+                {k}
+                <span className="font-mono text-[10px] text-[var(--color-gray-400)]">
+                  /categories/{k}/{label}
+                </span>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* 뷰 토글 + BM 필터 */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
