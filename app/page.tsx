@@ -1,6 +1,12 @@
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
-import { COMPANY_MAP, getBM } from "@/lib/company-map";
+import { getBM } from "@/lib/company-map";
+import {
+  buildCompanyCards,
+  CARD_DEFS,
+  companyLabelOf,
+  perDeal,
+} from "@/lib/company-cards";
 import { getPeriod, getDataAsOf } from "@/lib/period";
 import CategoryMonthlyChart, {
   type CategoryMonthPoint,
@@ -11,8 +17,8 @@ import WaterfallPanel, {
   type WaterfallMetric,
 } from "@/app/components/home/WaterfallPanel";
 import BMMixBar from "@/app/components/home/BMMixBar";
-import CompanyCards from "@/app/components/home/CompanyCards";
 import CategoryCards from "@/app/components/home/CategoryCards";
+import { BIZ_CATEGORY_KEYS, bizCategoryOf } from "@/lib/biz-category";
 import { deltaColor as dirColor, manwon } from "@/app/components/home/cardKit";
 
 export const dynamic = "force-dynamic";
@@ -214,29 +220,32 @@ const KNOWN_CATS = new Set([
   "인터넷",
 ]);
 
+// 그룹핑은 카테고리 그룹(6그룹) 체계 — rentre_logic_sync_onepager.pdf의
+// 현행(임시 6그룹) 체계를 따르며, 정의 정본은 lib/biz-category.ts의
+// CATEGORY_GROUPS다. 여기서는 표 행 순서·rowspan만 고정한다 (null = 그 외).
 const CAT_TABLE_ROWS: {
   large: string;
   largeSpan: number;
   cat: string | null;
 }[] = [
   { large: "정수기", largeSpan: 1, cat: "정수기" },
-  { large: "크로스셀", largeSpan: 2, cat: "공기청정기" },
+  { large: "공청기·비데", largeSpan: 2, cat: "공기청정기" },
   { large: "", largeSpan: 0, cat: "비데" },
-  { large: "성장성 카테고리", largeSpan: 10, cat: "TV" },
+  { large: "대형가전", largeSpan: 4, cat: "TV" },
   { large: "", largeSpan: 0, cat: "세탁기+건조기" },
   { large: "", largeSpan: 0, cat: "에어컨" },
   { large: "", largeSpan: 0, cat: "냉장고" },
-  { large: "", largeSpan: 0, cat: "로봇청소기" },
+  { large: "타이어", largeSpan: 1, cat: "타이어" },
+  { large: "기타", largeSpan: 6, cat: "로봇청소기" },
   { large: "", largeSpan: 0, cat: "무선청소기" },
   { large: "", largeSpan: 0, cat: "음식물처리기" },
   { large: "", largeSpan: 0, cat: "안마의자" },
   { large: "", largeSpan: 0, cat: "매트리스" },
-  { large: "", largeSpan: 0, cat: "타이어" },
+  { large: "", largeSpan: 0, cat: null },
   { large: "인터넷", largeSpan: 1, cat: "인터넷" },
-  { large: "그외 카테고리", largeSpan: 1, cat: null },
 ];
 
-// CAT_TABLE_ROWS를 대카테고리 단위로 묶은 그룹 (월별 대카테고리 그래프용)
+// CAT_TABLE_ROWS를 카테고리 그룹 단위로 묶은 목록 (월별 그룹 그래프용)
 const LARGE_CATEGORY_GROUPS: { large: string; cats: (string | null)[] }[] = [];
 for (const row of CAT_TABLE_ROWS) {
   if (row.large) {
@@ -246,11 +255,23 @@ for (const row of CAT_TABLE_ROWS) {
   }
 }
 
-// 워터폴 축 라벨용 축약 — 대카테고리 이름이 길어 잘리는 것만 줄인다
+// 워터폴 축 라벨용 축약 — 그룹 이름이 길어 잘리는 것만 줄인다
 const WATERFALL_SHORT: Record<string, string> = {
-  "성장성 카테고리": "성장성",
-  "그외 카테고리": "그 외",
+  "공청기·비데": "공청·비데",
 };
+
+// 카테고리 그룹 → 상위 카테고리 페이지(/categories) 매핑.
+// 홈에서 발견한 카테고리 축 변화는 새 IA의 카테고리 페이지로 내려간다.
+const LARGE_TO_BIZ: Record<string, string> = {
+  정수기: "정수기",
+  "공청기·비데": "정수기",
+  대형가전: "가전&상조",
+  타이어: "가전&상조",
+  기타: "가전&상조",
+  인터넷: "인터넷",
+};
+const bizHrefOfLarge = (large: string) =>
+  `/categories/${encodeURIComponent(LARGE_TO_BIZ[large] ?? "가전&상조")}`;
 
 // dataviz 검증된 카테고리 팔레트 (라이트 서페이스, 5색 인접쌍 CVD 통과)
 const LARGE_CATEGORY_COLORS = [
@@ -597,10 +618,7 @@ export default async function Home({
     BM3: { note: "렌트리 자체", color: "var(--color-cat-3)" },
   } as const;
 
-  /** 건당 공헌이익 — 비율보다 "한 건 팔면 얼마 남나"가 직관적이다 */
-  const perDeal = (margin: number, count: number) =>
-    count > 0 ? margin / count : 0;
-
+  // 건당 공헌이익(perDeal)은 렌탈사 카드와 같은 정의를 쓴다 — lib/company-cards.ts
   const bmStats = (["BM1", "BM2", "BM3"] as const).map((k) => ({
     key: k,
     note: BM_META[k].note,
@@ -648,39 +666,10 @@ export default async function Home({
     for (const g of LARGE_CATEGORY_GROUPS) {
       if (g.cats.includes(cat)) return g.large;
     }
-    return "그외 카테고리";
+    return "기타";
   }
 
-  // ── 렌탈사 카드 ────────────────────────────────────────
-  // 정수기·가전&상조뿐 아니라 통신까지 — 그룹 필터가 실제로 동작하려면
-  // COMPANY_MAP 전체를 대상으로 삼아야 한다.
-  const CARD_GROUP_ORDER = ["정수기", "가전&상조", "통신"];
-  const CARD_DEFS = COMPANY_MAP.map((c) => ({
-    label: c.label,
-    dbName: c.dbName,
-    group: c.group,
-    categoryIs: c.categoryIs,
-    categoryNot: c.categoryNot,
-  }));
-  type CardDef = (typeof CARD_DEFS)[number];
-  const asArr = (v?: string | string[]) =>
-    v === undefined ? null : Array.isArray(v) ? v : [v];
-
-  // COMPANY_MAP의 카테고리 조건까지 반영한다 — dbName만으로 나누면
-  // LG 하나가 'LG_가전'과 'LG_가전구독' 양쪽에 섞인다.
-  function matchesCompany(
-    def: CardDef,
-    r: { rental_company: string | null; category: string | null },
-  ) {
-    if (r.rental_company !== def.dbName) return false;
-    const cat = r.category ?? "";
-    const is = asArr(def.categoryIs);
-    if (is && !is.includes(cat)) return false;
-    const not = asArr(def.categoryNot);
-    if (not && not.includes(cat)) return false;
-    return true;
-  }
-
+  // ── 렌탈사 카드 (정의는 lib/company-cards.ts 공유) ─────
   const currYm = curr.end.slice(0, 7);
   const recentYms: string[] = [];
   {
@@ -733,92 +722,21 @@ export default async function Home({
     }),
   );
 
-  // 렌탈사 × 월 카운트 — 1~dayCut일 창(스파크라인·평소 페이스 공용)
-  const rcWindow = new Map<string, Map<string, number>>();
-  for (const r of catRaw) {
-    const def = CARD_DEFS.find((d) => matchesCompany(d, r));
-    if (!def) continue;
-    const ym = r.contract_date.slice(0, 7);
-    if (Number(r.contract_date.slice(8, 10)) <= dayCut) {
-      if (!rcWindow.has(def.label)) rcWindow.set(def.label, new Map());
-      const wm = rcWindow.get(def.label)!;
-      wm.set(ym, (wm.get(ym) ?? 0) + 1);
-    }
-  }
-
-  const companyCards = CARD_DEFS.map((def) => {
-    const cRows = currContracts.filter((r) => matchesCompany(def, r));
-    const pRows = prevContracts.filter((r) => matchesCompany(def, r));
-
-    // 평소 페이스 = 직전 3개월의 같은 기간(1~dayCut일) 평균
-    const paceMonths = recentYms.slice(-4, -1);
-    const paceVals = paceMonths.map(
-      (ym) => rcWindow.get(def.label)?.get(ym) ?? 0,
-    );
-    const pace = paceVals.length
-      ? paceVals.reduce((s, v) => s + v, 0) / paceVals.length
-      : 0;
-
-    const catCount = new Map<string, number>();
-    const bmCount = { BM1: 0, BM2: 0, BM3: 0 };
-    let sales = 0;
-    let margin = 0;
-    let revenue = 0;
-    for (const r of cRows) {
-      const c = r.category ?? "기타";
-      catCount.set(c, (catCount.get(c) ?? 0) + 1);
-      bmCount[getBM(r.partner_company)] += 1;
-      sales += r.sales ?? 0;
-      margin += r.contribution_margin ?? 0;
-      revenue += r.total_rental_fee ?? 0;
-    }
-    // 전월 매출은 "매출 급증/급감" 신호를 만들기 위해서만 쌓는다
-    let salesPrevSum = 0;
-    for (const r of pRows) salesPrevSum += r.sales ?? 0;
-
-    const topCats = Array.from(catCount.entries()).sort((a, b) => b[1] - a[1]);
-    const total = cRows.length || 1;
-
-    return {
-      label: def.label,
-      bm: (Object.entries(bmCount).sort((a, b) => b[1] - a[1])[0]?.[0] ??
-        "BM1") as string,
-      group: def.group,
-      curr: cRows.length,
-      prev: pRows.length,
-      pace,
-      amount: revenue / EOK,
-      sales: sales / EOK,
-      salesPrev: salesPrevSum / EOK,
-      cpu: perDeal(margin, cRows.length),
-      topCategory: topCats[0]?.[0] ?? "-",
-      topShare: ((topCats[0]?.[1] ?? 0) / total) * 100,
-      rank: 0,
-      prevRank: 0,
-      // 카드 스파크라인도 매월 같은 기간 기준 — 마지막 점만 반 달치면 추세가 왜곡된다
-      spark: recentYms.map((ym) => rcWindow.get(def.label)?.get(ym) ?? 0),
-      heat: Array.from(
-        { length: 5 },
-        (_, i) => ((topCats[i]?.[1] ?? 0) / total) * 100,
-      ),
-    };
+  // 렌탈사 카드 집계 — /companies(전체 렌탈사)와 같은 빌더를 쓴다.
+  // 홈은 이 결과를 카드 그리드가 아니라 신호(주의·확인)와 기여 Top 요약에만 쓴다.
+  const companyCards = buildCompanyCards({
+    currContracts,
+    prevContracts,
+    windowRows: catRaw,
+    recentYms,
+    dayCut,
   });
-  // 순위는 이번 달·전월 각각의 거래건수 기준
-  [...companyCards]
-    .sort((a, b) => b.curr - a.curr)
-    .forEach((c, i) => (c.rank = i + 1));
-  [...companyCards]
-    .sort((a, b) => b.prev - a.prev)
-    .forEach((c, i) => (c.prevRank = i + 1));
 
-  // 이번 달 거래가 아예 없는 렌탈사는 카드로 세우지 않는다
+  // 이번 달 거래가 아예 없는 렌탈사는 판정 대상에서 뺀다
   const visibleCards = companyCards.filter((c) => c.curr > 0 || c.prev > 0);
-  const cardGroups = CARD_GROUP_ORDER.filter((g) =>
-    visibleCards.some((c) => c.group === g),
-  );
 
   // ── 카테고리 카드 ──────────────────────────────────────
-  //  워터폴이 멈추는 대카테고리(성장성 −121건)에서 한 단계 더 내려간다.
+  //  워터폴이 멈추는 카테고리 그룹에서 한 단계 더 내려간다.
   //  대표값은 매출이다 — 건수는 이미 워터폴이 카테고리 축으로 답하고 있고,
   //  "건수는 그대로인데 단가가 빠진" 경우를 건수만으로는 못 잡는다.
   const catKeyOf = (r: { category: string | null }) =>
@@ -849,13 +767,7 @@ export default async function Home({
     margin: 0,
     companies: new Map(),
   });
-  // 주력 렌탈사는 카드와 같은 정의를 쓴다 — dbName만으로 나누면 LG 하나가
-  // 'LG_가전'과 'LG_가전구독' 양쪽에 섞인다.
-  const companyLabelOf = (r: ContractRow) =>
-    CARD_DEFS.find((d) => matchesCompany(d, r))?.label ??
-    r.rental_company ??
-    "-";
-
+  // 주력 렌탈사는 카드와 같은 정의를 쓴다 (companyLabelOf — lib/company-cards.ts)
   function accumulateByCat(rows: ContractRow[], withCompanies: boolean) {
     const acc = new Map<string, CatAcc>();
     for (const r of rows) {
@@ -1043,6 +955,39 @@ export default async function Home({
   });
   const countAgg = metricAgg[0];
 
+  // ── ④ 성과 기여 Top — 렌탈사 카드 그리드는 /companies로 이관했다.
+  //    홈은 "누가 성과를 만들었나"의 상위만 말하고, 탐색은 상세 페이지가 맡는다.
+  const currCountByCompany = new Map<string, number>();
+  for (const r of currContracts) {
+    const k = companyLabelOf(r);
+    currCountByCompany.set(k, (currCountByCompany.get(k) ?? 0) + 1);
+  }
+  const bizCountOf = (rows: ContractRow[]) => {
+    const m = new Map<string, number>();
+    for (const r of rows) {
+      const k = bizCategoryOf(r.category);
+      m.set(k, (m.get(k) ?? 0) + 1);
+    }
+    return m;
+  };
+  const bizCurr = bizCountOf(currContracts);
+  const bizPrev = bizCountOf(prevContracts);
+  // 상위 카테고리는 3축뿐이라 전부 세운다 — 변화가 큰 축이 위로
+  const bizRows = BIZ_CATEGORY_KEYS.map((key) => ({
+    key,
+    curr: bizCurr.get(key) ?? 0,
+    delta: (bizCurr.get(key) ?? 0) - (bizPrev.get(key) ?? 0),
+  })).sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+  // 렌탈사는 증가 기여 상위 5곳만 — 전체 목록은 /companies
+  const topCompanyGainers = countAgg.companies
+    .filter((x) => x.value > 0)
+    .slice(0, 5)
+    .map((x) => ({
+      label: x.key,
+      curr: currCountByCompany.get(x.key) ?? 0,
+      delta: x.value,
+    }));
+
   const waterfallMetrics: WaterfallMetric[] = metricAgg.map((a) => ({
     key: a.def.key,
     label: a.def.label,
@@ -1056,7 +1001,7 @@ export default async function Home({
         label: WATERFALL_SHORT[g.key] ?? g.key,
         type: "delta" as const,
         value: g.value,
-        href: `/category-trends?group=${encodeURIComponent(g.key)}`,
+        href: bizHrefOfLarge(g.key),
       })),
       { label: "이번 달", type: "total" as const, value: a.currTotal },
     ],
@@ -1084,7 +1029,7 @@ export default async function Home({
         label: WATERFALL_SHORT[g.key] ?? g.key,
         type: "delta" as const,
         value: g.value,
-        href: `/category-trends?group=${encodeURIComponent(g.key)}`,
+        href: bizHrefOfLarge(g.key),
       })),
       { label: "이번 달", type: "total" as const, value: cpuCurr },
     ],
@@ -1097,7 +1042,7 @@ export default async function Home({
     })),
   });
 
-  // 최대 증가·감소 대카테고리 — 아래 주의 신호·확인 필요에서 이름으로 짚는다.
+  // 최대 증가·감소 카테고리 그룹 — 아래 주의 신호·확인 필요에서 이름으로 짚는다.
   const topPosGroup = countAgg.groups.find((g) => g.value > 0);
   const topNegGroup = countAgg.groups.find((g) => g.value < 0);
   const netDelta = contractCurr - contractPrev;
@@ -1200,13 +1145,13 @@ export default async function Home({
       sev: "warn",
       title: `${topNegGroup.key} 거래건수`,
       curr: `${topNegGroup.value.toLocaleString("ko-KR")}건`,
-      base: `대카테고리 중 낙폭 최대`,
+      base: `카테고리 그룹 중 낙폭 최대`,
       changePct: null,
       detail: `전월 동기간 대비 감소분`,
       action: "원인 확인",
-      href: `/category-trends?group=${encodeURIComponent(topNegGroup.key)}`,
-      hrefBase: "/category-trends",
-      hrefQuery: `?group=${topNegGroup.key}`,
+      href: bizHrefOfLarge(topNegGroup.key),
+      hrefBase: "/categories/",
+      hrefQuery: LARGE_TO_BIZ[topNegGroup.key] ?? "가전&상조",
     });
   }
 
@@ -1252,16 +1197,16 @@ export default async function Home({
       sev: "good",
       title: `${topPosGroup.key} 거래건수`,
       curr: `+${topPosGroup.value.toLocaleString("ko-KR")}건`,
-      base: `대카테고리 중 증가폭 최대`,
+      base: `카테고리 그룹 중 증가폭 최대`,
       changePct: null,
       detail:
         netDelta > 0
           ? `이번 달 순증의 ${shareOfNet(topPosGroup.value).toFixed(0)}%가 여기서 나왔습니다`
           : `이 달 성장의 주요 출처`,
       action: "상세 보기",
-      href: `/category-trends?group=${encodeURIComponent(topPosGroup.key)}`,
-      hrefBase: "/category-trends",
-      hrefQuery: `?group=${topPosGroup.key}`,
+      href: bizHrefOfLarge(topPosGroup.key),
+      hrefBase: "/categories/",
+      hrefQuery: LARGE_TO_BIZ[topPosGroup.key] ?? "가전&상조",
     });
   }
 
@@ -1632,7 +1577,7 @@ export default async function Home({
             이번 달 실적은 왜 변했나
           </h2>
           <span className="text-[12px] text-[var(--color-gray-500)]">
-            전체 변화 → 대카테고리 → 렌탈사 순으로 내려간다
+            전체 변화 → 카테고리 그룹 → 렌탈사 순으로 내려간다
           </span>
         </div>
         <WaterfallPanel metrics={waterfallMetrics} panelClass={panel} />
@@ -1697,7 +1642,7 @@ export default async function Home({
             어디서 성과가 났나
           </h2>
           <span className="text-[12px] text-[var(--color-gray-500)]">
-            채널(BM) → 렌탈사 → 카테고리 순으로 내려간다
+            채널(BM) → 카테고리·렌탈사 기여 → 카테고리 카드 순으로 내려간다
           </span>
         </div>
 
@@ -1941,17 +1886,121 @@ export default async function Home({
           </div>
         </div>
 
-        {/* 렌탈사 요약 카드 */}
-        <div>
-          <div className="mb-[11px] flex flex-wrap items-baseline gap-2.5">
+        {/* 성과 기여 Top — 렌탈사 전체 카드 그리드는 /companies(전체 렌탈사)로 이관 */}
+        <div className={panel}>
+          <div className="flex flex-wrap items-baseline justify-between gap-2.5 p-[14px_17px_11px]">
             <h3 className="text-[14px] font-bold tracking-[-.2px]">
-              렌탈사 요약
+              누가 성과를 만들었나
             </h3>
-            <span className="text-[12px] text-[var(--color-gray-500)]">
-              평소 페이스(최근 3개월 같은 기간 평균) 대비
+            <span className="text-[11px] text-[var(--color-gray-400)]">
+              계약건수 · 전월 동기간 대비 증감 기여 · 행 클릭 시 해당 상세
             </span>
           </div>
-          <CompanyCards companies={visibleCards} groups={cardGroups} />
+          <div className="grid grid-cols-1 gap-x-7 border-t border-[var(--color-line-2)] p-[9px_17px_13px] md:grid-cols-2">
+            {/* 카테고리 축 — 3축 전부 (변화 큰 순) */}
+            <div>
+              <div className="pt-[6px] pb-[3px] text-[11px] font-bold text-[var(--color-gray-500)]">
+                카테고리
+              </div>
+              <ul>
+                {bizRows.map((b) => (
+                  <li
+                    key={b.key}
+                    className="border-t border-[var(--color-line-2)] first:border-t-0"
+                  >
+                    <Link
+                      href={`/categories/${encodeURIComponent(b.key)}`}
+                      className="group flex items-baseline gap-[9px] py-[9px]"
+                    >
+                      <span className="min-w-0 flex-1 truncate text-[12px] font-bold group-hover:text-[var(--color-primary)]">
+                        {b.key}
+                      </span>
+                      <span className="num text-[11px] text-[var(--color-gray-400)]">
+                        {fmt(b.curr)}건
+                      </span>
+                      <b
+                        className="num w-[62px] flex-none text-right text-[12px] font-bold"
+                        style={{ color: dirColor(b.delta, 0) }}
+                      >
+                        {b.delta > 0 ? "+" : ""}
+                        {fmt(b.delta)}건
+                      </b>
+                      <span className="hidden w-[136px] flex-none truncate text-right font-mono text-[10px] text-[var(--color-gray-400)] group-hover:text-[var(--color-primary)] xl:inline">
+                        /categories/{b.key}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* 렌탈사 축 — 증가 기여 Top 5만, 전체는 /companies */}
+            <div className="flex flex-col">
+              <div className="pt-[6px] pb-[3px] text-[11px] font-bold text-[var(--color-gray-500)]">
+                렌탈사 — 증가 기여 Top {topCompanyGainers.length}
+              </div>
+              {topCompanyGainers.length === 0 ? (
+                <p className="py-4 text-center text-[12px] text-[var(--color-gray-400)]">
+                  이번 달 계약건수가 늘어난 렌탈사가 없습니다.
+                </p>
+              ) : (
+                <ul>
+                  {topCompanyGainers.map((c) => {
+                    const linkable = COMPANY_LABELS.has(c.label);
+                    const row = (
+                      <>
+                        <span className="min-w-0 flex-1 truncate text-[12px] font-bold group-hover:text-[var(--color-primary)]">
+                          {c.label}
+                        </span>
+                        <span className="num text-[11px] text-[var(--color-gray-400)]">
+                          {fmt(c.curr)}건
+                        </span>
+                        <b
+                          className="num w-[62px] flex-none text-right text-[12px] font-bold"
+                          style={{ color: dirColor(c.delta, 0) }}
+                        >
+                          +{fmt(Math.round(c.delta))}건
+                        </b>
+                        <span className="hidden w-[136px] flex-none truncate text-right font-mono text-[10px] text-[var(--color-gray-400)] group-hover:text-[var(--color-primary)] xl:inline">
+                          {linkable ? `/company/${c.label}` : ""}
+                        </span>
+                      </>
+                    );
+                    return (
+                      <li
+                        key={c.label}
+                        className="border-t border-[var(--color-line-2)] first:border-t-0"
+                      >
+                        {linkable ? (
+                          <Link
+                            href={`/company/${encodeURIComponent(c.label)}`}
+                            className="group flex items-baseline gap-[9px] py-[9px]"
+                          >
+                            {row}
+                          </Link>
+                        ) : (
+                          <span className="flex items-baseline gap-[9px] py-[9px]">
+                            {row}
+                          </span>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              <div className="mt-auto border-t border-[var(--color-line-2)] pt-[9px]">
+                <Link
+                  href="/companies"
+                  className="group inline-flex items-center gap-1.5 text-[11px] font-bold text-[var(--color-gray-500)] hover:text-[var(--color-primary)]"
+                >
+                  전체 렌탈사 보기 ↗
+                  <span className="font-mono text-[10px] font-semibold text-[var(--color-gray-400)] group-hover:text-[var(--color-primary-400)]">
+                    /companies
+                  </span>
+                </Link>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* 카테고리 요약 카드 */}
@@ -1999,7 +2048,7 @@ export default async function Home({
                 yDomain={waterChartYDomain}
               />
               <CategoryMonthlyChart
-                title="대카테고리별 거래건수 (정수기 제외)"
+                title="카테고리 그룹별 거래건수 (정수기 제외)"
                 subtitle="정수기는 자릿수가 달라 같은 축에 놓지 않는다 — 축 하나 원칙"
                 data={categoryChartData}
                 series={categoryGraphSeries}
@@ -2011,7 +2060,7 @@ export default async function Home({
                 <thead>
                   <tr className="border-b border-gray-100">
                     <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[120px] sticky left-0 bg-white z-10 border-r border-gray-100">
-                      대카테고리
+                      카테고리 그룹
                     </th>
                     <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[130px] border-r border-gray-100">
                       상품 카테고리
