@@ -12,7 +12,19 @@
  *
  * 계열 배정:
  *   방향(등락) = Red/Blue  ← 한국 증시 컨벤션
- *   브랜드     = Purple    ← Red(상승)·Blue(하락)·Green(성공)과 겹치지 않는 유일한 계열
+ *   브랜드     = Indigo    ← 아래 사유
+ *
+ * 브랜드는 한때 Purple 이었다. "Red(상승)·Blue(하락)·Green(성공)과 겹치지 않는
+ * 유일한 계열"이라는 이유였는데, 실측해 보니 두 가지가 어긋나 있었다:
+ *   1. Purple600(#9128b4)과 --color-cat-4(#a234c7)의 RGB 거리가 28 이다.
+ *      카테고리가 4개를 넘는 차트에서 "네 번째 계열"과 "브랜드 강조"가 같은 보라로 겹친다.
+ *      후보 색 중 의미색과의 최소거리가 28 인 건 보라뿐이었다(인디고 88 / 중립 163).
+ *   2. 파랑 회피라는 전제 자체가 이미 깨져 있었다 — --color-cat-1 과 --color-down 은
+ *      값이 #3182f6 으로 완전히 동일하다. 차트 첫 계열색과 하락색이 이미 같은 파랑이다.
+ *
+ * Indigo 로 되돌리면 화면에 흩어져 있던 하드코딩 브랜드색 48곳(#3531FF 31 / #6366f1 17)이
+ * 같은 계열로 흡수되고(거리 55 / 0), cat-4 보라와는 95 로 분리된다.
+ * 하락 파랑과 거리 88 로 계열이 근접하는 건 감수한 지점이다.
  */
 :root {
   /* 폰트 스택 정의는 여기 한 곳뿐이다. @theme의 --font-sans와 body가 모두 이걸 참조한다.
@@ -24,14 +36,14 @@
   --background: #ffffff; /* Background */
   --foreground: #191f28; /* Grey900 */
 
-  /* Primary — Purple. 방향색·성공색과 계열이 겹치지 않게 뺐다. */
-  --color-primary: #9128b4; /* Purple600 */
-  --color-primary-700: #8222a2; /* Purple700 — 호버·프레스 */
-  --color-primary-500: #a234c7; /* Purple500 */
-  --color-primary-400: #b44bd7; /* Purple400 */
-  --color-primary-200: #da9bef; /* Purple200 */
-  --color-primary-100: #edccf8; /* Purple100 */
-  --color-primary-50: #f9f0fc; /* Purple50 */
+  /* Primary — Indigo. 넓은 면적에 칠하지 않는다(브랜드·활성 상태·링크 전용). */
+  --color-primary: #4338ca; /* Indigo700 */
+  --color-primary-700: #3730a3; /* Indigo800 — 호버·프레스 */
+  --color-primary-500: #6366f1; /* Indigo500 — 하드코딩 #6366f1 17곳이 여기로 흡수된다 */
+  --color-primary-400: #818cf8; /* Indigo400 */
+  --color-primary-200: #a5b4fc; /* Indigo300 */
+  --color-primary-100: #c7d2fe; /* Indigo200 */
+  --color-primary-50: #eef2ff; /* Indigo50 */
 
   /* Semantic */
   --color-success: #03b26c; /* Green500 */
@@ -110,6 +122,30 @@
   --color-down-100: #c9e2ff; /* Blue100 */
   --color-accent-blue: var(--color-primary);
 
+  /* 히트맵 순차 스케일 — 브랜드 토큰과 분리한다.
+     전에는 color-mix(--color-primary 8~70%, white) 로 셀 배경을 칠했는데,
+     (1) "primary 를 넓은 배경에 칠하지 않는다" 규칙을 정면으로 어기고
+     (2) 브랜드색을 바꿀 때마다 히트맵 판독 기준까지 같이 흔들렸다.
+     채도를 낮춘 청회색 5단이다. 어떤 의미색과도 RGB 거리 91 이상 떨어져 있어
+     "양(量)"으로만 읽히고 계열색·방향색과 헷갈리지 않는다.
+     글자색: 1~4단은 gray-900(대비 14.6/12.0/8.2/5.3), 5단만 흰색(대비 7.7). */
+  --ramp-1: #eef1f6;
+  --ramp-2: #d3dce8;
+  --ramp-3: #a7b8ce;
+  --ramp-4: #7e93b0;
+  --ramp-5: #3e5474;
+
+  /* Easing — 브라우저 기본 이징은 약해서 전환이 뭉개진다.
+     진입/이탈은 ease-out(첫 프레임부터 움직여 즉각적으로 느껴진다),
+     화면 안에서 움직이는 것만 ease-in-out. UI 에 ease-in 은 쓰지 않는다. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+
+  /* 호버·상태 전환의 표준 길이. DESIGN.md 의 0.12s 를 토큰으로 고정한다 —
+     클래스마다 적으면 Tailwind 기본 150ms 로 조용히 덮인다. */
+  --dur-hover: 120ms;
+  --dur-enter: 200ms;
+
   /* Shadow */
   --sh-soft: 0 2px 8px 0 rgba(0, 0, 0, 0.06);
   --sh-card: 0 4px 16px 0 rgba(142, 142, 142, 0.3);
@@ -161,3 +197,67 @@ body {
 .num {
   font-variant-numeric: tabular-nums;
 }
+
+/* 포커스 링은 여기 한 곳에서만 정의한다.
+   :focus-visible 은 마우스 클릭에는 걸리지 않으므로 개별 컴포넌트에서
+   focus:outline-none 으로 지울 이유가 없다 — 지우면 키보드 사용자가 현재 위치를 잃는다. */
+:where(a, button, [role="button"], input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: var(--r-4);
+}
+
+/* 누름 피드백 — 인터페이스가 클릭을 들었다는 즉시 신호.
+   상태 변경(서버 왕복)보다 먼저 도착해야 하므로 짧게 잡는다. */
+.press {
+  transition: transform var(--dur-hover) var(--ease-out);
+}
+.press:active {
+  transform: scale(0.97);
+}
+
+/* 터치 기기는 탭에 :hover 가 걸려 눌린 상태로 남는다.
+   이동·확대가 걸린 호버는 포인터가 정밀한 기기에서만 켠다. */
+@media (hover: none), (pointer: coarse) {
+  .hover-lift:hover {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 움직임만 걷어낸다. 불투명도·색 전환은 이해를 돕는 쪽이라 남긴다. */
+  .press,
+  .hover-lift {
+    transition-property: opacity, background-color, border-color, color, box-shadow;
+  }
+  .press:active,
+  .hover-lift:hover {
+    transform: none;
+  }
+}
+
+/* 로딩 스켈레톤.
+   불투명도만 오가게 한다 — 이동·확대가 없어 reduced-motion 에서도 이해를 돕는 쪽에 남는다.
+   대신 주기를 늘려 덜 재촉하게 만든다. */
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.skeleton {
+  background: var(--color-gray-150);
+  border-radius: var(--r-8);
+  animation: skeleton-pulse 1.2s var(--ease-in-out) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation-duration: 2.4s;
+  }
+}
+

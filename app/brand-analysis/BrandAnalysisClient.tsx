@@ -236,10 +236,10 @@ export default function BrandAnalysisClient({
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className="px-4 py-2.5 text-sm font-medium transition-colors relative"
+            className="press px-4 py-2.5 text-sm font-medium transition-colors relative"
             style={
               activeTab === tab.key
-                ? { color: "var(--primary, #3531FF)" }
+                ? { color: "var(--color-primary)" }
                 : { color: "var(--gray-500, #788093)" }
             }
           >
@@ -247,7 +247,7 @@ export default function BrandAnalysisClient({
             {activeTab === tab.key && (
               <span
                 className="absolute bottom-0 left-0 right-0 h-0.5"
-                style={{ background: "var(--primary, #3531FF)" }}
+                style={{ background: "var(--color-primary)" }}
               />
             )}
           </button>
@@ -271,10 +271,10 @@ export default function BrandAnalysisClient({
             <button
               key={p.key}
               onClick={() => setPeriod(p.key)}
-              className="px-3 py-1.5 rounded-full text-xs font-medium transition-colors"
+              className="press px-3 py-1.5 rounded-full text-xs font-medium transition-colors"
               style={
                 period === p.key
-                  ? { background: "#3531FF", color: "#fff" }
+                  ? { background: "var(--color-primary)", color: "#fff" }
                   : { background: "#f3f5f9", color: "#788093" }
               }
             >
@@ -526,7 +526,7 @@ function SortTh({
     >
       <span
         className="text-xs font-semibold"
-        style={{ color: active ? "var(--primary, #3531FF)" : "#788093" }}
+        style={{ color: active ? "var(--color-primary)" : "#788093" }}
       >
         {label}
         <span className="ml-0.5 text-[10px]">
@@ -637,7 +637,7 @@ function ProductPerformanceTab({
                   }}
                   className="w-full text-left px-3 py-1.5 text-sm hover:bg-[#f3f5f9] transition-colors"
                   style={{
-                    color: catFilter === cat ? "var(--primary, #3531FF)" : "#393939",
+                    color: catFilter === cat ? "var(--color-primary)" : "#393939",
                     fontWeight: catFilter === cat ? 600 : 400,
                   }}
                 >
@@ -654,7 +654,7 @@ function ProductPerformanceTab({
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors"
           style={
             groupByTerm
-              ? { background: "#3531FF", color: "#fff", borderColor: "#3531FF" }
+              ? { background: "var(--color-primary)", color: "#fff", borderColor: "var(--color-primary)" }
               : { background: "#fff", color: "#586177", borderColor: "#e2e6ec" }
           }
         >
@@ -788,7 +788,7 @@ function ProductDetail({ detail, color }: { detail: Detail; color: string }) {
       <div className="flex items-center gap-1.5">
         <span
           className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold"
-          style={{ background: "#edf2ff", color: "#3531FF" }}
+          style={{ background: "var(--color-primary-50)", color: "var(--color-primary)" }}
         >
           {termLabel}
         </span>
@@ -929,7 +929,8 @@ function Collapse({
         display: "grid",
         gridTemplateRows: open ? "1fr" : "0fr",
         opacity: open ? 1 : 0,
-        transition: "grid-template-rows 0.28s ease, opacity 0.22s ease",
+        transition:
+          "grid-template-rows 200ms var(--ease-out), opacity 160ms var(--ease-out)",
       }}
     >
       {/* eslint-disable-next-line react-hooks/refs */}
@@ -962,12 +963,12 @@ function CatChip({
   return (
     <button
       onClick={onClick}
-      className={`px-3 py-1.5 rounded-full text-xs font-medium border transition ${
+      className={`press px-3 py-1.5 rounded-full text-xs font-medium border transition ${
         active
           ? "border-transparent"
           : "border-[#e2e6ec] text-[#586177] hover:bg-[#f3f5f9]"
       }`}
-      style={active ? { background: "#3531FF", color: "#fff" } : {}}
+      style={active ? { background: "var(--color-primary)", color: "#fff" } : {}}
     >
       {label}
     </button>

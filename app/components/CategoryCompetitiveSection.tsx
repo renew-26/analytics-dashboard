@@ -96,10 +96,10 @@ function PricingPanel({
               <button
                 key={t}
                 onClick={() => setSelectedTerm(t)}
-                className="text-[10px] px-2 py-0.5 rounded transition focus:outline-none"
+                className="press text-[10px] px-2 py-0.5 rounded transition"
                 style={
                   selectedTerm === t
-                    ? { backgroundColor: "#6366f1", color: "#fff" }
+                    ? { backgroundColor: "var(--color-primary-500)", color: "#fff" }
                     : { backgroundColor: "var(--color-gray-100)", color: "var(--color-gray-400)" }
                 }
               >
@@ -161,7 +161,7 @@ function PricingPanel({
                     <td
                       className="py-1 px-1 rounded-l text-center truncate"
                       style={{
-                        color: c.isMe ? "#6366f1" : "var(--color-gray-400)",
+                        color: c.isMe ? "var(--color-primary-500)" : "var(--color-gray-400)",
                         fontWeight: c.isMe ? 700 : 400,
                       }}
                     >
@@ -173,7 +173,7 @@ function PricingPanel({
                         color: c.isMe
                           ? delta !== null
                             ? "var(--color-error)"
-                            : "#6366f1"
+                            : "var(--color-primary-500)"
                           : isCheapest
                             ? "var(--color-success)"
                             : "var(--color-gray-700)",
@@ -303,10 +303,10 @@ export default function CategoryCompetitiveSection({
           <button
             key={cat}
             onClick={() => setSelectedCat(cat)}
-            className="text-xs px-3 py-1.5 rounded-full transition focus:outline-none"
+            className="press text-xs px-3 py-1.5 rounded-full transition"
             style={
               selectedCat === cat
-                ? { backgroundColor: "#6366f1", color: "#ffffff" }
+                ? { backgroundColor: "var(--color-primary-500)", color: "#ffffff" }
                 : { backgroundColor: "var(--color-gray-100)", color: "var(--color-gray-500)" }
             }
           >
@@ -368,7 +368,7 @@ export default function CategoryCompetitiveSection({
                             <span
                               className="text-[11px] w-24 text-right truncate shrink-0"
                               style={{
-                                color: c.isMe ? "#6366f1" : "var(--color-gray-400)",
+                                color: c.isMe ? "var(--color-primary-500)" : "var(--color-gray-400)",
                                 fontWeight: c.isMe ? 700 : 400,
                               }}
                             >
@@ -380,7 +380,7 @@ export default function CategoryCompetitiveSection({
                                 style={{
                                   width: `${pct}%`,
                                   backgroundColor: c.isMe
-                                    ? "#6366f1"
+                                    ? "var(--color-primary-500)"
                                     : "var(--color-gray-200)",
                                 }}
                               />
@@ -388,7 +388,7 @@ export default function CategoryCompetitiveSection({
                             <span
                               className="text-[11px] w-8 text-right shrink-0 tabular-nums"
                               style={{
-                                color: c.isMe ? "#6366f1" : "var(--color-gray-400)",
+                                color: c.isMe ? "var(--color-primary-500)" : "var(--color-gray-400)",
                                 fontWeight: c.isMe ? 700 : 400,
                               }}
                             >

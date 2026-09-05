@@ -1753,7 +1753,7 @@ export default async function CompanyPage({
                 <MonthlyRevenueChart
                   key={dbName}
                   data={monthlyStats}
-                  color={view === "contract" ? "#6366f1" : undefined}
+                  color={view === "contract" ? "var(--color-primary-500)" : undefined}
                   companyDbName={dbName}
                   view={view}
                   bm={bm}
@@ -1800,7 +1800,7 @@ export default async function CompanyPage({
                   <div className="pb-2">
                     <MonthlyRevenueChart
                       data={weekChartData}
-                      color={view === "contract" ? "#6366f1" : undefined}
+                      color={view === "contract" ? "var(--color-primary-500)" : undefined}
                     />
                   </div>
                 </div>

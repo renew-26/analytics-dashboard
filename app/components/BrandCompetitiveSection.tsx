@@ -149,7 +149,7 @@ function PricingPanel({
                 key={t}
                 onClick={() => setSelectedTerm(t)}
                 title={t === preferredTerm ? "실제 가장 많이 팔린 기간" : undefined}
-                className="text-[10px] px-2 py-0.5 rounded transition focus:outline-none"
+                className="press text-[10px] px-2 py-0.5 rounded transition"
                 style={
                   selectedTerm === t
                     ? { backgroundColor: "#007aff", color: "#fff" }
@@ -288,7 +288,7 @@ export default function BrandCompetitiveSection({
             <button
               key={cat}
               onClick={() => setSelectedCat(cat)}
-              className="text-xs px-3 py-1.5 rounded-full transition focus:outline-none"
+              className="press text-xs px-3 py-1.5 rounded-full transition"
               style={
                 selectedCat === cat
                   ? { backgroundColor: "#007aff", color: "#ffffff" }
@@ -306,7 +306,7 @@ export default function BrandCompetitiveSection({
               <button
                 key={m.key}
                 onClick={() => setMode(m.key)}
-                className="text-[11px] px-2.5 py-1 transition focus:outline-none"
+                className="press text-[11px] px-2.5 py-1 transition"
                 style={
                   mode === m.key
                     ? { backgroundColor: "#007aff", color: "#ffffff" }

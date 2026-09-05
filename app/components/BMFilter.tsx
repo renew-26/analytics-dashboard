@@ -33,7 +33,7 @@ export default function BMFilter({ current }: { current: BM }) {
         <Link
           key={value}
           href={href(value)}
-          className={`px-4 py-1.5 text-sm rounded-md font-medium transition-colors ${
+          className={`press px-4 py-1.5 text-sm rounded-md font-medium transition-colors ${
             current === value
               ? "bg-white shadow-sm text-[#222222]"
               : "text-[#788093] hover:text-[#393939]"

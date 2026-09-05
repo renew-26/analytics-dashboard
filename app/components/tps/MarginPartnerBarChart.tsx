@@ -11,6 +11,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
+import { CHART_ANIM } from "@/lib/chart";
 
 const CHART_COLORS = [
   "#3531FF", // primary
@@ -108,7 +109,7 @@ export function MarginPartnerBarChart({
               fill: "var(--color-warning-500, #FF5252)",
             }}
           />
-          <Bar dataKey="avgRate" radius={[6, 6, 0, 0]} barSize={40}>
+          <Bar {...CHART_ANIM} dataKey="avgRate" radius={[6, 6, 0, 0]} barSize={40}>
             {sorted.map((d, i) => (
               <Cell key={d.partnerName} fill={colorForIndex(i)} />
             ))}

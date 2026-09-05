@@ -105,6 +105,21 @@ async function fetchOrders(
   return all;
 }
 
+/**
+ * 히트맵 농도를 5단으로 접는다.
+ *
+ * 연속 그라데이션(color-mix)은 셀끼리 미세하게만 달라서 "어느 쪽이 진한가"를
+ * 눈으로 못 가른다. 단을 끊으면 같은 단끼리 묶여 읽히고, 범례의 5칸과도 일대일로 맞는다.
+ * 램프 자체는 --ramp-1..5 로 브랜드색과 분리돼 있어 브랜드색을 바꿔도 판독 기준이 안 흔들린다.
+ */
+function rampStep(f: number): 1 | 2 | 3 | 4 | 5 {
+  if (f >= 0.8) return 5;
+  if (f >= 0.6) return 4;
+  if (f >= 0.4) return 3;
+  if (f >= 0.2) return 2;
+  return 1;
+}
+
 export default async function GroupPage({
   params,
 }: {
@@ -297,7 +312,7 @@ export default async function GroupPage({
               key={g}
               href={`/group/${encodeURIComponent(g)}`}
               aria-current={on ? "page" : undefined}
-              className={`flex items-center gap-2 rounded-[8px] border px-4 py-2 text-[13px] font-bold transition-colors ${
+              className={`press flex items-center gap-2 rounded-[8px] border px-4 py-2 text-[13px] font-bold transition-colors ${
                 on
                   ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white"
                   : "border-[var(--color-gray-200)] bg-white text-[var(--color-gray-500)] hover:border-[var(--color-gray-400)] hover:text-[var(--color-gray-900)]"
@@ -631,16 +646,17 @@ export default async function GroupPage({
                                 background:
                                   v === 0
                                     ? "var(--color-gray-25)"
-                                    : `color-mix(in srgb, var(--color-primary) ${(8 + f * 62).toFixed(0)}%, white)`,
+                                    : `var(--ramp-${rampStep(f)})`,
                                 color:
-                                  f > 0.55
-                                    ? "#ffffff"
-                                    : v === 0
-                                      ? "var(--color-gray-400)"
-                                      : "var(--color-gray-600)",
-                                outline: lead
-                                  ? "2px solid var(--color-primary)"
-                                  : undefined,
+                                  v === 0
+                                    ? "var(--color-gray-400)"
+                                    : rampStep(f) === 5
+                                      ? "#ffffff"
+                                      : "var(--color-gray-900)",
+                                // lead 는 v === colMax 라 항상 f === 1, 즉 항상 ramp-5(가장 진한 단)다.
+                                // 브랜드 인디고로 테를 두르면 ramp-5 와 대비 1.03 이라 보이지 않는다.
+                                // 흰 테는 대비 7.71 로 확실히 읽힌다.
+                                outline: lead ? "2px solid #ffffff" : undefined,
                                 outlineOffset: lead ? "-2px" : undefined,
                               }}
                             >
@@ -659,13 +675,11 @@ export default async function GroupPage({
               <div className="mt-[12px] flex items-center gap-[8px] text-[11px] text-[var(--color-gray-500)]">
                 <span>적음</span>
                 <span className="flex gap-[2px]">
-                  {[8, 25, 42, 58, 70].map((p) => (
+                  {[1, 2, 3, 4, 5].map((step) => (
                     <i
-                      key={p}
+                      key={step}
                       className="h-[9px] w-[22px] rounded-[2px]"
-                      style={{
-                        background: `color-mix(in srgb, var(--color-primary) ${p}%, white)`,
-                      }}
+                      style={{ background: `var(--ramp-${step})` }}
                     />
                   ))}
                 </span>

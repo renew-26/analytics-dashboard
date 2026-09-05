@@ -21,7 +21,7 @@ export default function TransactionYearToggle({ hidden }: { hidden: boolean }) {
   return (
     <Link
       href={href(!hidden)}
-      className="ml-auto px-2.5 py-1 text-xs font-medium rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50"
+      className="press ml-auto px-2.5 py-1 text-xs font-medium rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50"
     >
       {hidden ? "25년 데이터 보기" : "25년 데이터 숨기기"}
     </Link>

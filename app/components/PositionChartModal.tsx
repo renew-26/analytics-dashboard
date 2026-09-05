@@ -11,6 +11,7 @@ import {
   Cell,
   ResponsiveContainer,
 } from "recharts";
+import { CHART_ANIM } from "@/lib/chart";
 
 interface RankItem {
   category: string;
@@ -73,10 +74,10 @@ export default function PositionChartModal({
           <button
             key={cat}
             onClick={() => setSelectedCat(cat)}
-            className="text-xs px-3 py-1.5 rounded-full transition focus:outline-none"
+            className="press text-xs px-3 py-1.5 rounded-full transition"
             style={
               activeCat === cat
-                ? { backgroundColor: "#6366f1", color: "#ffffff" }
+                ? { backgroundColor: "var(--color-primary-500)", color: "#ffffff" }
                 : { backgroundColor: "var(--color-gray-100)", color: "var(--color-gray-500)" }
             }
           >
@@ -90,7 +91,7 @@ export default function PositionChartModal({
         <>
           <p className="text-xs font-semibold text-[#788093] mb-3">
             {activeCat} · 렌탈사별 주문건수 · {companyLabel}{" "}
-            <span style={{ color: "#6366f1" }}>●</span>
+            <span style={{ color: "var(--color-primary-500)" }}>●</span>
           </p>
           <div className="[&_svg]:outline-none [&_svg]:focus:outline-none">
             <ResponsiveContainer
@@ -119,7 +120,7 @@ export default function PositionChartModal({
                         textAnchor="end"
                         fontSize={12}
                         fontWeight={isMe ? 700 : 400}
-                        fill={isMe ? "#6366f1" : "var(--color-gray-500)"}
+                        fill={isMe ? "var(--color-primary-500)" : "var(--color-gray-500)"}
                       >
                         {payload.value}
                       </text>
@@ -141,11 +142,11 @@ export default function PositionChartModal({
                   itemStyle={{ color: "var(--color-gray-500)" }}
                   cursor={{ fill: "rgba(0,0,0,0.03)" }}
                 />
-                <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                <Bar {...CHART_ANIM} dataKey="count" radius={[0, 4, 4, 0]}>
                   {companyData.map((d) => (
                     <Cell
                       key={d.company}
-                      fill={d.company === myDbName ? "#6366f1" : "var(--color-gray-200)"}
+                      fill={d.company === myDbName ? "var(--color-primary-500)" : "var(--color-gray-200)"}
                     />
                   ))}
                 </Bar>

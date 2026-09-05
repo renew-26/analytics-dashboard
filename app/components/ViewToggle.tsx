@@ -21,7 +21,7 @@ export default function ViewToggle({
     <div className="flex gap-1 p-1 bg-[#f3f5f9] rounded-lg">
       <Link
         href={href("order")}
-        className={`px-4 py-1.5 text-sm rounded-md font-medium transition-colors ${
+        className={`press px-4 py-1.5 text-sm rounded-md font-medium transition-colors ${
           current === "order"
             ? "bg-white shadow-sm text-[#222222]"
             : "text-[#788093] hover:text-[#393939]"
@@ -31,7 +31,7 @@ export default function ViewToggle({
       </Link>
       <Link
         href={href("contract")}
-        className={`px-4 py-1.5 text-sm rounded-md font-medium transition-colors ${
+        className={`press px-4 py-1.5 text-sm rounded-md font-medium transition-colors ${
           current === "contract"
             ? "bg-white shadow-sm text-[#222222]"
             : "text-[#788093] hover:text-[#393939]"

@@ -39,3 +39,4 @@ next-env.d.ts
 # skills CLI 정본 저장소 — .claude/skills로 복사되므로 중복이다.
 # 재현은 skills-lock.json으로 한다 (npx skills experimental_install).
 .agents/
+.gstack/

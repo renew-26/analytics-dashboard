@@ -171,7 +171,7 @@ function TabButton({
   return (
     <button
       onClick={onClick}
-      className="px-4 py-2.5 text-sm font-medium border-b-2 transition -mb-px"
+      className="press px-4 py-2.5 text-sm font-medium border-b-2 transition -mb-px"
       style={{
         borderColor: active ? "var(--color-primary)" : "transparent",
         color: active ? "var(--color-primary)" : "var(--color-gray-500)",
@@ -460,7 +460,7 @@ function MonthlyView({
               color: "var(--color-gray-400)",
               transform: gridOpen ? "rotate(90deg)" : "none",
               display: "inline-block",
-              transition: "transform .15s",
+              transition: "transform 150ms var(--ease-out)",
             }}
           >
             ▶
@@ -573,6 +573,14 @@ function MonthlyView({
                     <React.Fragment key={row.cat}>
                       <tr
                         onClick={() => setDrillCat(isSelected ? null : row.cat)}
+                        tabIndex={0}
+                        aria-expanded={isSelected}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setDrillCat(isSelected ? null : row.cat);
+                          }
+                        }}
                         className="border-b cursor-pointer transition"
                         style={{
                           borderColor: "var(--color-gray-150)",
@@ -1569,7 +1577,7 @@ function WeeklyView({
       <div className="flex gap-1.5 flex-wrap mb-5 items-center">
         <button
           onClick={() => setActiveCat(ALL)}
-          className="text-xs px-3 py-1.5 rounded-full transition focus:outline-none"
+          className="press text-xs px-3 py-1.5 rounded-full transition"
           style={pill(activeCat === ALL)}
         >
           전체
@@ -1579,7 +1587,7 @@ function WeeklyView({
           <button
             key={c.cat}
             onClick={() => setActiveCat(c.cat)}
-            className="text-xs px-3 py-1.5 rounded-full transition focus:outline-none"
+            className="press text-xs px-3 py-1.5 rounded-full transition"
             style={pill(activeCat === c.cat)}
           >
             {c.cat}
@@ -1589,7 +1597,7 @@ function WeeklyView({
         {hiddenCount > 0 && (
           <button
             onClick={() => setTabsExpanded((p) => !p)}
-            className="text-xs px-3 py-1.5 rounded-full transition focus:outline-none"
+            className="press text-xs px-3 py-1.5 rounded-full transition"
             style={{
               backgroundColor: "var(--color-gray-100)",
               color: "var(--color-gray-400)",
