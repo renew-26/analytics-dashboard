@@ -13,7 +13,7 @@ import WaterfallPanel, {
 import BMMixBar from "@/app/components/home/BMMixBar";
 import CompanyCards from "@/app/components/home/CompanyCards";
 import CategoryCards from "@/app/components/home/CategoryCards";
-import { deltaColor as dirColor } from "@/app/components/home/cardKit";
+import { deltaColor as dirColor, manwon } from "@/app/components/home/cardKit";
 
 export const dynamic = "force-dynamic";
 
@@ -44,11 +44,13 @@ function Delta({
   value,
   unit = "%",
   flatBand = 1.5,
+  decimals = 1,
   className = "",
 }: {
   value: number | null;
   unit?: string;
   flatBand?: number;
+  decimals?: number;
   className?: string;
 }) {
   if (value === null || !Number.isFinite(value))
@@ -59,7 +61,7 @@ function Delta({
       className={`num ${className}`}
       style={{ color: dirColor(value, flatBand) }}
     >
-      {arrow} {Math.abs(value).toFixed(1)}
+      {arrow} {Math.abs(value).toFixed(decimals)}
       {unit}
     </span>
   );
@@ -285,9 +287,20 @@ function trimLeadingGap(values: number[]) {
 }
 
 type Alert = {
-  sev: "crit" | "warn" | "info";
+  sev: "crit" | "warn" | "info" | "good";
+  /** 무엇이 — 대상과 지표만. 숫자는 아래 값 칼럼이 맡는다 */
   title: string;
-  detail: string;
+  /** 지금 값 */
+  curr: string;
+  /** 비교 기준값 — "평소 11건" / "전월 8.2억" 처럼 기준 이름을 붙여 쓴다 */
+  base: string;
+  /** 기준 대비 변화율. %p 지표는 changeUnit으로 구분한다 */
+  changePct: number | null;
+  changeUnit?: "%" | "%p";
+  /** 값만으로 안 되는 한 줄 — 없으면 비운다 */
+  detail?: string;
+  /** 이 행에서 할 일 — "상세 보기" / "원인 확인" */
+  action: string;
   href: string;
   hrefBase: string;
   hrefQuery?: string;
@@ -312,6 +325,14 @@ const SEV_STYLE = {
     background: "var(--color-primary-50)",
     label: "확인",
   },
+  // 성장은 초록으로 뺀다 — 인디고(확인 필요)와 섞으면
+  // "원인을 알아야 하는 것"과 "잘 되고 있는 것"이 같은 색이 된다.
+  good: {
+    bar: "var(--color-success)",
+    color: "#017a4a",
+    background: "#e6f8f0",
+    label: "성장",
+  },
 } as const;
 
 /** 주의 신호·확인 필요가 같은 행 모양을 쓴다 — 판정 기준만 다르다 */
@@ -326,6 +347,9 @@ function AlertList({ items, empty }: { items: Alert[]; empty: string }) {
     <ul>
       {items.map((a, i) => {
         const s = SEV_STYLE[a.sev];
+        const unit = a.changeUnit ?? "%";
+        // %p 지표는 1.5%p가 큰 변화다 — 무감대를 지표 단위에 맞춘다
+        const flat = unit === "%p" ? 0.5 : 1.5;
         return (
           <li
             key={`${a.title}-${i}`}
@@ -333,10 +357,10 @@ function AlertList({ items, empty }: { items: Alert[]; empty: string }) {
           >
             <Link
               href={a.href}
-              className="group grid grid-cols-[3px_auto_minmax(0,1fr)_auto] items-center gap-[11px] py-[11px]"
+              className="group grid grid-cols-[3px_auto_minmax(0,1fr)_auto] items-center gap-x-[11px] gap-y-1 py-[10px]"
             >
               <span
-                className="h-[30px] w-[3px] rounded-full"
+                className="row-span-2 h-full min-h-[34px] w-[3px] rounded-full"
                 style={{ background: s.bar }}
               />
               {/* 색 단독 금지 — 항상 텍스트 라벨을 붙인다 */}
@@ -347,21 +371,44 @@ function AlertList({ items, empty }: { items: Alert[]; empty: string }) {
                 {s.label}
               </span>
               <span className="min-w-0">
-                <span className="block text-[12px] font-bold leading-[1.4] tracking-[-.1px] group-hover:text-[var(--color-primary)]">
+                <span className="block truncate text-[12px] font-bold leading-[16px] tracking-[-.1px] group-hover:text-[var(--color-primary)]">
                   {a.title}
                 </span>
-                <span className="mt-0.5 block text-[12px] leading-[1.5] text-[var(--color-gray-500)]">
-                  {a.detail}
+              </span>
+              {/* 지금 값 · 기준값 · 변화율 — 셋을 같은 자리에 붙여 심각도를 눈으로 잰다 */}
+              <span className="flex items-baseline gap-[7px] justify-self-end whitespace-nowrap">
+                <b className="num text-[14px] font-bold tracking-[-.3px]">
+                  {a.curr}
+                </b>
+                <span className="num text-[11px] text-[var(--color-gray-400)]">
+                  {a.base}
+                </span>
+                <span className="text-[12px] font-bold">
+                  <Delta
+                    value={a.changePct}
+                    unit={unit}
+                    flatBand={flat}
+                    decimals={0}
+                  />
                 </span>
               </span>
-              {/* 목적지를 숨기지 않는다 */}
-              <span className="inline-flex items-center gap-1 font-mono text-[10px] font-semibold whitespace-nowrap text-[var(--color-gray-400)] before:text-[9px] before:content-['↗'] group-hover:text-[var(--color-primary)]">
-                <b className="font-semibold">{a.hrefBase}</b>
-                {a.hrefQuery && (
-                  <q className="font-bold text-[var(--color-primary)] [quotes:none]">
-                    {a.hrefQuery}
-                  </q>
-                )}
+
+              {/* 2행 — 보조 설명과 액션. 목적지를 숨기지 않는다 */}
+              <span className="col-start-3 min-w-0 text-[11px] leading-[15px] text-[var(--color-gray-500)]">
+                {a.detail}
+              </span>
+              <span className="col-start-4 inline-flex items-center gap-1.5 justify-self-end whitespace-nowrap">
+                <span className="text-[11px] font-bold text-[var(--color-gray-500)] group-hover:text-[var(--color-primary)]">
+                  {a.action} ↗
+                </span>
+                <span className="font-mono text-[10px] text-[var(--color-gray-400)] group-hover:text-[var(--color-primary-400)]">
+                  {a.hrefBase}
+                  {a.hrefQuery && (
+                    <b className="font-semibold text-[var(--color-primary)]">
+                      {a.hrefQuery}
+                    </b>
+                  )}
+                </span>
               </span>
             </Link>
           </li>
@@ -539,8 +586,6 @@ export default async function Home({
   const amountPrev = prevAgg.revenue.total / EOK;
   const salesCurr = currAgg.salesTotal.total / EOK;
   const salesPrev = prevAgg.salesTotal.total / EOK;
-  const marginCurr = currAgg.margin.total / MAN;
-  const marginPrev = prevAgg.margin.total / MAN;
   // 설치인증률 = 계약완료 / 주문확정 (앱 전반이 raw_contracts를 '설치인증'으로 부른다)
   const certCurr = rate(contractCurr, orderCurr);
   const certPrev = rate(contractPrev, orderPrev);
@@ -1077,8 +1122,12 @@ export default async function Home({
     .forEach(({ c, idx }) =>
       alerts.push({
         sev: idx < 80 ? "crit" : "warn",
-        title: `${c.label} 거래건수가 평소의 ${idx.toFixed(0)}% 수준`,
-        detail: `${c.curr.toLocaleString("ko-KR")}건 · 평소 페이스 ${Math.round(c.pace).toLocaleString("ko-KR")}건`,
+        title: `${c.label} 거래건수`,
+        curr: `${c.curr.toLocaleString("ko-KR")}건`,
+        base: `평소 ${Math.round(c.pace).toLocaleString("ko-KR")}건`,
+        changePct: idx - 100,
+        detail: `최근 3개월 같은 기간 평균 대비`,
+        action: "원인 확인",
         href: `/company/${c.label}`,
         hrefBase: "/company/",
         hrefQuery: c.label,
@@ -1095,8 +1144,12 @@ export default async function Home({
     .forEach(({ c, chg }) =>
       alerts.push({
         sev: chg <= -40 ? "crit" : "warn",
-        title: `${c.label} 매출 ${chg.toFixed(0)}%`,
-        detail: `전월 동기간 ${c.salesPrev.toFixed(2)}억 → ${c.sales.toFixed(2)}억 · 거래건수는 ${c.prev.toLocaleString("ko-KR")}→${c.curr.toLocaleString("ko-KR")}건`,
+        title: `${c.label} 매출`,
+        curr: `${c.sales.toFixed(2)}억`,
+        base: `전월 ${c.salesPrev.toFixed(2)}억`,
+        changePct: chg,
+        detail: `거래건수는 ${c.prev.toLocaleString("ko-KR")}→${c.curr.toLocaleString("ko-KR")}건 — 물량보다 단가 쪽`,
+        action: "원인 확인",
         href: `/company/${c.label}`,
         hrefBase: "/company/",
         hrefQuery: c.label,
@@ -1110,8 +1163,12 @@ export default async function Home({
     if (drop > -10) continue;
     alerts.push({
       sev: drop < -20 ? "crit" : "warn",
-      title: `${b.key} 건당 공헌이익 ${drop.toFixed(0)}%`,
-      detail: `전월 ${Math.round(b.cpuPrev).toLocaleString("ko-KR")}원 → ${Math.round(b.cpu).toLocaleString("ko-KR")}원 · 거래 ${b.cnt.toLocaleString("ko-KR")}건`,
+      title: `${b.key} 건당 공헌이익`,
+      curr: manwon(b.cpu),
+      base: `전월 ${manwon(b.cpuPrev)}`,
+      changePct: drop,
+      detail: `${b.note} · 거래 ${b.cnt.toLocaleString("ko-KR")}건`,
+      action: "상세 보기",
       href: `/revenue-analysis?bm=${b.key}`,
       hrefBase: "/revenue-analysis",
       hrefQuery: `?bm=${b.key}`,
@@ -1126,8 +1183,12 @@ export default async function Home({
     .forEach((c) =>
       alerts.push({
         sev: c.margin <= -1000 ? "crit" : "warn",
-        title: `${c.label} 역마진 ${Math.round(c.margin).toLocaleString("ko-KR")}만원`,
-        detail: `${c.count.toLocaleString("ko-KR")}건 · 건당 ${Math.round(c.cpu).toLocaleString("ko-KR")}원 · 팔면 손해인 구간`,
+        title: `${c.label} 역마진`,
+        curr: `${Math.round(c.cpu).toLocaleString("ko-KR")}원/건`,
+        base: `${c.count.toLocaleString("ko-KR")}건 누적`,
+        changePct: null,
+        detail: `공헌이익 ${Math.round(c.margin).toLocaleString("ko-KR")}만원 — 팔면 손해인 구간`,
+        action: "상세 보기",
         href: `/category/${encodeURIComponent(c.label)}`,
         hrefBase: "/category/",
         hrefQuery: c.label,
@@ -1137,8 +1198,12 @@ export default async function Home({
   if (topNegGroup && topNegGroup.value <= -20) {
     alerts.push({
       sev: "warn",
-      title: `${topNegGroup.key} ${topNegGroup.value.toLocaleString("ko-KR")}건`,
-      detail: `전월 동기간 대비 감소 · 대카테고리 중 낙폭 최대`,
+      title: `${topNegGroup.key} 거래건수`,
+      curr: `${topNegGroup.value.toLocaleString("ko-KR")}건`,
+      base: `대카테고리 중 낙폭 최대`,
+      changePct: null,
+      detail: `전월 동기간 대비 감소분`,
+      action: "원인 확인",
       href: `/category-trends?group=${encodeURIComponent(topNegGroup.key)}`,
       hrefBase: "/category-trends",
       hrefQuery: `?group=${topNegGroup.key}`,
@@ -1148,8 +1213,13 @@ export default async function Home({
   if (certPrev > 0 && certCurr - certPrev <= -1) {
     alerts.push({
       sev: "warn",
-      title: `설치인증률 ${certCurr.toFixed(1)}%`,
-      detail: `전월 동기간 ${certPrev.toFixed(1)}% 대비 ${(certCurr - certPrev).toFixed(1)}%p · 주문확정 ${orderCurr.toLocaleString("ko-KR")}건 중 ${(orderCurr - contractCurr).toLocaleString("ko-KR")}건 미인증`,
+      title: `설치인증률`,
+      curr: `${certCurr.toFixed(1)}%`,
+      base: `전월 ${certPrev.toFixed(1)}%`,
+      changePct: certCurr - certPrev,
+      changeUnit: "%p",
+      detail: `주문확정 ${orderCurr.toLocaleString("ko-KR")}건 중 ${(orderCurr - contractCurr).toLocaleString("ko-KR")}건 미인증`,
+      action: "상세 보기",
       href: "/conversion",
       hrefBase: "/conversion",
     });
@@ -1164,9 +1234,13 @@ export default async function Home({
     .slice(0, 2)
     .forEach(({ c, idx }) =>
       checks.push({
-        sev: "info",
-        title: `${c.label} 거래건수가 평소의 ${idx.toFixed(0)}% 수준`,
-        detail: `${c.curr.toLocaleString("ko-KR")}건 · 평소 페이스 ${Math.round(c.pace).toLocaleString("ko-KR")}건 · 이 달 성장의 출처`,
+        sev: "good",
+        title: `${c.label} 거래건수`,
+        curr: `${c.curr.toLocaleString("ko-KR")}건`,
+        base: `평소 ${Math.round(c.pace).toLocaleString("ko-KR")}건`,
+        changePct: idx - 100,
+        detail: `이 달 성장의 출처`,
+        action: "상세 보기",
         href: `/company/${c.label}`,
         hrefBase: "/company/",
         hrefQuery: c.label,
@@ -1175,9 +1249,16 @@ export default async function Home({
 
   if (topPosGroup && topPosGroup.value >= 20) {
     checks.push({
-      sev: "info",
-      title: `${topPosGroup.key} +${topPosGroup.value.toLocaleString("ko-KR")}건`,
-      detail: `대카테고리 중 증가폭 최대 · ${netDelta > 0 ? `이번 달 순증의 ${shareOfNet(topPosGroup.value).toFixed(0)}%가 여기서 나왔습니다` : "이 달 성장의 주요 출처"}`,
+      sev: "good",
+      title: `${topPosGroup.key} 거래건수`,
+      curr: `+${topPosGroup.value.toLocaleString("ko-KR")}건`,
+      base: `대카테고리 중 증가폭 최대`,
+      changePct: null,
+      detail:
+        netDelta > 0
+          ? `이번 달 순증의 ${shareOfNet(topPosGroup.value).toFixed(0)}%가 여기서 나왔습니다`
+          : `이 달 성장의 주요 출처`,
+      action: "상세 보기",
       href: `/category-trends?group=${encodeURIComponent(topPosGroup.key)}`,
       hrefBase: "/category-trends",
       hrefQuery: `?group=${topPosGroup.key}`,
@@ -1192,8 +1273,13 @@ export default async function Home({
     if (Math.abs(diff) < 3) continue;
     checks.push({
       sev: "info",
-      title: `${b.key} 계약 비중 ${diff > 0 ? "+" : ""}${diff.toFixed(1)}%p`,
-      detail: `전월 동기간 ${sharePrev.toFixed(1)}% → ${shareCurr.toFixed(1)}% · 건당 공헌이익 ${Math.round(b.cpu).toLocaleString("ko-KR")}원 채널`,
+      title: `${b.key} 계약 비중`,
+      curr: `${shareCurr.toFixed(1)}%`,
+      base: `전월 ${sharePrev.toFixed(1)}%`,
+      changePct: diff,
+      changeUnit: "%p",
+      detail: `건당 공헌이익 ${manwon(b.cpu)} 채널 — 믹스가 이쪽으로 ${diff > 0 ? "옮겨갔다" : "빠졌다"}`,
+      action: "상세 보기",
       href: `/revenue-analysis?bm=${b.key}`,
       hrefBase: "/revenue-analysis",
       hrefQuery: `?bm=${b.key}`,
@@ -1208,16 +1294,22 @@ export default async function Home({
     .slice(0, 2)
     .forEach(({ c, chg }) =>
       checks.push({
-        sev: "info",
-        title: `${c.label} 매출 +${chg.toFixed(0)}%`,
-        detail: `전월 동기간 ${c.salesPrev.toFixed(2)}억 → ${c.sales.toFixed(2)}억 · 건당 공헌이익 ${Math.round(c.cpu).toLocaleString("ko-KR")}원`,
+        sev: "good",
+        title: `${c.label} 매출`,
+        curr: `${c.sales.toFixed(2)}억`,
+        base: `전월 ${c.salesPrev.toFixed(2)}억`,
+        changePct: chg,
+        detail: `건당 공헌이익 ${manwon(c.cpu)}`,
+        action: "상세 보기",
         href: `/company/${c.label}`,
         hrefBase: "/company/",
         hrefQuery: c.label,
       }),
     );
-
   alerts.sort((a, b) => (a.sev === b.sev ? 0 : a.sev === "crit" ? -1 : 1));
+  // 확인 필요 안에서는 "원인을 알아야 하는 것"(info)을 먼저,
+  // "잘 되고 있는 것"(good)을 뒤에 둔다 — 할 일이 있는 쪽이 위다.
+  checks.sort((a, b) => (a.sev === b.sev ? 0 : a.sev === "info" ? -1 : 1));
   const topAlerts = alerts.slice(0, 6);
   const topChecks = checks.slice(0, 5);
 
@@ -1225,10 +1317,8 @@ export default async function Home({
   const cntChange = pct(contractCurr, contractPrev) ?? 0;
   const amtChange = pct(amountCurr, amountPrev) ?? 0;
   const salesChange = pct(salesCurr, salesPrev) ?? 0;
-  const marginChange = pctAbs(marginCurr, marginPrev);
   /** 증감 서술어 — 부호를 문장 밖으로 빼서 "-15% 증가" 같은 말이 안 나오게 한다 */
   const dirWord = (v: number) => (v > 0 ? "증가" : v < 0 ? "감소" : "보합");
-  const abs1 = (v: number) => Math.abs(v).toFixed(1);
   const abs0 = (v: number) => Math.abs(v).toFixed(0);
   const movers = visibleCards
     .filter((c) => c.prev >= 20)
@@ -1237,9 +1327,43 @@ export default async function Home({
   const topUp = movers[0];
   const topDown = movers[movers.length - 1];
 
-  // 성장했는데 이익이 못 따라온 달인지 — 상단에서 먼저 말해야 하는 문장
-  const marginLagging =
-    marginChange !== null && cntChange > 1.5 && marginChange < -1.5;
+  // ── 한 문장 판정 ──────────────────────────────────────
+  //  "이번 달이 좋은 달인가, 무엇을 주의해야 하는가"를 먼저 말한다.
+  //  정확한 숫자는 바로 아래 KPI 타일이 맡으므로 여기서는 크기만 말한다 —
+  //  같은 수치를 문장과 타일에 두 번 적으면 읽는 사람이 두 번 읽는다.
+  const cpuChange = pctAbs(cpuCurr, cpuPrev) ?? 0;
+  const FLAT = 1.5;
+  const sizeWord = (v: number) =>
+    Math.abs(v) >= 20 ? "크게 " : Math.abs(v) < 5 ? "소폭 " : "";
+  const flatOf = (v: number) => Math.abs(v) < FLAT;
+  /** 성장 축(계약·매출)이 한 방향으로 같이 움직였나 — 문장을 합칠지 가른다 */
+  const growTogether =
+    cntChange * salesChange > 0 && !flatOf(cntChange) && !flatOf(salesChange);
+  const growAvg = (cntChange + salesChange) / 2;
+  /** 성장 축과 수익성 축이 엇갈리는 달인지 — 이 달의 사건은 대개 그 엇갈림이다 */
+  const axesSplit = growAvg * cpuChange < 0 && !flatOf(cpuChange);
+  const verdict = flatOf(cpuChange)
+    ? growAvg > FLAT
+      ? "성장한 만큼 수익성도 유지된 달입니다."
+      : growAvg < -FLAT
+        ? "물량이 줄었지만 남는 폭은 지켰습니다."
+        : "전월 동기간과 큰 차이가 없는 달입니다."
+    : growAvg > FLAT && cpuChange < 0
+      ? "수익성 개선은 제한적입니다."
+      : growAvg > FLAT && cpuChange > 0
+        ? "성장과 수익성이 함께 좋아진 달입니다."
+        : growAvg < -FLAT && cpuChange < 0
+          ? "물량과 수익성이 함께 빠진 달입니다."
+          : "물량은 줄었지만 남는 장사는 나아졌습니다.";
+
+  // ── ④ BM 분해 결론 ───────────────────────────────────
+  //  Δ = BM 내부 변화 + BM 믹스 이동. 두 항 중 어느 쪽이 이 달을 끌었는지를
+  //  한 문장으로 못 박는다 — 숫자 두 개만 나열하면 결론은 읽는 사람 몫이 된다.
+  const withinLed = Math.abs(withinEffect) >= Math.abs(mixEffect);
+  const cpuMoveWord = cpuDelta > 1 ? "개선" : cpuDelta < -1 ? "악화" : "변화";
+  const cpuConclusion = withinLed
+    ? `이번 수익성 ${cpuMoveWord}의 주된 원인은 BM 믹스 이동이 아니라 각 BM 안의 수익성 변화입니다.`
+    : `이번 수익성 ${cpuMoveWord}의 주된 원인은 각 BM 안의 수익성이 아니라 BM 간 거래 비중 이동입니다.`;
 
   const panel =
     "rounded-[12px] border border-[var(--color-gray-200)] bg-white shadow-[0_1px_2px_rgba(28,35,56,.04),0_2px_8px_rgba(28,35,56,.05)]";
@@ -1257,113 +1381,92 @@ export default async function Home({
             <span className={sectionNo}>①</span>
             이번 달 한눈에 보기
           </h2>
-          <span className="text-[12px] text-[var(--color-gray-500)]">
-            {month}월 1–{dayCut}일 누계 · 전월 동기간 대비
-          </span>
         </div>
 
         <div className={`${panel} overflow-hidden`}>
-          {/* 한 줄 요약 — 숫자·강조 스타일은 그대로, 문장만 짧게 끊는다 */}
+          {/* 한 문장 판정 — 기준 구간은 헤더 배지가 상시 말하므로 다시 적지 않는다 */}
           <div className="p-[16px_22px_15px]">
             <div className="mb-[9px] text-[11px] font-bold uppercase tracking-[.06em] text-[var(--color-gray-400)]">
               {month}월 한 줄 요약
             </div>
             {/* 리드 문장 — DESIGN.md 스케일의 20/28/600 */}
             <p className="text-[20px] font-semibold leading-[28px] tracking-[-.4px] text-balance">
-              계약완료는{" "}
-              {Math.abs(cntChange) < 1.5 ? (
-                <span style={{ color: dirColor(cntChange) }}>
-                  전월 동기간과 거의 같습니다.
-                </span>
+              {growTogether ? (
+                <>
+                  계약·매출은{" "}
+                  <span style={{ color: dirColor(growAvg) }}>
+                    {sizeWord(growAvg)}
+                    {dirWord(growAvg)}
+                  </span>
+                  했
+                </>
               ) : (
                 <>
+                  계약완료는{" "}
                   <span style={{ color: dirColor(cntChange) }}>
-                    {abs1(cntChange)}% {dirWord(cntChange)}
+                    {flatOf(cntChange)
+                      ? "전월 수준"
+                      : `${sizeWord(cntChange)}${dirWord(cntChange)}`}
                   </span>
-                  했습니다.
+                  , 매출은{" "}
+                  <span style={{ color: dirColor(salesChange) }}>
+                    {flatOf(salesChange)
+                      ? "전월 수준"
+                      : `${sizeWord(salesChange)}${dirWord(salesChange)}`}
+                  </span>
+                  이
                 </>
               )}
-              {topUp && topDown && topUp.label !== topDown.label && (
-                <>
-                  {" "}
-                  <span style={{ color: dirColor(topUp.chg) }}>
-                    {topUp.label}
-                    {particle(topUp.label, "이", "가")} {abs0(topUp.chg)}%{" "}
-                    {dirWord(topUp.chg)}
-                  </span>
-                  {topUp.chg * topDown.chg < 0 ? "한 반면, " : "하고, "}
-                  <span style={{ color: dirColor(topDown.chg) }}>
-                    {topDown.label}
-                    {particle(topDown.label, "은", "는")} {abs0(topDown.chg)}%{" "}
-                    {dirWord(topDown.chg)}
-                  </span>
-                  해 브랜드별 성과 차이가 나타났습니다.
-                </>
-              )}
-            </p>
-
-            {/* 한 문장 = 한 줄. 숫자와 서술어가 줄바꿈으로 갈라지지 않게 measure를 넉넉히 준다 */}
-            {/* 거래액·매출은 한 문장에 붙여 대조한다 — 물량과 단가가 엇갈리는
-                달에는 그 엇갈림 자체가 이 달의 사건이다 */}
-            <p className="mt-2.5 max-w-[70ch] text-[12px] leading-[1.65] text-[var(--color-gray-600)]">
-              거래액은 {abs1(amtChange)}% {dirWord(amtChange)}
-              {amtChange * salesChange < 0 ? "했지만, " : "했고, "}매출은{" "}
-              {abs1(salesChange)}% {dirWord(salesChange)}했습니다.
-            </p>
-
-            <p className="mt-1.5 max-w-[70ch] text-[12px] leading-[1.65] text-[var(--color-gray-600)]">
+              {axesSplit ? "지만, " : "고, "}
               건당 공헌이익은{" "}
-              {Math.round(cpuCurr).toLocaleString("ko-KR")}원으로{" "}
-              {Math.abs(Math.round(cpuDelta)).toLocaleString("ko-KR")}원{" "}
-              {dirWord(cpuDelta)}했습니다.
+              <span style={{ color: dirColor(cpuChange) }}>
+                {flatOf(cpuChange)
+                  ? "전월 수준을 지켜"
+                  : `${sizeWord(cpuChange)}${dirWord(cpuChange)}해`}
+              </span>{" "}
+              {verdict}
             </p>
 
-            {salesChange > 0 && cpuDelta < 0 && (
-              <p className="mt-1.5 max-w-[70ch] text-[12px] leading-[1.65] text-[var(--color-gray-600)]">
-                매출 성장 대비 이익 개선은 제한적인 달입니다.
+            {/* 브랜드별 성과 차이 — KPI 타일에 없는 정보라 한 줄 더 쓴다 */}
+            {topUp && topDown && topUp.label !== topDown.label && (
+              <p className="mt-2.5 max-w-[76ch] text-[12px] leading-[1.65] text-[var(--color-gray-600)]">
+                <Link
+                  href={`/company/${topUp.label}`}
+                  className="font-bold hover:underline"
+                  style={{ color: dirColor(topUp.chg) }}
+                >
+                  {topUp.label} {topUp.chg > 0 ? "+" : "-"}
+                  {abs0(topUp.chg)}%
+                </Link>
+                <span className="text-[var(--color-gray-400)]"> · </span>
+                <Link
+                  href={`/company/${topDown.label}`}
+                  className="font-bold hover:underline"
+                  style={{ color: dirColor(topDown.chg) }}
+                >
+                  {topDown.label} {topDown.chg > 0 ? "+" : "-"}
+                  {abs0(topDown.chg)}%
+                </Link>
+                <span className="ml-1">
+                  {topUp.chg * topDown.chg < 0
+                    ? "— 브랜드별로 방향이 갈렸습니다."
+                    : "— 같은 방향 안에서도 브랜드 간 편차가 큽니다."}
+                </span>
               </p>
             )}
-
-            <p className="mt-1.5 max-w-[70ch] text-[12px] leading-[1.65] text-[var(--color-gray-600)]">
-              설치인증률은 {certCurr.toFixed(1)}%
-              {certPrev <= 0
-                ? "입니다."
-                : Math.abs(certCurr - certPrev) < 0.05
-                  ? "로, 전월 동기간과 같습니다."
-                  : `로, 전월 동기간 대비 ${abs1(certCurr - certPrev)}%p ${
-                      certCurr - certPrev > 0 ? "상승" : "하락"
-                    }했습니다.`}
-            </p>
           </div>
 
-          {/* 매출은 늘었는데 이익이 못 따라온 달이면 먼저 말한다 */}
-          {marginLagging && (
-            <p
-              className="flex items-start gap-2 border-t border-[var(--color-gray-200)] px-[22px] py-[11px] text-[12px] leading-[1.6] font-semibold"
-              style={{
-                color: "var(--color-sev-warn)",
-                background: "var(--color-sev-warn-100)",
-              }}
-            >
-              <span aria-hidden>⚠</span>
-              <span>
-                계약은 {cntChange > 0 ? "+" : ""}
-                {cntChange.toFixed(1)}% 증가했지만 공헌이익은{" "}
-                {marginChange!.toFixed(1)}% 감소했습니다 — 이번 달은 &ldquo;매출이
-                잘 나온 달&rdquo;이 아니라 &ldquo;성장한 만큼 벌지 못한
-                달&rdquo;입니다.
-              </span>
-            </p>
-          )}
 
-          {/* KPI 4타일 — 거래액·매출에서 끝내지 않고 공헌이익까지 세운다 */}
+          {/* KPI 4타일 — 거래액·매출에서 끝내지 않고 공헌이익까지 세운다.
+              한 타일 = 지금 값 · 전월 동기간 값 · 증감률 · 12개월 추이 */}
           <dl className="grid grid-cols-2 gap-px border-t border-[var(--color-gray-200)] bg-[var(--color-line-2)] lg:grid-cols-4">
             {[
               {
                 label: "계약완료",
                 value: contractCurr.toLocaleString("ko-KR"),
                 unit: "건",
-                delta: pct(contractCurr, contractPrev),
+                prev: `${contractPrev.toLocaleString("ko-KR")}건`,
+                delta: cntChange,
                 deltaUnit: "%",
                 spark: contractSpark,
                 href: "/revenue-analysis",
@@ -1373,7 +1476,8 @@ export default async function Home({
                 label: "거래액",
                 value: amountCurr.toFixed(1),
                 unit: "억",
-                delta: pct(amountCurr, amountPrev),
+                prev: `${amountPrev.toFixed(1)}억`,
+                delta: amtChange,
                 deltaUnit: "%",
                 spark: amountSpark,
                 href: "/revenue-analysis",
@@ -1383,17 +1487,27 @@ export default async function Home({
                 label: "매출",
                 value: salesCurr.toFixed(1),
                 unit: "억",
-                delta: pct(salesCurr, salesPrev),
+                prev: `${salesPrev.toFixed(1)}억`,
+                delta: salesChange,
                 deltaUnit: "%",
                 spark: salesSpark,
                 href: "/revenue-analysis",
                 negative: false,
               },
               {
+                // 홈에서는 110,418원이 아니라 11.0만원으로 접는다 —
+                // 관제 화면에서 먼저 읽혀야 하는 건 자릿수가 아니라 크기다.
                 label: "건당 공헌이익",
-                value: Math.round(cpuCurr).toLocaleString("ko-KR"),
-                unit: "원",
-                delta: pctAbs(cpuCurr, cpuPrev),
+                value:
+                  Math.abs(cpuCurr) >= 10000
+                    ? (cpuCurr / 10000).toLocaleString("ko-KR", {
+                        minimumFractionDigits: 1,
+                        maximumFractionDigits: 1,
+                      })
+                    : Math.round(cpuCurr).toLocaleString("ko-KR"),
+                unit: Math.abs(cpuCurr) >= 10000 ? "만원" : "원",
+                prev: `${manwon(cpuPrev)}`,
+                delta: cpuChange,
                 deltaUnit: "%",
                 spark: cpuSpark,
                 href: "/revenue-analysis",
@@ -1404,7 +1518,7 @@ export default async function Home({
               <Link
                 key={k.label}
                 href={k.href}
-                className="bg-white p-[13px_15px_11px] transition-colors hover:bg-[var(--color-gray-25)]"
+                className="group bg-white p-[13px_15px_11px] transition-colors hover:bg-[var(--color-gray-25)]"
               >
                 <dt className="mb-[5px] flex items-center gap-1.5 text-[11px] font-semibold text-[var(--color-gray-500)]">
                   {k.label}
@@ -1419,6 +1533,9 @@ export default async function Home({
                       적자
                     </span>
                   )}
+                  <span className="ml-auto text-[10px] text-[var(--color-gray-250)] opacity-0 transition-opacity group-hover:opacity-100">
+                    ↗
+                  </span>
                 </dt>
                 <div className="flex items-end justify-between gap-2">
                   <div className="num text-[24px] font-bold leading-[28px] tracking-[-.6px]">
@@ -1427,8 +1544,15 @@ export default async function Home({
                       {k.unit}
                     </i>
                   </div>
-                  <div className="text-[12px] font-bold whitespace-nowrap">
-                    <Delta value={k.delta} unit={k.deltaUnit} />
+                  {/* 증감률 위에 비교 대상값을 붙인다 — "몇 %"만 있으면
+                      무엇에서 무엇으로 갔는지가 화면에서 사라진다 */}
+                  <div className="text-right whitespace-nowrap">
+                    <div className="text-[12px] font-bold">
+                      <Delta value={k.delta} unit={k.deltaUnit} />
+                    </div>
+                    <div className="num mt-px text-[10px] text-[var(--color-gray-400)]">
+                      전월 {k.prev}
+                    </div>
                   </div>
                 </div>
                 <div className="mt-[6px]">
@@ -1508,7 +1632,7 @@ export default async function Home({
             이번 달 실적은 왜 변했나
           </h2>
           <span className="text-[12px] text-[var(--color-gray-500)]">
-            지표를 바꿔가며 같은 변화를 건수·거래액·매출·건당 공헌이익 축으로 분해한다
+            전체 변화 → 대카테고리 → 렌탈사 순으로 내려간다
           </span>
         </div>
         <WaterfallPanel metrics={waterfallMetrics} panelClass={panel} />
@@ -1522,8 +1646,8 @@ export default async function Home({
             어디에서 문제가 생겼나
           </h2>
           <span className="text-[12px] text-[var(--color-gray-500)]">
-            판정은 자기 과거 대비 — 최근 3개월 같은 기간(1–{dayCut}일) 평균이
-            기준 · 클릭하면 해당 상세로 이동
+            &ldquo;평소&rdquo; = 최근 3개월 같은 기간(1–{dayCut}일) 평균 · 행을
+            누르면 해당 상세로 이동
           </span>
         </div>
         {/* items-start — 두 패널 높이를 맞추면 짧은 쪽에 빈 공간이 크게 남는다 */}
@@ -1584,12 +1708,78 @@ export default async function Home({
               BM(판매 채널)별 비교
             </h3>
             <span className="text-[11px] text-[var(--color-gray-400)]">
-              건당 공헌이익 {cpuDelta > 0 ? "+" : ""}
-              {Math.round(cpuDelta).toLocaleString("ko-KR")}원이 어디서 왔는지 ·
               행 클릭 시 해당 BM 필터로 이동
             </span>
           </div>
-          <div className="px-[17px] pb-4">
+
+          {/* 이 패널이 답하는 질문을 맨 위에 세운다 — 표를 다 읽고 나서야
+              결론이 나오면, 결론은 표를 끝까지 읽은 사람만 갖게 된다.
+              Δ = BM 내부 변화 + BM 믹스 이동 (두 항의 합은 전체와 정확히 일치) */}
+          <div className="border-y border-[var(--color-line-2)] bg-[var(--color-gray-25)] px-[17px] py-[13px]">
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2">
+              <span className="flex items-baseline gap-[7px] rounded-[8px] border border-[var(--color-primary-100)] bg-[var(--color-primary-50)] px-[11px] py-1.5">
+                <span className="text-[11px] font-semibold text-[var(--color-gray-600)]">
+                  건당 공헌이익 변화
+                </span>
+                <b
+                  className="num text-[15px] font-bold tracking-[-.3px]"
+                  style={{ color: dirColor(cpuDelta, 1) }}
+                >
+                  {cpuDelta > 0 ? "+" : ""}
+                  {manwon(cpuDelta)}
+                </b>
+              </span>
+              <span className="text-[13px] font-bold text-[var(--color-gray-400)]">
+                =
+              </span>
+              {[
+                {
+                  label: "BM 내부 변화",
+                  value: withinEffect,
+                  lead: withinLed,
+                },
+                { label: "BM 믹스 이동", value: mixEffect, lead: !withinLed },
+              ].map((d, i) => (
+                <span key={d.label} className="flex items-center gap-2.5">
+                  {i > 0 && (
+                    <span className="text-[13px] font-bold text-[var(--color-gray-400)]">
+                      +
+                    </span>
+                  )}
+                  {/* 더 크게 끌어당긴 항만 테두리를 세운다 — 어느 쪽이 원인인지
+                      숫자를 비교하기 전에 먼저 보이게 */}
+                  <span
+                    className={`flex items-baseline gap-[7px] rounded-[8px] border bg-white px-[11px] py-1.5 ${
+                      d.lead
+                        ? "border-[var(--color-gray-900)]"
+                        : "border-[var(--color-gray-200)]"
+                    }`}
+                  >
+                    <span className="text-[11px] text-[var(--color-gray-500)]">
+                      {d.label}
+                    </span>
+                    <b
+                      className="num text-[14px] font-bold tracking-[-.3px]"
+                      style={{ color: dirColor(d.value, 1) }}
+                    >
+                      {d.value > 0 ? "+" : ""}
+                      {manwon(d.value)}
+                    </b>
+                    {d.lead && (
+                      <span className="rounded-[4px] bg-[var(--color-gray-900)] px-1.5 py-px text-[10px] font-bold text-white">
+                        주원인
+                      </span>
+                    )}
+                  </span>
+                </span>
+              ))}
+            </div>
+            <p className="mt-2.5 text-[12px] leading-[1.6] font-semibold text-[var(--color-gray-700)]">
+              → {cpuConclusion}
+            </p>
+          </div>
+
+          <div className="px-[17px] pt-4 pb-4">
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,.72fr)_minmax(0,1.48fr)]">
               <div>
                 <div className="mb-0.5 text-[12px] font-bold text-[var(--color-gray-600)]">
@@ -1734,7 +1924,7 @@ export default async function Home({
                             </td>
                             <td className="p-[8px_7px] pr-0 text-right">
                               <div className="num text-[12px] font-bold tracking-[-.2px]">
-                                {Math.round(b.cpu).toLocaleString("ko-KR")}원
+                                {manwon(b.cpu)}
                               </div>
                               <div className="mt-px text-[10px] font-bold">
                                 <Delta value={pctAbs(b.cpu, b.cpuPrev)} />
@@ -1748,53 +1938,6 @@ export default async function Home({
                 </div>
               </div>
             </div>
-
-            {/* 이익률 변화 분해 — "저이익 채널이 커져서"인지 "각 채널 안에서 빠졌는지" */}
-            <div className="mt-4 flex flex-wrap items-center gap-2.5 border-t border-[var(--color-line-2)] pt-[13px]">
-              <span className="mr-0.5 text-[12px] font-bold text-[var(--color-gray-600)]">
-                건당 공헌이익 {cpuDelta > 0 ? "+" : ""}
-                {Math.round(cpuDelta).toLocaleString("ko-KR")}원 분해
-              </span>
-              {[
-                { label: "BM 내부 변화", value: withinEffect },
-                { label: "BM 믹스 이동", value: mixEffect },
-              ].map((d, i) => (
-                <span key={d.label} className="flex items-center gap-2.5">
-                  {i > 0 && (
-                    <span className="text-[12px] font-bold text-[var(--color-gray-400)]">
-                      +
-                    </span>
-                  )}
-                  <span className="flex items-baseline gap-[7px] rounded-[8px] border border-[var(--color-gray-200)] bg-[var(--color-gray-25)] px-[11px] py-1.5">
-                    <span className="text-[11px] text-[var(--color-gray-500)]">
-                      {d.label}
-                    </span>
-                    <b
-                      className="num text-[14px] font-bold tracking-[-.3px]"
-                      style={{ color: dirColor(d.value, 1) }}
-                    >
-                      {d.value > 0 ? "+" : ""}
-                      {Math.round(d.value).toLocaleString("ko-KR")}원
-                    </b>
-                  </span>
-                </span>
-              ))}
-              <span className="text-[12px] font-bold text-[var(--color-gray-400)]">
-                =
-              </span>
-              <span className="flex items-baseline gap-[7px] rounded-[8px] border border-[var(--color-primary-100)] bg-[var(--color-primary-50)] px-[11px] py-1.5">
-                <span className="text-[11px] text-[var(--color-gray-500)]">
-                  전체
-                </span>
-                <b
-                  className="num text-[14px] font-bold tracking-[-.3px]"
-                  style={{ color: dirColor(cpuDelta, 1) }}
-                >
-                  {cpuDelta > 0 ? "+" : ""}
-                  {Math.round(cpuDelta).toLocaleString("ko-KR")}원
-                </b>
-              </span>
-            </div>
           </div>
         </div>
 
@@ -1805,8 +1948,7 @@ export default async function Home({
               렌탈사 요약
             </h3>
             <span className="text-[12px] text-[var(--color-gray-500)]">
-              판정은 자기 과거 대비 — 최근 3개월 같은 기간(1–{dayCut}일) 평균이
-              기준
+              평소 페이스(최근 3개월 같은 기간 평균) 대비
             </span>
           </div>
           <CompanyCards companies={visibleCards} groups={cardGroups} />
@@ -1829,7 +1971,7 @@ export default async function Home({
       {/* ═══ 원본 격자는 버리지 않고 접는다 ═══════════════ */}
       <details className={`${panel} group overflow-hidden`}>
         <summary className="flex cursor-pointer list-none select-none items-center gap-[9px] p-[14px_18px] text-[14px] font-bold tracking-[-.2px] [&::-webkit-details-marker]:hidden">
-          <span className="inline-block text-[11px] text-[var(--color-gray-400)] transition-transform group-open:rotate-90">
+          <span className="inline-block text-[11px] text-[var(--color-gray-400)] transition-transform duration-150 ease-[var(--ease-out)] group-open:rotate-90">
             ▸
           </span>
           상세 데이터

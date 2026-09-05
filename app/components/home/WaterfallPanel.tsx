@@ -37,6 +37,86 @@ function signed(n: number, decimals: number) {
 }
 
 /**
+ * 최대 증가·감소 요인 한 장.
+ *
+ * 방향색(빨강=증가, 파랑=감소)은 변화량에만 쓴다 — 여기 값은 순수한 변화량이라
+ * 규칙 그대로다. 다만 색만으로 뜻을 전하지 않도록 "끌어올린/끌어내린"이라는
+ * 역할 라벨을 항상 붙인다.
+ */
+function TopDriver({
+  role,
+  label,
+  value,
+  unit,
+  positive,
+  share,
+  href,
+}: {
+  role: string;
+  label: string;
+  value: string;
+  unit: string;
+  positive: boolean;
+  share: number | null;
+  href?: string;
+}) {
+  const color = positive ? "var(--color-up)" : "var(--color-down)";
+  const body = (
+    <>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-[10px] font-bold tracking-[.04em] text-[var(--color-gray-500)]">
+          {role}
+        </span>
+        {/* 증가·감소가 서로 상쇄하면 한 곳의 기여가 순변화를 넘는다.
+            그때 "변화폭의 340%"는 뜻이 없으므로 말을 바꾼다. */}
+        {share !== null && (
+          <span className="num text-[10px] text-[var(--color-gray-400)]">
+            {share > 100
+              ? "합계 변화보다 큼"
+              : `합계 변화의 ${share.toFixed(0)}%`}
+          </span>
+        )}
+      </div>
+      <div className="mt-[5px] flex items-baseline justify-between gap-2">
+        <b className="truncate text-[15px] font-bold tracking-[-.3px] group-hover:text-[var(--color-primary)]">
+          {label}
+        </b>
+        <b
+          className="num flex-none text-[15px] font-bold tracking-[-.3px]"
+          style={{ color }}
+        >
+          {value}
+          <i className="ml-px text-[11px] font-semibold not-italic tracking-normal opacity-70">
+            {unit}
+          </i>
+        </b>
+      </div>
+      {href && (
+        <div className="mt-[5px] flex items-center gap-1 font-mono text-[10px] text-[var(--color-gray-400)] group-hover:text-[var(--color-primary)]">
+          <span>{decodeURIComponent(href)}</span>
+          <span aria-hidden>↗</span>
+        </div>
+      )}
+    </>
+  );
+  const shell =
+    "group block rounded-[8px] border-l-[3px] border border-[var(--color-gray-200)] bg-white px-[13px] py-[10px]";
+  return href ? (
+    <Link
+      href={href}
+      className={`${shell} transition-colors duration-[var(--dur-hover)] ease-[var(--ease-out)] hover:border-[var(--color-primary-500)] hover:bg-[var(--color-primary-50)]`}
+      style={{ borderLeftColor: color }}
+    >
+      {body}
+    </Link>
+  ) : (
+    <div className={shell} style={{ borderLeftColor: color }}>
+      {body}
+    </div>
+  );
+}
+
+/**
  * "이번 달 실적은 왜 변했나" — 전월 동기간 → 이번 달을 분해한다.
  *
  * 지표를 건수 하나로 끝내지 않는 이유: 건수 +66%인데 매출 +56%면 건당 매출이
@@ -77,10 +157,10 @@ export default function WaterfallPanel({
     <div className={panelClass}>
       <div className="flex flex-wrap items-baseline justify-between gap-2.5 p-[14px_17px_11px]">
         <h3 className="text-[14px] font-bold tracking-[-.2px]">
-          이번 달 실적은 왜 변했나
+          변화 분해
         </h3>
         <span className="text-[11px] text-[var(--color-gray-400)]">
-          전월 동기간 → 이번 달 · 막대 클릭 시 상세 페이지
+          전월 동기간 → 이번 달 · 막대·행을 누르면 상세 페이지
         </span>
       </div>
 
@@ -99,7 +179,7 @@ export default function WaterfallPanel({
               role="tab"
               aria-selected={on}
               onClick={() => setActive(i)}
-              className={`flex items-baseline gap-[7px] rounded-[8px] border px-[11px] py-[7px] text-left transition-colors duration-[120ms] ${
+              className={`press flex items-baseline gap-[7px] rounded-[8px] border px-[11px] py-[7px] text-left transition-colors duration-[var(--dur-hover)] ease-[var(--ease-out)] ${
                 on
                   ? "border-[var(--color-primary)] bg-[var(--color-primary-50)]"
                   : "border-[var(--color-gray-200)] bg-white hover:border-[var(--color-gray-400)]"
@@ -132,55 +212,58 @@ export default function WaterfallPanel({
         })}
       </div>
 
+      {/* 가장 큰 원인을 먼저 세운다 — 워터폴은 "얼마나 많은 곳이 움직였나"에는
+          답하지만 "그래서 어디냐"에는 스스로 답하지 않는다. 막대 열두 개를
+          눈으로 재게 두지 않고, 최대 증가·최대 감소를 뽑아 앞에 놓는다. */}
+      {(topPos || topNeg) && (
+        <div className="grid grid-cols-1 gap-2.5 px-[17px] pb-3 sm:grid-cols-2">
+          {[
+            { role: "가장 크게 끌어내린 곳", it: topNeg },
+            { role: "가장 크게 끌어올린 곳", it: topPos },
+          ].map(({ role, it }) =>
+            !it ? null : (
+              <TopDriver
+                key={role}
+                role={role}
+                label={it.label}
+                value={signed(it.value, m.decimals)}
+                unit={m.unit}
+                positive={it.value > 0}
+                share={net !== 0 ? Math.abs(it.value / net) * 100 : null}
+                href={it.href}
+              />
+            ),
+          )}
+        </div>
+      )}
+
       {/* 2단은 2xl(1536px) 부터 — 그 아래에서 2단으로 쪼개면 워터폴 칼럼이 좁아지고
           비율이 고정된 SVG 높이가 같이 줄어 옆 목록과 높이가 크게 벌어진다.
           단일 컬럼에서는 워터폴이 폭을 다 쓰므로 공백이 생기지 않는다. */}
       <div className="grid grid-cols-1 items-start gap-6 px-[17px] pb-4 2xl:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
         <div>
-          <div className="mb-1 text-[11px] text-[var(--color-gray-400)]">
-            {m.label} · 대카테고리 기여도 · 단위 {m.unit}
+          <div className="mb-1 flex flex-wrap items-baseline gap-1.5 text-[11px] text-[var(--color-gray-400)]">
+            <b className="rounded-[4px] bg-[var(--color-gray-100)] px-1.5 py-px text-[10px] font-bold text-[var(--color-gray-500)]">
+              1단계 · 대카테고리
+            </b>
+            {m.label} 기여도 · 단위 {m.unit}
           </div>
           <Waterfall items={m.items} decimals={m.decimals} unit={m.unit} />
-          {(topPos || topNeg) && (
-            <p className="mt-3 rounded-r-[6px] border-l-2 border-[var(--color-primary)] bg-[var(--color-primary-50)] px-[11px] py-[7px] text-[12px] leading-[1.6] text-[var(--color-primary-700)]">
-              합계{" "}
-              <b>
-                {signed(net, m.decimals)}
-                {m.unit}
-              </b>{" "}
-              안에 가려진 것 —{" "}
-              {topPos && (
-                <>
-                  최대 증가{" "}
-                  <b>
-                    {topPos.label} {signed(topPos.value, m.decimals)}
-                    {m.unit}
-                  </b>
-                  {topNeg && ", "}
-                </>
-              )}
-              {topNeg && (
-                <>
-                  최대 감소{" "}
-                  <b>
-                    {topNeg.label} {signed(topNeg.value, m.decimals)}
-                    {m.unit}
-                  </b>
-                </>
-              )}
-              . 합계만 보면 읽어낼 수 없는 부분입니다.
-            </p>
-          )}
         </div>
 
         {/* 렌탈사 기여 — 카테고리 축으로 답한 변화를 렌탈사 축으로 한 번 더 답한다 */}
         <div>
-          <div className="mb-0.5 text-[12px] font-bold text-[var(--color-gray-600)]">
-            어느 렌탈사에서 왔나
+          <div className="mb-0.5 flex flex-wrap items-baseline gap-1.5">
+            <b className="rounded-[4px] bg-[var(--color-gray-100)] px-1.5 py-px text-[10px] font-bold text-[var(--color-gray-500)]">
+              2단계 · 렌탈사
+            </b>
+            <span className="text-[12px] font-bold text-[var(--color-gray-600)]">
+              어느 렌탈사에서 왔나
+            </span>
           </div>
           <div className="mb-2.5 text-[11px] text-[var(--color-gray-400)]">
-            {m.label} 증감 기여 · 전월 동기간 대비 · 단위 {m.unit} · 증가·감소
-            각 상위 {MOVER_LIMIT}곳
+            증가·감소 각 상위 {MOVER_LIMIT}곳 · 단위 {m.unit} · 상품 단위까지는
+            렌탈사 상세에서 이어진다
           </div>
 
           {ups.length === 0 && downs.length === 0 ? (
@@ -215,10 +298,20 @@ export default function WaterfallPanel({
                               />
                             </span>
                             <b
-                              className="num text-[12px] font-bold whitespace-nowrap tracking-[-.2px]"
+                              className="num flex items-baseline gap-1 text-[12px] font-bold whitespace-nowrap tracking-[-.2px]"
                               style={{ color: blk.color }}
                             >
                               {signed(r.value, m.decimals)}
+                              <i
+                                aria-hidden
+                                className={`text-[10px] not-italic ${
+                                  r.href
+                                    ? "text-[var(--color-gray-250)] group-hover:text-[var(--color-primary)]"
+                                    : "invisible"
+                                }`}
+                              >
+                                ↗
+                              </i>
                             </b>
                           </>
                         );

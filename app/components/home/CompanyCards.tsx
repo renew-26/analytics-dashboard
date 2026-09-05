@@ -15,6 +15,7 @@ import {
   judgePace,
   paceColor,
   paceFraction,
+  manwon,
   stateStyle,
 } from "./cardKit";
 
@@ -220,7 +221,7 @@ export default function CompanyCards({
                     { k: "매출", v: `${c.sales.toFixed(1)}억` },
                     {
                       k: "건당 공헌이익",
-                      v: `${Math.round(c.cpu).toLocaleString("ko-KR")}원`,
+                      v: manwon(c.cpu),
                     },
                   ].map((m, i) => (
                     <div

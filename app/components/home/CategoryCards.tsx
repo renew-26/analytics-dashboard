@@ -14,6 +14,7 @@ import {
   judgePace,
   paceColor,
   paceFraction,
+  manwon,
   stateStyle,
 } from "./cardKit";
 
@@ -304,7 +305,7 @@ export default function CategoryCards({
                     { k: "거래액", v: moneyText(c.amount) },
                     {
                       k: "건당 공헌이익",
-                      v: `${Math.round(c.cpu).toLocaleString("ko-KR")}원`,
+                      v: manwon(c.cpu),
                     },
                   ].map((m, i) => (
                     <div
