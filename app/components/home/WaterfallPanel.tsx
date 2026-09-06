@@ -160,7 +160,7 @@ export default function WaterfallPanel({
           변화 분해
         </h3>
         <span className="text-[11px] text-[var(--color-gray-400)]">
-          전월 동기간 → 이번 달 · 막대·행을 누르면 상세 페이지
+          전월 동기간 → 이번 달 · 막대·행을 누르면 상세로 이동
         </span>
       </div>
 
@@ -262,8 +262,8 @@ export default function WaterfallPanel({
             </span>
           </div>
           <div className="mb-2.5 text-[11px] text-[var(--color-gray-400)]">
-            증가·감소 각 상위 {MOVER_LIMIT}곳 · 단위 {m.unit} · 상품 단위까지는
-            렌탈사 상세에서 이어진다
+            증가·감소 각 상위 {MOVER_LIMIT}곳 · 단위 {m.unit} · 상품 단위는
+            렌탈사 상세에서 확인
           </div>
 
           {ups.length === 0 && downs.length === 0 ? (

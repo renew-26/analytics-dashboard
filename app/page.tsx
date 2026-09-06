@@ -305,7 +305,7 @@ type Alert = {
   title: string;
   /** 지금 값 */
   curr: string;
-  /** 비교 기준값 — "평소 11건" / "전월 8.2억" 처럼 기준 이름을 붙여 쓴다 */
+  /** 비교 기준값 — "평소 11건" / "전월 동기간 8.2억" 처럼 기준 이름을 붙여 쓴다 */
   base: string;
   /** 기준 대비 변화율. %p 지표는 changeUnit으로 구분한다 */
   changePct: number | null;
@@ -1053,7 +1053,7 @@ export default async function Home({
         sev: chg <= -40 ? "crit" : "warn",
         title: `${c.label} 매출`,
         curr: `${c.sales.toFixed(2)}억`,
-        base: `전월 ${c.salesPrev.toFixed(2)}억`,
+        base: `전월 동기간 ${c.salesPrev.toFixed(2)}억`,
         changePct: chg,
         detail: `거래건수는 ${c.prev.toLocaleString("ko-KR")}→${c.curr.toLocaleString("ko-KR")}건 — 물량보다 단가 쪽`,
         action: "원인 확인",
@@ -1072,7 +1072,7 @@ export default async function Home({
       sev: drop < -20 ? "crit" : "warn",
       title: `${b.key} 건당 공헌이익`,
       curr: manwon(b.cpu),
-      base: `전월 ${manwon(b.cpuPrev)}`,
+      base: `전월 동기간 ${manwon(b.cpuPrev)}`,
       changePct: drop,
       detail: `${b.note} · 거래 ${b.cnt.toLocaleString("ko-KR")}건`,
       action: "상세 보기",
@@ -1122,7 +1122,7 @@ export default async function Home({
       sev: "warn",
       title: `설치인증률`,
       curr: `${certCurr.toFixed(1)}%`,
-      base: `전월 ${certPrev.toFixed(1)}%`,
+      base: `전월 동기간 ${certPrev.toFixed(1)}%`,
       changePct: certCurr - certPrev,
       changeUnit: "%p",
       detail: `주문확정 ${orderCurr.toLocaleString("ko-KR")}건 중 ${(orderCurr - contractCurr).toLocaleString("ko-KR")}건 미인증`,
@@ -1146,7 +1146,7 @@ export default async function Home({
         curr: `${c.curr.toLocaleString("ko-KR")}건`,
         base: `평소 ${Math.round(c.pace).toLocaleString("ko-KR")}건`,
         changePct: idx - 100,
-        detail: `이 달 성장의 출처`,
+        detail: `이번 달 성장 기여`,
         action: "상세 보기",
         href: `/company/${c.label}`,
         hrefBase: "/company/",
@@ -1163,8 +1163,8 @@ export default async function Home({
       changePct: null,
       detail:
         netDelta > 0
-          ? `이번 달 순증의 ${shareOfNet(topPosGroup.value).toFixed(0)}%가 여기서 나왔습니다`
-          : `이 달 성장의 주요 출처`,
+          ? `이번 달 순증의 ${shareOfNet(topPosGroup.value).toFixed(0)}%를 차지했습니다`
+          : `이번 달 성장의 주요 기여 항목`,
       action: "상세 보기",
       href: groupHref(topPosGroup.key),
       hrefBase: "/categories/",
@@ -1182,10 +1182,10 @@ export default async function Home({
       sev: "info",
       title: `${b.key} 계약 비중`,
       curr: `${shareCurr.toFixed(1)}%`,
-      base: `전월 ${sharePrev.toFixed(1)}%`,
+      base: `전월 동기간 ${sharePrev.toFixed(1)}%`,
       changePct: diff,
       changeUnit: "%p",
-      detail: `건당 공헌이익 ${manwon(b.cpu)} 채널 — 믹스가 이쪽으로 ${diff > 0 ? "옮겨갔다" : "빠졌다"}`,
+      detail: `건당 공헌이익 ${manwon(b.cpu)} 채널 — 믹스가 이쪽으로 ${diff > 0 ? "이동" : "이탈"}`,
       action: "상세 보기",
       href: `/revenue-analysis?bm=${b.key}`,
       hrefBase: "/revenue-analysis",
@@ -1204,7 +1204,7 @@ export default async function Home({
         sev: "good",
         title: `${c.label} 매출`,
         curr: `${c.sales.toFixed(2)}억`,
-        base: `전월 ${c.salesPrev.toFixed(2)}억`,
+        base: `전월 동기간 ${c.salesPrev.toFixed(2)}억`,
         changePct: chg,
         detail: `건당 공헌이익 ${manwon(c.cpu)}`,
         action: "상세 보기",
@@ -1250,17 +1250,17 @@ export default async function Home({
   const axesSplit = growAvg * cpuChange < 0 && !flatOf(cpuChange);
   const verdict = flatOf(cpuChange)
     ? growAvg > FLAT
-      ? "성장한 만큼 수익성도 유지된 달입니다."
+      ? "성장에도 수익성은 유지됐습니다."
       : growAvg < -FLAT
-        ? "물량이 줄었지만 남는 폭은 지켰습니다."
-        : "전월 동기간과 큰 차이가 없는 달입니다."
+        ? "규모는 줄었지만 수익성은 유지됐습니다."
+        : "전월 동기간과 큰 차이가 없습니다."
     : growAvg > FLAT && cpuChange < 0
-      ? "수익성 개선은 제한적입니다."
+      ? "성장했지만 수익성은 낮아졌습니다."
       : growAvg > FLAT && cpuChange > 0
-        ? "성장과 수익성이 함께 좋아진 달입니다."
+        ? "성장과 함께 수익성도 높아졌습니다."
         : growAvg < -FLAT && cpuChange < 0
-          ? "물량과 수익성이 함께 빠진 달입니다."
-          : "물량은 줄었지만 남는 장사는 나아졌습니다.";
+          ? "규모와 수익성이 모두 낮아졌습니다."
+          : "규모는 줄었지만 수익성은 높아졌습니다.";
 
   // ── ④ BM 분해 결론 ───────────────────────────────────
   //  Δ = BM 내부 변화 + BM 믹스 이동. 두 항 중 어느 쪽이 이 달을 끌었는지를
@@ -1268,8 +1268,8 @@ export default async function Home({
   const withinLed = Math.abs(withinEffect) >= Math.abs(mixEffect);
   const cpuMoveWord = cpuDelta > 1 ? "개선" : cpuDelta < -1 ? "악화" : "변화";
   const cpuConclusion = withinLed
-    ? `이번 수익성 ${cpuMoveWord}의 주된 원인은 BM 믹스 이동이 아니라 각 BM 안의 수익성 변화입니다.`
-    : `이번 수익성 ${cpuMoveWord}의 주된 원인은 각 BM 안의 수익성이 아니라 BM 간 거래 비중 이동입니다.`;
+    ? `이번 수익성 ${cpuMoveWord}에는 BM 간 거래 비중 이동보다 각 BM 내 건당 공헌이익 변화가 더 크게 작용했습니다.`
+    : `이번 수익성 ${cpuMoveWord}에는 각 BM 내 건당 공헌이익 변화보다 BM 간 거래 비중 이동이 더 크게 작용했습니다.`;
 
   const panel =
     "rounded-[12px] border border-[var(--color-gray-200)] bg-white shadow-[0_1px_2px_rgba(28,35,56,.04),0_2px_8px_rgba(28,35,56,.05)]";
@@ -1431,13 +1431,13 @@ export default async function Home({
                   계약완료는{" "}
                   <span style={{ color: dirColor(cntChange) }}>
                     {flatOf(cntChange)
-                      ? "전월 수준"
+                      ? "전월 동기간 수준"
                       : `${pct1(cntChange)} ${dirWord(cntChange)}`}
                   </span>
                   , 매출은{" "}
                   <span style={{ color: dirColor(salesChange) }}>
                     {flatOf(salesChange)
-                      ? "전월 수준"
+                      ? "전월 동기간 수준"
                       : `${pct1(salesChange)} ${dirWord(salesChange)}`}
                   </span>
                   이
@@ -1447,7 +1447,7 @@ export default async function Home({
               건당 공헌이익은{" "}
               <span style={{ color: dirColor(cpuChange) }}>
                 {flatOf(cpuChange)
-                  ? "전월 수준을 지켜"
+                  ? "전월 동기간 수준을 지켜"
                   : `${pct1(cpuChange)} ${dirWord(cpuChange)}해`}
               </span>{" "}
               {verdict}
@@ -1475,8 +1475,8 @@ export default async function Home({
                 </Link>
                 <span className="ml-1">
                   {topUp.chg * topDown.chg < 0
-                    ? "— 브랜드별로 방향이 갈렸습니다."
-                    : "— 같은 방향 안에서도 브랜드 간 편차가 큽니다."}
+                    ? "— 브랜드별 증감 방향이 엇갈렸습니다."
+                    : "— 같은 방향이지만 브랜드별 증감폭 차이가 큽니다."}
                 </span>
               </p>
             )}
@@ -1577,7 +1577,7 @@ export default async function Home({
                       <Delta value={k.delta} unit={k.deltaUnit} />
                     </div>
                     <div className="num mt-px text-[10px] text-[var(--color-gray-400)]">
-                      전월 {k.prev}
+                      전월 동기간 {k.prev}
                     </div>
                   </div>
                 </div>
@@ -1643,7 +1643,7 @@ export default async function Home({
               </Link>
             ))}
             <span className="text-[11px] text-[var(--color-gray-400)]">
-              타일의 선 = 월별 추이 (매월 1–{dayCut}일 같은 기간 · 값이 잡히는
+              타일의 선 = 월별 추이 (매월 1–{dayCut}일 같은 기간 · 데이터가 있는
               달부터)
             </span>
           </div>
@@ -1658,7 +1658,7 @@ export default async function Home({
             이번 달 실적은 왜 변했나
           </h2>
           <span className="text-[12px] text-[var(--color-gray-500)]">
-            전체 변화 → 카테고리 그룹 → 렌탈사 순으로 내려간다
+            전체 → 카테고리 그룹 → 렌탈사 순으로 확인
           </span>
         </div>
         <WaterfallPanel metrics={waterfallMetrics} panelClass={panel} />
@@ -1684,13 +1684,13 @@ export default async function Home({
                 주의 신호
               </h3>
               <span className="text-[11px] text-[var(--color-gray-400)]">
-                {topAlerts.length}건 · 지금 손을 써야 하는 것
+                {topAlerts.length}건 · 조치가 필요한 항목
               </span>
             </div>
             <div className="px-[17px] pb-4">
               <AlertList
                 items={topAlerts}
-                empty="기준을 넘은 신호가 없습니다 — 평소 페이스 안에서 움직이고 있습니다."
+                empty="주의 기준을 넘은 항목이 없습니다. 모두 평소 범위입니다."
               />
             </div>
           </div>
@@ -1702,7 +1702,7 @@ export default async function Home({
                 확인 필요
               </h3>
               <span className="text-[11px] text-[var(--color-gray-400)]">
-                {topChecks.length}건 · 나쁘진 않지만 원인은 알아야 하는 것
+                {topChecks.length}건 · 원인 확인이 필요한 항목
               </span>
             </div>
             <div className="px-[17px] pb-4">
@@ -1723,7 +1723,7 @@ export default async function Home({
             어디서 성과가 났나
           </h2>
           <span className="text-[12px] text-[var(--color-gray-500)]">
-            카테고리 · 렌탈사 · BM 탭 — 행을 누르면 해당 상세로 내려간다
+            카테고리 · 렌탈사 · BM별로 확인 · 행을 누르면 상세로 이동
           </span>
         </div>
 
