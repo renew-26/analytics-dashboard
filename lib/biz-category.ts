@@ -96,6 +96,34 @@ export function catGroupOf(category: string | null): string {
   return (GROUP_BY_CAT.get(category) ?? REST_GROUP).key;
 }
 
+/** 내비·라우트 단위 — 개별 카테고리 페이지는 이 6그룹으로 열린다 */
+export const CATEGORY_GROUP_KEYS = CATEGORY_GROUPS.map((g) => g.key);
+
+export function isCategoryGroup(key: string): boolean {
+  return CATEGORY_GROUPS.some((g) => g.key === key);
+}
+
+export function categoryGroup(key: string): CategoryGroup | undefined {
+  return CATEGORY_GROUPS.find((g) => g.key === key);
+}
+
+/**
+ * 그룹 안에서 행이 속할 세부 카테고리 키. 명시 목록 밖은 "그 외"로 접는다
+ * — rest 그룹(기타)이 흡수한 미매핑 카테고리가 여기로 모인다.
+ */
+export function detailCatOf(
+  group: CategoryGroup,
+  category: string | null,
+): string {
+  const c = category ?? "";
+  return group.cats.includes(c) ? c : "그 외";
+}
+
+/** 그룹의 세부 카테고리 카드 목록 — rest 그룹만 "그 외" 칸을 갖는다 */
+export function detailCatKeys(group: CategoryGroup): string[] {
+  return group.rest ? [...group.cats, "그 외"] : group.cats;
+}
+
 export function groupsOfAxis(axisKey: string): CategoryGroup[] {
   return CATEGORY_GROUPS.filter((g) => g.axis === axisKey);
 }

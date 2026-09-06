@@ -208,18 +208,19 @@ const GOAL_ROWS: {
 }[] = [
   { label: "정수기", orderGoal: 5657, contractGoal: 5265, cats: ["정수기"] },
   {
-    label: "크로스셀",
+    label: "공청기·비데",
     orderGoal: 650,
     contractGoal: 610,
     cats: ["비데", "공기청정기"],
   },
   {
-    label: "기타 가전",
+    // 목표는 대형가전+기타를 합친 버킷으로 설정돼 있어 그룹을 쪼개지 않는다
+    label: "대형가전·기타",
     orderGoal: 1279,
     contractGoal: 723,
     excludeOthers: true,
   },
-  { label: "통신", orderGoal: 1518, contractGoal: 1422, cats: ["인터넷"] },
+  { label: "인터넷", orderGoal: 1518, contractGoal: 1422, cats: ["인터넷"] },
   { label: "타이어", orderGoal: 25, contractGoal: 24, cats: ["타이어"] },
 ];
 

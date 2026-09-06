@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { COMPANY_MAP } from "@/lib/company-map";
-import { BIZ_CATEGORY_KEYS } from "@/lib/biz-category";
+import { CATEGORY_GROUPS } from "@/lib/biz-category";
 
 // COMPANY_MAP에서 그룹 내 중복 라벨 제거 후 그룹별로 묶기
 // (seen은 그룹별로 분리 — LG 헬스케어처럼 여러 그룹에 속하는 라벨이 누락되지 않도록)
@@ -25,6 +25,14 @@ const NAV_SECTIONS = ["가전&상조", "정수기", "통신"].map((group) => {
 export default function Sidebar() {
   const rawPathname = usePathname();
   const pathname = decodeURIComponent(rawPathname);
+
+  // 1차 내비(홈·카테고리·렌탈사) 밖에 있으면 레거시 묶음을 펼친 채로 그린다
+  const legacyActive = !(
+    pathname === "/" ||
+    pathname === "/companies" ||
+    pathname === "/categories" ||
+    pathname.startsWith("/categories/")
+  );
 
   const activeGroupIndex = NAV_SECTIONS.findIndex((s) =>
     s.items.some((item) => item.href === pathname),
@@ -71,18 +79,28 @@ export default function Sidebar() {
         <NavItem href="/" label="홈" active={pathname === "/"} />
 
         <SectionHeader label="카테고리" />
-        {BIZ_CATEGORY_KEYS.map((key) => (
-          <NavItem
-            key={key}
-            href={`/categories/${key}`}
-            label={key}
-            // 카테고리 × 렌탈사 상세까지 이 축의 하위로 본다
-            active={
-              pathname === `/categories/${key}` ||
-              pathname.startsWith(`/categories/${key}/`)
-            }
-          />
-        ))}
+        {/* 카테고리 메인 + 그 아래 카테고리 그룹(6그룹) 평면 목록.
+            3축은 내비 계층이 아니라 그룹 페이지 안에서 드러난다 —
+            내비에 3축을 세우면 클릭 한 번이 더 들고, 그룹이 축에 가려진다. */}
+        <NavItem
+          href="/categories"
+          label="전체 카테고리"
+          active={pathname === "/categories"}
+        />
+        <div className="mb-1 pl-4">
+          {CATEGORY_GROUPS.map((g) => (
+            <NavItem
+              key={g.key}
+              href={`/categories/${encodeURIComponent(g.key)}`}
+              label={g.key}
+              // 카테고리 × 렌탈사 × 상품 상세까지 이 그룹의 하위로 본다
+              active={
+                pathname === `/categories/${g.key}` ||
+                pathname.startsWith(`/categories/${g.key}/`)
+              }
+            />
+          ))}
+        </div>
 
         <SectionHeader label="렌탈사" />
         <NavItem
@@ -91,8 +109,14 @@ export default function Sidebar() {
           active={pathname === "/companies"}
         />
 
-        {/* ── 기존 메뉴 — 새 IA 아래에 그대로 둔다 ── */}
-        <div className="mx-3 mt-4 border-t border-[var(--color-line-2)]" />
+        {/* ── 레거시 메뉴 ──────────────────────────────────
+            1차 내비는 홈·카테고리·렌탈사 셋이다. 기존 화면은 지우지 않되
+            접어 두어, 매일 쓰는 세 축이 목록 위쪽에서 밀려나지 않게 한다.
+            현재 위치가 이 안에 있으면 열린 채로 그린다. */}
+        <details className="mt-4 border-t border-[var(--color-line-2)] pt-2" open={legacyActive}>
+          <summary className="cursor-pointer list-none px-3 py-2 text-[10px] font-semibold tracking-wider text-[#a1a5ac] uppercase hover:text-[#586177]">
+            기타 분석 ▾
+          </summary>
 
         {/* 매출 분석 섹션 */}
         <SectionHeader label="매출 분석" />
@@ -247,6 +271,7 @@ export default function Sidebar() {
           label="조사 상품 선정 - TPS"
           active={pathname === "/survey-selection/tps"}
         />
+        </details>
       </nav>
     </aside>
   );

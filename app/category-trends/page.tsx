@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { getCompanyLabel } from "@/lib/company-map";
+import { CATEGORY_GROUPS, catGroupOf } from "@/lib/biz-category";
 import { getWeekIndex, getWeekLabel } from "@/lib/week";
 import CategoryTrendsClient from "./CategoryTrendsClient";
 
@@ -15,27 +16,8 @@ const PAGE_ORDERS = 50000;
 const TOP_N = 5;
 const YOY_THRESHOLD = 0.2;
 
-// 홈(거래건수 표)의 대카테고리 구분과 동일한 분류 — `?group=` 딥링크 수신용.
-// "그외 카테고리"는 아래 어디에도 속하지 않는 나머지 전부를 뜻한다.
-const OTHER_GROUP = "그외 카테고리";
-const CATEGORY_GROUPS: Record<string, string[]> = {
-  정수기: ["정수기"],
-  크로스셀: ["공기청정기", "비데"],
-  "성장성 카테고리": [
-    "TV",
-    "세탁기+건조기",
-    "에어컨",
-    "냉장고",
-    "로봇청소기",
-    "무선청소기",
-    "음식물처리기",
-    "안마의자",
-    "매트리스",
-    "타이어",
-  ],
-  인터넷: ["인터넷"],
-};
-const GROUPED_CATS = new Set(Object.values(CATEGORY_GROUPS).flat());
+// `?group=` 딥링크 수신용 — 카테고리 그룹(6그룹) 체계.
+// 정의 정본은 lib/biz-category.ts의 CATEGORY_GROUPS 하나만 쓴다.
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -383,18 +365,13 @@ export default async function CategoryTrendsPage({
     categoryList,
   );
 
-  // `?group=` 딥링크 — 홈 워터폴/주의신호에서 넘어온 대카테고리.
+  // `?group=` 딥링크 — 홈·카테고리 페이지에서 넘어온 카테고리 그룹(6그룹).
   // 알 수 없는 값이거나 해당 카테고리에 데이터가 없으면 기본 동작으로 되돌린다.
+  // 기타는 rest 그룹이라 catGroupOf가 미매핑 세부 카테고리까지 흡수해 준다.
   let groupName: string | null = null;
   let groupCats: string[] = [];
-  if (group === OTHER_GROUP) {
-    const cats = categoryList.filter((c) => !GROUPED_CATS.has(c));
-    if (cats.length > 0) {
-      groupName = OTHER_GROUP;
-      groupCats = cats;
-    }
-  } else if (group && CATEGORY_GROUPS[group]) {
-    const cats = CATEGORY_GROUPS[group].filter((c) => categoryList.includes(c));
+  if (group && CATEGORY_GROUPS.some((g) => g.key === group)) {
+    const cats = categoryList.filter((c) => catGroupOf(c) === group);
     if (cats.length > 0) {
       groupName = group;
       groupCats = cats;
