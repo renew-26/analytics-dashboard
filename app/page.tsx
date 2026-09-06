@@ -17,8 +17,9 @@ import WaterfallPanel, {
   type WaterfallMetric,
 } from "@/app/components/home/WaterfallPanel";
 import BMMixBar from "@/app/components/home/BMMixBar";
-import CategoryCards from "@/app/components/home/CategoryCards";
-import { BIZ_CATEGORY_KEYS, bizCategoryOf } from "@/lib/biz-category";
+import PanelTabs from "@/app/components/home/PanelTabs";
+import { CATEGORY_GROUPS, catGroupOf } from "@/lib/biz-category";
+import { STATE_META, type TriState } from "@/lib/status";
 import { deltaColor as dirColor, manwon } from "@/app/components/home/cardKit";
 
 export const dynamic = "force-dynamic";
@@ -260,18 +261,9 @@ const WATERFALL_SHORT: Record<string, string> = {
   "공청기·비데": "공청·비데",
 };
 
-// 카테고리 그룹 → 상위 카테고리 페이지(/categories) 매핑.
-// 홈에서 발견한 카테고리 축 변화는 새 IA의 카테고리 페이지로 내려간다.
-const LARGE_TO_BIZ: Record<string, string> = {
-  정수기: "정수기",
-  "공청기·비데": "정수기",
-  대형가전: "가전&상조",
-  타이어: "가전&상조",
-  기타: "가전&상조",
-  인터넷: "인터넷",
-};
-const bizHrefOfLarge = (large: string) =>
-  `/categories/${encodeURIComponent(LARGE_TO_BIZ[large] ?? "가전&상조")}`;
+// 홈에서 발견한 카테고리 그룹 변화는 그룹 상세(/categories/{그룹})로 내려간다.
+const groupHref = (group: string) =>
+  `/categories/${encodeURIComponent(group)}`;
 
 // dataviz 검증된 카테고리 팔레트 (라이트 서페이스, 5색 인접쌍 CVD 통과)
 const LARGE_CATEGORY_COLORS = [
@@ -327,34 +319,15 @@ type Alert = {
   hrefQuery?: string;
 };
 
-const SEV_STYLE = {
-  crit: {
-    bar: "var(--color-sev-crit)",
-    color: "var(--color-sev-crit)",
-    background: "var(--color-sev-crit-100)",
-    label: "이상",
-  },
-  warn: {
-    bar: "var(--color-sev-warn)",
-    color: "var(--color-sev-warn)",
-    background: "var(--color-sev-warn-100)",
-    label: "주의",
-  },
-  info: {
-    bar: "var(--color-primary-400)",
-    color: "var(--color-primary-700)",
-    background: "var(--color-primary-50)",
-    label: "확인",
-  },
-  // 성장은 초록으로 뺀다 — 인디고(확인 필요)와 섞으면
-  // "원인을 알아야 하는 것"과 "잘 되고 있는 것"이 같은 색이 된다.
-  good: {
-    bar: "var(--color-success)",
-    color: "#017a4a",
-    background: "#e6f8f0",
-    label: "성장",
-  },
-} as const;
+// 상태는 전 화면 3단계(이상/확인 필요/정상)로 통일한다 — lib/status.ts 단일 소스.
+// 신호 판정의 뉘앙스(주의·급증·믹스 이동 등)는 sev로 남겨 정렬에만 쓰고,
+// 화면 라벨은 3단계로 접는다. 사유는 각 행의 설명 텍스트가 말한다.
+const SEV_TO_STATE: Record<Alert["sev"], TriState> = {
+  crit: "crit",
+  warn: "check",
+  info: "check",
+  good: "check",
+};
 
 /** 주의 신호·확인 필요가 같은 행 모양을 쓴다 — 판정 기준만 다르다 */
 function AlertList({ items, empty }: { items: Alert[]; empty: string }) {
@@ -367,7 +340,7 @@ function AlertList({ items, empty }: { items: Alert[]; empty: string }) {
   return (
     <ul>
       {items.map((a, i) => {
-        const s = SEV_STYLE[a.sev];
+        const s = STATE_META[SEV_TO_STATE[a.sev]];
         const unit = a.changeUnit ?? "%";
         // %p 지표는 1.5%p가 큰 변화다 — 무감대를 지표 단위에 맞춘다
         const flat = unit === "%p" ? 0.5 : 1.5;
@@ -382,14 +355,14 @@ function AlertList({ items, empty }: { items: Alert[]; empty: string }) {
             >
               <span
                 className="row-span-2 h-full min-h-[34px] w-[3px] rounded-full"
-                style={{ background: s.bar }}
+                style={{ background: s.color }}
               />
               {/* 색 단독 금지 — 항상 텍스트 라벨을 붙인다 */}
               <span
                 className="rounded-[4px] px-1.5 py-[3px] text-[10px] font-bold whitespace-nowrap"
                 style={{ color: s.color, background: s.background }}
               >
-                {s.label}
+                {s.text}
               </span>
               <span className="min-w-0">
                 <span className="block truncate text-[12px] font-bold leading-[16px] tracking-[-.1px] group-hover:text-[var(--color-primary)]">
@@ -661,14 +634,6 @@ export default async function Home({
     0,
   );
 
-  function largeGroupOf(category: string | null): string {
-    const cat = KNOWN_CATS.has(category ?? "") ? category : null;
-    for (const g of LARGE_CATEGORY_GROUPS) {
-      if (g.cats.includes(cat)) return g.large;
-    }
-    return "기타";
-  }
-
   // ── 렌탈사 카드 (정의는 lib/company-cards.ts 공유) ─────
   const currYm = curr.end.slice(0, 7);
   const recentYms: string[] = [];
@@ -808,7 +773,7 @@ export default async function Home({
 
     return {
       label: key,
-      group: largeGroupOf(key === "그 외" ? null : key),
+      group: catGroupOf(key === "그 외" ? null : key),
       sales: c.sales / EOK,
       salesPrev: p.sales / EOK,
       pace,
@@ -837,9 +802,6 @@ export default async function Home({
   // 이번 달·전월 모두 거래가 없는 카테고리는 카드로 세우지 않는다
   const visibleCatCards = categoryCards.filter(
     (c) => c.count > 0 || c.countPrev > 0,
-  );
-  const catCardGroups = LARGE_CATEGORY_GROUPS.map((g) => g.large).filter((g) =>
-    visibleCatCards.some((c) => c.group === g),
   );
 
   // ══════════════════════════════════════════════════════════════
@@ -884,7 +846,9 @@ export default async function Home({
     for (const r of rows) {
       const v = of(r);
       total += v;
-      const g = largeGroupOf(r.category);
+      // 그룹 집계는 카테고리 페이지와 같은 정본(catGroupOf)을 쓴다 —
+      // 홈과 카테고리 화면이 서로 다른 기준으로 세면 숫자가 갈린다.
+      const g = catGroupOf(r.category);
       byGroup.set(g, (byGroup.get(g) ?? 0) + v);
       const c = companyLabelOf(r);
       byCompany.set(c, (byCompany.get(c) ?? 0) + v);
@@ -962,22 +926,20 @@ export default async function Home({
     const k = companyLabelOf(r);
     currCountByCompany.set(k, (currCountByCompany.get(k) ?? 0) + 1);
   }
-  const bizCountOf = (rows: ContractRow[]) => {
-    const m = new Map<string, number>();
-    for (const r of rows) {
-      const k = bizCategoryOf(r.category);
-      m.set(k, (m.get(k) ?? 0) + 1);
-    }
-    return m;
-  };
-  const bizCurr = bizCountOf(currContracts);
-  const bizPrev = bizCountOf(prevContracts);
-  // 상위 카테고리는 3축뿐이라 전부 세운다 — 변화가 큰 축이 위로
-  const bizRows = BIZ_CATEGORY_KEYS.map((key) => ({
-    key,
-    curr: bizCurr.get(key) ?? 0,
-    delta: (bizCurr.get(key) ?? 0) - (bizPrev.get(key) ?? 0),
-  })).sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+  // 카테고리 그룹(6그룹) 기여 — 워터폴(②)과 같은 catGroupOf 기준으로 센다
+  const grpCurrCount = new Map<string, number>();
+  for (const r of currContracts) {
+    const k = catGroupOf(r.category);
+    grpCurrCount.set(k, (grpCurrCount.get(k) ?? 0) + 1);
+  }
+  const grpDelta = new Map(countAgg.groups.map((g) => [g.key, g.value]));
+  const grpRows = CATEGORY_GROUPS.map((g) => ({
+    key: g.key,
+    curr: grpCurrCount.get(g.key) ?? 0,
+    delta: grpDelta.get(g.key) ?? 0,
+  }))
+    .filter((g) => g.curr > 0 || g.delta !== 0)
+    .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
   // 렌탈사는 증가 기여 상위 5곳만 — 전체 목록은 /companies
   const topCompanyGainers = countAgg.companies
     .filter((x) => x.value > 0)
@@ -1001,7 +963,7 @@ export default async function Home({
         label: WATERFALL_SHORT[g.key] ?? g.key,
         type: "delta" as const,
         value: g.value,
-        href: bizHrefOfLarge(g.key),
+        href: groupHref(g.key),
       })),
       { label: "이번 달", type: "total" as const, value: a.currTotal },
     ],
@@ -1025,11 +987,11 @@ export default async function Home({
     changePct: pctAbs(cpuCurr, cpuPrev),
     items: [
       { label: "전월 동기간", type: "total" as const, value: cpuPrev },
-      ...cpuContribution((r) => largeGroupOf(r.category)).map((g) => ({
+      ...cpuContribution((r) => catGroupOf(r.category)).map((g) => ({
         label: WATERFALL_SHORT[g.key] ?? g.key,
         type: "delta" as const,
         value: g.value,
-        href: bizHrefOfLarge(g.key),
+        href: groupHref(g.key),
       })),
       { label: "이번 달", type: "total" as const, value: cpuCurr },
     ],
@@ -1149,9 +1111,9 @@ export default async function Home({
       changePct: null,
       detail: `전월 동기간 대비 감소분`,
       action: "원인 확인",
-      href: bizHrefOfLarge(topNegGroup.key),
+      href: groupHref(topNegGroup.key),
       hrefBase: "/categories/",
-      hrefQuery: LARGE_TO_BIZ[topNegGroup.key] ?? "가전&상조",
+      hrefQuery: topNegGroup.key,
     });
   }
 
@@ -1204,9 +1166,9 @@ export default async function Home({
           ? `이번 달 순증의 ${shareOfNet(topPosGroup.value).toFixed(0)}%가 여기서 나왔습니다`
           : `이 달 성장의 주요 출처`,
       action: "상세 보기",
-      href: bizHrefOfLarge(topPosGroup.key),
+      href: groupHref(topPosGroup.key),
       hrefBase: "/categories/",
-      hrefQuery: LARGE_TO_BIZ[topPosGroup.key] ?? "가전&상조",
+      hrefQuery: topPosGroup.key,
     });
   }
 
@@ -1274,12 +1236,11 @@ export default async function Home({
 
   // ── 한 문장 판정 ──────────────────────────────────────
   //  "이번 달이 좋은 달인가, 무엇을 주의해야 하는가"를 먼저 말한다.
-  //  정확한 숫자는 바로 아래 KPI 타일이 맡으므로 여기서는 크기만 말한다 —
-  //  같은 수치를 문장과 타일에 두 번 적으면 읽는 사람이 두 번 읽는다.
+  //  핵심 수치는 문장 안에 병기한다 — "10초 안에 좋아졌는지"가 문장만
+  //  읽어도 판정되게 (2026-09-06 스펙 확정).
   const cpuChange = pctAbs(cpuCurr, cpuPrev) ?? 0;
   const FLAT = 1.5;
-  const sizeWord = (v: number) =>
-    Math.abs(v) >= 20 ? "크게 " : Math.abs(v) < 5 ? "소폭 " : "";
+  const pct1 = (v: number) => `${Math.abs(v).toFixed(1)}%`;
   const flatOf = (v: number) => Math.abs(v) < FLAT;
   /** 성장 축(계약·매출)이 한 방향으로 같이 움직였나 — 문장을 합칠지 가른다 */
   const growTogether =
@@ -1315,6 +1276,120 @@ export default async function Home({
   const sectionHead = "text-[15px] font-bold tracking-[-.3px]";
   const sectionNo = "mr-1.5 font-bold text-[var(--color-gray-400)]";
 
+  // ── ④ 성과 기여 탭 콘텐츠 — 카테고리(6그룹)·렌탈사 Top 5 ──
+  //  둘 다 "기여 목록 + 전체 보기" 구조로 통일한다. 홈은 상위만 말하고
+  //  탐색은 /categories, /companies가 맡는다.
+  const contribCategoryTab = (
+    <div className="border-t border-[var(--color-line-2)] p-[9px_17px_13px]">
+      <ul>
+        {grpRows.map((b) => (
+          <li
+            key={b.key}
+            className="border-t border-[var(--color-line-2)] first:border-t-0"
+          >
+            <Link
+              href={groupHref(b.key)}
+              className="group flex items-baseline gap-[9px] py-[9px]"
+            >
+              <span className="min-w-0 flex-1 truncate text-[12px] font-bold group-hover:text-[var(--color-primary)]">
+                {b.key}
+              </span>
+              <span className="num text-[11px] text-[var(--color-gray-400)]">
+                {fmt(b.curr)}건
+              </span>
+              <b
+                className="num w-[62px] flex-none text-right text-[12px] font-bold"
+                style={{ color: dirColor(b.delta, 0) }}
+              >
+                {b.delta > 0 ? "+" : ""}
+                {fmt(b.delta)}건
+              </b>
+              <span className="hidden w-[136px] flex-none truncate text-right font-mono text-[10px] text-[var(--color-gray-400)] group-hover:text-[var(--color-primary)] xl:inline">
+                /categories/{b.key}
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-[3px] border-t border-[var(--color-line-2)] pt-[9px]">
+        <Link
+          href="/categories"
+          className="group inline-flex items-center gap-1.5 text-[11px] font-bold text-[var(--color-gray-500)] hover:text-[var(--color-primary)]"
+        >
+          카테고리 전체 보기 ↗
+          <span className="font-mono text-[10px] font-semibold text-[var(--color-gray-400)] group-hover:text-[var(--color-primary-400)]">
+            /categories
+          </span>
+        </Link>
+      </div>
+    </div>
+  );
+
+  const contribCompanyTab = (
+    <div className="border-t border-[var(--color-line-2)] p-[9px_17px_13px]">
+      {topCompanyGainers.length === 0 ? (
+        <p className="py-4 text-center text-[12px] text-[var(--color-gray-400)]">
+          이번 달 계약건수가 늘어난 렌탈사가 없습니다.
+        </p>
+      ) : (
+        <ul>
+          {topCompanyGainers.map((c) => {
+            const linkable = COMPANY_LABELS.has(c.label);
+            const row = (
+              <>
+                <span className="min-w-0 flex-1 truncate text-[12px] font-bold group-hover:text-[var(--color-primary)]">
+                  {c.label}
+                </span>
+                <span className="num text-[11px] text-[var(--color-gray-400)]">
+                  {fmt(c.curr)}건
+                </span>
+                <b
+                  className="num w-[62px] flex-none text-right text-[12px] font-bold"
+                  style={{ color: dirColor(c.delta, 0) }}
+                >
+                  +{fmt(Math.round(c.delta))}건
+                </b>
+                <span className="hidden w-[136px] flex-none truncate text-right font-mono text-[10px] text-[var(--color-gray-400)] group-hover:text-[var(--color-primary)] xl:inline">
+                  {linkable ? `/company/${c.label}` : ""}
+                </span>
+              </>
+            );
+            return (
+              <li
+                key={c.label}
+                className="border-t border-[var(--color-line-2)] first:border-t-0"
+              >
+                {linkable ? (
+                  <Link
+                    href={`/company/${encodeURIComponent(c.label)}`}
+                    className="group flex items-baseline gap-[9px] py-[9px]"
+                  >
+                    {row}
+                  </Link>
+                ) : (
+                  <span className="flex items-baseline gap-[9px] py-[9px]">
+                    {row}
+                  </span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <div className="mt-[3px] border-t border-[var(--color-line-2)] pt-[9px]">
+        <Link
+          href="/companies"
+          className="group inline-flex items-center gap-1.5 text-[11px] font-bold text-[var(--color-gray-500)] hover:text-[var(--color-primary)]"
+        >
+          전체 렌탈사 보기 ↗
+          <span className="font-mono text-[10px] font-semibold text-[var(--color-gray-400)] group-hover:text-[var(--color-primary-400)]">
+            /companies
+          </span>
+        </Link>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-[var(--color-page)] px-10 pt-8 pb-16 space-y-[26px]">
       {/* 기준 구간 표기는 헤더(app/components/Header.tsx)로 승격됐다 */}
@@ -1324,7 +1399,7 @@ export default async function Home({
         <div className="mb-[11px] flex flex-wrap items-baseline gap-2.5">
           <h2 className={sectionHead}>
             <span className={sectionNo}>①</span>
-            이번 달 한눈에 보기
+            {month}월 한눈에 보기
           </h2>
         </div>
 
@@ -1338,9 +1413,15 @@ export default async function Home({
             <p className="text-[20px] font-semibold leading-[28px] tracking-[-.4px] text-balance">
               {growTogether ? (
                 <>
-                  계약·매출은{" "}
+                  계약완료는{" "}
+                  <span style={{ color: dirColor(cntChange) }}>
+                    {pct1(cntChange)}
+                  </span>
+                  , 매출은{" "}
+                  <span style={{ color: dirColor(salesChange) }}>
+                    {pct1(salesChange)}
+                  </span>{" "}
                   <span style={{ color: dirColor(growAvg) }}>
-                    {sizeWord(growAvg)}
                     {dirWord(growAvg)}
                   </span>
                   했
@@ -1351,13 +1432,13 @@ export default async function Home({
                   <span style={{ color: dirColor(cntChange) }}>
                     {flatOf(cntChange)
                       ? "전월 수준"
-                      : `${sizeWord(cntChange)}${dirWord(cntChange)}`}
+                      : `${pct1(cntChange)} ${dirWord(cntChange)}`}
                   </span>
                   , 매출은{" "}
                   <span style={{ color: dirColor(salesChange) }}>
                     {flatOf(salesChange)
                       ? "전월 수준"
-                      : `${sizeWord(salesChange)}${dirWord(salesChange)}`}
+                      : `${pct1(salesChange)} ${dirWord(salesChange)}`}
                   </span>
                   이
                 </>
@@ -1367,7 +1448,7 @@ export default async function Home({
               <span style={{ color: dirColor(cpuChange) }}>
                 {flatOf(cpuChange)
                   ? "전월 수준을 지켜"
-                  : `${sizeWord(cpuChange)}${dirWord(cpuChange)}해`}
+                  : `${pct1(cpuChange)} ${dirWord(cpuChange)}해`}
               </span>{" "}
               {verdict}
             </p>
@@ -1642,20 +1723,34 @@ export default async function Home({
             어디서 성과가 났나
           </h2>
           <span className="text-[12px] text-[var(--color-gray-500)]">
-            채널(BM) → 카테고리·렌탈사 기여 → 카테고리 카드 순으로 내려간다
+            카테고리 · 렌탈사 · BM 탭 — 행을 누르면 해당 상세로 내려간다
           </span>
         </div>
 
-        {/* BM별 비교 */}
+        {/* 성과 기여 — 카테고리 · 렌탈사 · BM을 한 패널의 탭으로 묶는다.
+            세 축을 병렬 패널로 늘어놓으면 화면이 길어지고 같은 질문("누가
+            만들었나")이 세 번 반복된다 — 탭 하나가 한 번에 답한다. */}
         <div className={panel}>
-          <div className="flex items-baseline justify-between gap-2.5 p-[14px_17px_11px]">
-            <h3 className="text-[14px] font-bold tracking-[-.2px]">
-              BM(판매 채널)별 비교
-            </h3>
-            <span className="text-[11px] text-[var(--color-gray-400)]">
-              행 클릭 시 해당 BM 필터로 이동
-            </span>
-          </div>
+          <PanelTabs
+            tabs={[
+              {
+                key: "category",
+                label: "카테고리",
+                hint: "계약완료 · 전월 동기간 대비 기여 · 행 클릭 → 그룹 상세",
+                content: contribCategoryTab,
+              },
+              {
+                key: "company",
+                label: "렌탈사",
+                hint: "증가 기여 Top 5 · 전체 목록은 /companies",
+                content: contribCompanyTab,
+              },
+              {
+                key: "bm",
+                label: "BM",
+                hint: "행 클릭 시 해당 BM 필터로 이동",
+                content: (
+                  <div>
 
           {/* 이 패널이 답하는 질문을 맨 위에 세운다 — 표를 다 읽고 나서야
               결론이 나오면, 결론은 표를 끝까지 읽은 사람만 갖게 된다.
@@ -1884,136 +1979,11 @@ export default async function Home({
               </div>
             </div>
           </div>
-        </div>
-
-        {/* 성과 기여 Top — 렌탈사 전체 카드 그리드는 /companies(전체 렌탈사)로 이관 */}
-        <div className={panel}>
-          <div className="flex flex-wrap items-baseline justify-between gap-2.5 p-[14px_17px_11px]">
-            <h3 className="text-[14px] font-bold tracking-[-.2px]">
-              누가 성과를 만들었나
-            </h3>
-            <span className="text-[11px] text-[var(--color-gray-400)]">
-              계약건수 · 전월 동기간 대비 증감 기여 · 행 클릭 시 해당 상세
-            </span>
-          </div>
-          <div className="grid grid-cols-1 gap-x-7 border-t border-[var(--color-line-2)] p-[9px_17px_13px] md:grid-cols-2">
-            {/* 카테고리 축 — 3축 전부 (변화 큰 순) */}
-            <div>
-              <div className="pt-[6px] pb-[3px] text-[11px] font-bold text-[var(--color-gray-500)]">
-                카테고리
-              </div>
-              <ul>
-                {bizRows.map((b) => (
-                  <li
-                    key={b.key}
-                    className="border-t border-[var(--color-line-2)] first:border-t-0"
-                  >
-                    <Link
-                      href={`/categories/${encodeURIComponent(b.key)}`}
-                      className="group flex items-baseline gap-[9px] py-[9px]"
-                    >
-                      <span className="min-w-0 flex-1 truncate text-[12px] font-bold group-hover:text-[var(--color-primary)]">
-                        {b.key}
-                      </span>
-                      <span className="num text-[11px] text-[var(--color-gray-400)]">
-                        {fmt(b.curr)}건
-                      </span>
-                      <b
-                        className="num w-[62px] flex-none text-right text-[12px] font-bold"
-                        style={{ color: dirColor(b.delta, 0) }}
-                      >
-                        {b.delta > 0 ? "+" : ""}
-                        {fmt(b.delta)}건
-                      </b>
-                      <span className="hidden w-[136px] flex-none truncate text-right font-mono text-[10px] text-[var(--color-gray-400)] group-hover:text-[var(--color-primary)] xl:inline">
-                        /categories/{b.key}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* 렌탈사 축 — 증가 기여 Top 5만, 전체는 /companies */}
-            <div className="flex flex-col">
-              <div className="pt-[6px] pb-[3px] text-[11px] font-bold text-[var(--color-gray-500)]">
-                렌탈사 — 증가 기여 Top {topCompanyGainers.length}
-              </div>
-              {topCompanyGainers.length === 0 ? (
-                <p className="py-4 text-center text-[12px] text-[var(--color-gray-400)]">
-                  이번 달 계약건수가 늘어난 렌탈사가 없습니다.
-                </p>
-              ) : (
-                <ul>
-                  {topCompanyGainers.map((c) => {
-                    const linkable = COMPANY_LABELS.has(c.label);
-                    const row = (
-                      <>
-                        <span className="min-w-0 flex-1 truncate text-[12px] font-bold group-hover:text-[var(--color-primary)]">
-                          {c.label}
-                        </span>
-                        <span className="num text-[11px] text-[var(--color-gray-400)]">
-                          {fmt(c.curr)}건
-                        </span>
-                        <b
-                          className="num w-[62px] flex-none text-right text-[12px] font-bold"
-                          style={{ color: dirColor(c.delta, 0) }}
-                        >
-                          +{fmt(Math.round(c.delta))}건
-                        </b>
-                        <span className="hidden w-[136px] flex-none truncate text-right font-mono text-[10px] text-[var(--color-gray-400)] group-hover:text-[var(--color-primary)] xl:inline">
-                          {linkable ? `/company/${c.label}` : ""}
-                        </span>
-                      </>
-                    );
-                    return (
-                      <li
-                        key={c.label}
-                        className="border-t border-[var(--color-line-2)] first:border-t-0"
-                      >
-                        {linkable ? (
-                          <Link
-                            href={`/company/${encodeURIComponent(c.label)}`}
-                            className="group flex items-baseline gap-[9px] py-[9px]"
-                          >
-                            {row}
-                          </Link>
-                        ) : (
-                          <span className="flex items-baseline gap-[9px] py-[9px]">
-                            {row}
-                          </span>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-              <div className="mt-auto border-t border-[var(--color-line-2)] pt-[9px]">
-                <Link
-                  href="/companies"
-                  className="group inline-flex items-center gap-1.5 text-[11px] font-bold text-[var(--color-gray-500)] hover:text-[var(--color-primary)]"
-                >
-                  전체 렌탈사 보기 ↗
-                  <span className="font-mono text-[10px] font-semibold text-[var(--color-gray-400)] group-hover:text-[var(--color-primary-400)]">
-                    /companies
-                  </span>
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* 카테고리 요약 카드 */}
-        <div>
-          <div className="mb-[11px] flex flex-wrap items-baseline gap-2.5">
-            <h3 className="text-[14px] font-bold tracking-[-.2px]">
-              카테고리 요약
-            </h3>
-            <span className="text-[12px] text-[var(--color-gray-500)]">
-              매출이 어느 상품에서 빠졌는지 · 물량 탓인지 단가 탓인지까지
-            </span>
-          </div>
-          <CategoryCards categories={visibleCatCards} groups={catCardGroups} />
+                  </div>
+                ),
+              },
+            ]}
+          />
         </div>
       </section>
 

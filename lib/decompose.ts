@@ -70,6 +70,81 @@ export function cpuContribution<T>(
 }
 
 /**
+ * 공헌이익 총액 변화의 가법 분해 — "많이 팔아서 늘었나(판매량), 한 건당
+ * 더 벌어서 늘었나(건당), 잘 버는 상품으로 옮겨가서 늘었나(믹스)".
+ *
+ *   M = C × V  (C 건수, V 건당 공헌이익)
+ *   ΔM = (C_c − C_p)·V_p  +  C_c·Σ w_p(v_c − v_p)  +  C_c·Σ (w_c − w_p)v_c
+ *        └ 판매량 효과      └ 건당 수익성(within)     └ 상품 믹스
+ *
+ * 세 항의 합이 ΔM과 정확히 일치해 브리지 차트가 성립한다.
+ */
+export function marginDecompose<T>(
+  currRows: T[],
+  prevRows: T[],
+  keyOf: (r: T) => string,
+  marginOf: (r: T) => number,
+): { volume: number; within: number; mix: number; total: number } {
+  const acc = (rows: T[]) => {
+    const m = new Map<string, { cnt: number; mg: number }>();
+    let mg = 0;
+    for (const r of rows) {
+      const k = keyOf(r);
+      if (!m.has(k)) m.set(k, { cnt: 0, mg: 0 });
+      const a = m.get(k)!;
+      a.cnt += 1;
+      const v = marginOf(r);
+      a.mg += v;
+      mg += v;
+    }
+    return { m, total: rows.length, mg };
+  };
+  const c = acc(currRows);
+  const p = acc(prevRows);
+  const Vp = p.total > 0 ? p.mg / p.total : 0;
+
+  let within = 0;
+  let mix = 0;
+  const zero = { cnt: 0, mg: 0 };
+  for (const key of new Set([...c.m.keys(), ...p.m.keys()])) {
+    const cc = c.m.get(key) ?? zero;
+    const pp = p.m.get(key) ?? zero;
+    const wc = c.total > 0 ? cc.cnt / c.total : 0;
+    const wp = p.total > 0 ? pp.cnt / p.total : 0;
+    const vc = cc.cnt > 0 ? cc.mg / cc.cnt : 0;
+    const vp = pp.cnt > 0 ? pp.mg / pp.cnt : 0;
+    within += wp * (vc - vp);
+    mix += (wc - wp) * vc;
+  }
+  return {
+    volume: (c.total - p.total) * Vp,
+    within: c.total * within,
+    mix: c.total * mix,
+    total: c.mg - p.mg,
+  };
+}
+
+/**
+ * 금액 합계 변화의 2항 분해 — "더 많이 팔았나(판매량), 한 건이 더 커졌나(단가)".
+ *   ΔS = (C_c − C_p)·u_p + C_c·(u_c − u_p)   (u = 건당 금액)
+ * 두 항의 합이 ΔS와 정확히 일치한다.
+ */
+export function volumePriceDecompose(
+  currCnt: number,
+  currSum: number,
+  prevCnt: number,
+  prevSum: number,
+): { volume: number; price: number; total: number } {
+  const up = prevCnt > 0 ? prevSum / prevCnt : 0;
+  const uc = currCnt > 0 ? currSum / currCnt : 0;
+  return {
+    volume: (currCnt - prevCnt) * up,
+    price: currCnt * (uc - up),
+    total: currSum - prevSum,
+  };
+}
+
+/**
  * 스파크라인 앞쪽의 "데이터 없음" 구간을 잘라낸다.
  * 손익(매출·공헌이익)은 2026-01부터만 채워져 있다 — 그 앞을 0으로 그리면
  * "그때는 0원이었다"는 거짓말이 된다.

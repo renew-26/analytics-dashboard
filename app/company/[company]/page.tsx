@@ -1,7 +1,34 @@
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { COMPANY_MAP, getBM } from "@/lib/company-map";
-import { BIZ_CATEGORY_KEYS, bizCategoryOf } from "@/lib/biz-category";
+import { CATEGORY_GROUPS, catGroupOf } from "@/lib/biz-category";
+import { getPeriod, getDataAsOf } from "@/lib/period";
+import { resolveTier, TIER_META } from "@/lib/tiers";
+import {
+  CARD_DEFS,
+  countInstall90d,
+  matchesCompany,
+  perDeal,
+  type CardContractRow,
+} from "@/lib/company-cards";
+import {
+  diffMap,
+  marginDecompose,
+  sumBy,
+  trimLeadingGap,
+} from "@/lib/decompose";
+import { EOK, MAN, pct, pctAbs, recentYmsOf, signedInt } from "@/lib/format";
+import { judgeState } from "@/lib/status";
+import Sparkline from "@/app/components/home/Sparkline";
+import {
+  deltaColor as dirColor,
+  manwon,
+  STATE_PILL,
+  TAG,
+} from "@/app/components/home/cardKit";
+import Breadcrumb from "@/app/components/Breadcrumb";
+import Bridge from "@/app/components/Bridge";
+import Delta from "@/app/components/Delta";
 import CategoryTable from "@/app/components/CategoryTable";
 import BMFilter from "@/app/components/BMFilter";
 import PositionChartModal from "@/app/components/PositionChartModal";
@@ -1271,33 +1298,227 @@ export default async function CompanyPage({
     return results;
   })();
 
-  // 이 렌탈사가 실제로 거래한 상위 카테고리 축만 진입점으로 세운다
-  const bizAxes = BIZ_CATEGORY_KEYS.filter((k) =>
-    normalizedRows.some((r) => bizCategoryOf(r.category) === k),
+  // 이 렌탈사가 실제로 거래한 카테고리 그룹만 진입점으로 세운다
+  const bizAxes = CATEGORY_GROUPS.map((g) => g.key).filter((k) =>
+    normalizedRows.some((r) => catGroupOf(r.category) === k),
   );
+
+  // ═══ 새 IA 본문 — 계약완료 기준, 홈·카테고리·조합 페이지와 같은 기간 규칙 ═══
+  // 위의 레거시 집계(뷰 토글·오늘 날짜 기준)와 달리, 여기는 데이터 기준일
+  // (getDataAsOf)과 "전월 같은 일자" 비교를 쓴다 — 화면 간 숫자가 갈리지 않게.
+  const def = CARD_DEFS.find((d) => d.label === label)!;
+  const { curr, prev, month, day: dayCut } = getPeriod(await getDataAsOf());
+  const recentYms = recentYmsOf(curr.end);
+
+  type IaRow = CardContractRow & {
+    product_name: string | null;
+    model_name: string | null;
+  };
+  const iaAll: IaRow[] = [];
+  {
+    let from = 0;
+    while (true) {
+      const { data, error } = await supabase
+        .from("raw_contracts")
+        .select(
+          "contract_date, rental_company, category, partner_company, total_rental_fee, contribution_margin, sales, product_name, model_name",
+        )
+        .eq("rental_company", dbName)
+        .gte("contract_date", `${recentYms[0]}-01`)
+        .lte("contract_date", curr.end)
+        .order("prop_item_usid", { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error || !data || data.length === 0) break;
+      iaAll.push(...(data as unknown as IaRow[]));
+      if (data.length < PAGE) break;
+      from += PAGE;
+    }
+  }
+  // dbName 하나가 여러 label로 나뉘는 경우(LG, KT, BS렌탈)를 카테고리 조건으로 가른다
+  const iaRows = iaAll.filter((r) => matchesCompany(def, r));
+  const iaCurr = iaRows.filter(
+    (r) => r.contract_date >= curr.start && r.contract_date <= curr.end,
+  );
+  const iaPrev = iaRows.filter(
+    (r) => r.contract_date >= prev.start && r.contract_date <= prev.end,
+  );
+
+  // 12개월 월별 집계 (매월 1~dayCut일 같은 기간) — 스파크라인·평소 페이스 공용
+  const kCntByYm = new Map<string, number>();
+  const kAmtByYm = new Map<string, number>();
+  const kSalesByYm = new Map<string, number>();
+  const kMgByYm = new Map<string, number>();
+  for (const r of iaRows) {
+    if (Number(r.contract_date.slice(8, 10)) > dayCut) continue;
+    const ym = r.contract_date.slice(0, 7);
+    kCntByYm.set(ym, (kCntByYm.get(ym) ?? 0) + 1);
+    kAmtByYm.set(ym, (kAmtByYm.get(ym) ?? 0) + (r.total_rental_fee ?? 0));
+    kSalesByYm.set(ym, (kSalesByYm.get(ym) ?? 0) + (r.sales ?? 0));
+    kMgByYm.set(ym, (kMgByYm.get(ym) ?? 0) + (r.contribution_margin ?? 0));
+  }
+
+  // 상태(평소 페이스 = 직전 3개월 같은 기간 평균 건수)·티어
+  const paceMonths = recentYms.slice(-4, -1);
+  const pace = paceMonths.length
+    ? paceMonths.reduce((s, ym) => s + (kCntByYm.get(ym) ?? 0), 0) /
+      paceMonths.length
+    : 0;
+  const state = judgeState(iaCurr.length, pace);
+  const tier = resolveTier(
+    label,
+    countInstall90d(iaRows, curr.end).get(label) ?? 0,
+  ).tier;
+
+  // KPI 4종
+  const iaSum = (rows: IaRow[], of: (r: IaRow) => number) =>
+    rows.reduce((s, r) => s + of(r), 0);
+  const kCnt = iaCurr.length;
+  const kCntPrev = iaPrev.length;
+  const kAmtSum = iaSum(iaCurr, (r) => r.total_rental_fee ?? 0);
+  const kAmtSumPrev = iaSum(iaPrev, (r) => r.total_rental_fee ?? 0);
+  const kSalesSum = iaSum(iaCurr, (r) => r.sales ?? 0);
+  const kSalesSumPrev = iaSum(iaPrev, (r) => r.sales ?? 0);
+  const kCpu = perDeal(iaSum(iaCurr, (r) => r.contribution_margin ?? 0), kCnt);
+  const kCpuPrev = perDeal(
+    iaSum(iaPrev, (r) => r.contribution_margin ?? 0),
+    kCntPrev,
+  );
+  const kCntSpark = trimLeadingGap(
+    recentYms.map((ym) => kCntByYm.get(ym) ?? 0),
+  );
+  const kAmtSpark = trimLeadingGap(
+    recentYms.map((ym) => (kAmtByYm.get(ym) ?? 0) / EOK),
+  );
+  const kSalesSpark = trimLeadingGap(
+    recentYms.map((ym) => (kSalesByYm.get(ym) ?? 0) / EOK),
+  );
+  const kCpuSpark = trimLeadingGap(
+    recentYms.map((ym) => {
+      const c = kCntByYm.get(ym) ?? 0;
+      return c > 0 ? (kMgByYm.get(ym) ?? 0) / c : 0;
+    }),
+  );
+
+  // 카테고리별 성과 — 6그룹, 행 클릭 → 카테고리 × 렌탈사
+  type GroupAgg = {
+    cnt: number;
+    cntPrev: number;
+    sales: number;
+    margin: number;
+  };
+  const groupAgg = new Map<string, GroupAgg>();
+  const groupOf = (key: string) => {
+    let g = groupAgg.get(key);
+    if (!g) {
+      g = { cnt: 0, cntPrev: 0, sales: 0, margin: 0 };
+      groupAgg.set(key, g);
+    }
+    return g;
+  };
+  for (const r of iaCurr) {
+    const g = groupOf(catGroupOf(r.category));
+    g.cnt += 1;
+    g.sales += r.sales ?? 0;
+    g.margin += r.contribution_margin ?? 0;
+  }
+  for (const r of iaPrev) groupOf(catGroupOf(r.category)).cntPrev += 1;
+  const groupRows = CATEGORY_GROUPS.map((g) => ({
+    key: g.key,
+    ...(groupAgg.get(g.key) ?? { cnt: 0, cntPrev: 0, sales: 0, margin: 0 }),
+  })).filter((g) => g.cnt > 0 || g.cntPrev > 0);
+
+  // 상품별 성과 + 증감 요인 + 수익성 분해 (조합 페이지와 같은 상품 키)
+  const prodKeyOf = (r: IaRow) => `${r.product_name ?? ""}|${r.model_name ?? ""}`;
+  const prodNameOf = (k: string) => {
+    const [productName, modelName] = k.split("|");
+    return { productName: productName || "(상품명 없음)", modelName };
+  };
+  type ProdAgg = {
+    key: string;
+    category: string | null;
+    cnt: number;
+    cntPrev: number;
+    sales: number;
+    margin: number;
+  };
+  const prodMap = new Map<string, ProdAgg>();
+  const prodOf = (r: IaRow) => {
+    const k = prodKeyOf(r);
+    let a = prodMap.get(k);
+    if (!a) {
+      a = {
+        key: k,
+        category: r.category,
+        cnt: 0,
+        cntPrev: 0,
+        sales: 0,
+        margin: 0,
+      };
+      prodMap.set(k, a);
+    }
+    return a;
+  };
+  for (const r of iaCurr) {
+    const a = prodOf(r);
+    a.cnt += 1;
+    a.sales += r.sales ?? 0;
+    a.margin += r.contribution_margin ?? 0;
+  }
+  for (const r of iaPrev) prodOf(r).cntPrev += 1;
+  const topProducts = Array.from(prodMap.values())
+    .filter((a) => a.cnt > 0 || a.cntPrev > 0)
+    .sort((a, b) => b.cnt - a.cnt || b.cntPrev - a.cntPrev)
+    .slice(0, 12);
+  const prodCountDiff = diffMap(
+    sumBy(iaCurr, prodKeyOf, () => 1),
+    sumBy(iaPrev, prodKeyOf, () => 1),
+  );
+  const marginBridge = marginDecompose(
+    iaCurr,
+    iaPrev,
+    prodKeyOf,
+    (r) => r.contribution_margin ?? 0,
+  );
+
+  /** 상품 상세(최종 depth)로 내려가는 경로 — 그룹은 상품의 세부 카테고리에서 역산 */
+  const prodHref = (category: string | null, productName: string) =>
+    `/categories/${encodeURIComponent(catGroupOf(category))}/${encodeURIComponent(label)}/${encodeURIComponent(productName)}`;
+
+  // BM 구성 (이번 달 계약완료)
+  const bmCntIa = { BM1: 0, BM2: 0, BM3: 0 };
+  for (const r of iaCurr) bmCntIa[getBM(r.partner_company)] += 1;
+
+  const iaPanel =
+    "rounded-[12px] border border-[var(--color-gray-200)] bg-white shadow-[0_1px_2px_rgba(28,35,56,.04),0_2px_8px_rgba(28,35,56,.05)]";
+  const iaSectionHead = "text-[15px] font-bold tracking-[-.3px]";
+  const iaTh =
+    "bg-[var(--color-gray-25)] p-[9px_12px] text-right text-[11px] font-bold whitespace-nowrap text-[var(--color-gray-400)]";
+  const iaTd = "p-[9px_12px] text-right whitespace-nowrap";
+  const fmtN = (n: number) => Math.round(n).toLocaleString("ko-KR");
 
   return (
     <div className="px-12 py-6">
-      {/* 현재 위치 + 카테고리 × 렌탈사 상세 진입 */}
+      {/* 현재 위치 + 상태·티어 + 카테고리 × 렌탈사 상세 진입 */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <div className="flex items-center gap-[7px] text-[12px] text-[var(--color-gray-400)]">
-          <Link
-            href="/"
-            className="font-semibold text-[var(--color-primary)] hover:underline"
+        <div className="flex flex-wrap items-center gap-[10px]">
+          <Breadcrumb
+            items={[{ label: "렌탈사", href: "/companies" }, { label }]}
+          />
+          <span
+            className={STATE_PILL}
+            style={{ color: state.color, background: state.background }}
+            title={`평소 페이스(직전 3개월 같은 기간 평균 ${fmtN(pace)}건) 대비 ${fmtN(state.idx)}%`}
           >
-            홈
-          </Link>
-          <span>›</span>
-          <Link
-            href="/companies"
-            className="font-semibold text-[var(--color-primary)] hover:underline"
-          >
-            렌탈사
-          </Link>
-          <span>›</span>
-          <span className="font-semibold text-[var(--color-gray-600)]">
-            {label}
+            {state.text}
           </span>
+          <span
+            className="rounded-[4px] px-[6px] py-[2px] text-[11px] font-bold"
+            style={TIER_META[tier].chip}
+            title={TIER_META[tier].desc}
+          >
+            {tier}
+          </span>
+          <span className={TAG}>{mapping.group}</span>
         </div>
         {bizAxes.length > 0 && (
           <div className="flex flex-wrap items-center gap-[6px]">
@@ -1320,8 +1541,374 @@ export default async function CompanyPage({
         )}
       </div>
 
+      {/* ═══ ① KPI 4종 — 계약완료 기준 ═══ */}
+      <section className="mb-[24px]">
+        <h2 className={`mb-[11px] ${iaSectionHead}`}>
+          {month}월 {label} 요약
+        </h2>
+        <div className={`${iaPanel} overflow-hidden`}>
+          <dl className="grid grid-cols-2 gap-px bg-[var(--color-line-2)] lg:grid-cols-4">
+            {[
+              {
+                label: "계약완료",
+                value: fmtN(kCnt),
+                unit: "건",
+                prev: `${fmtN(kCntPrev)}건`,
+                delta: pct(kCnt, kCntPrev),
+                spark: kCntSpark,
+              },
+              {
+                label: "거래액",
+                value: (kAmtSum / EOK).toFixed(2),
+                unit: "억",
+                prev: `${(kAmtSumPrev / EOK).toFixed(2)}억`,
+                delta: pct(kAmtSum, kAmtSumPrev),
+                spark: kAmtSpark,
+              },
+              {
+                label: "매출",
+                value: (kSalesSum / EOK).toFixed(2),
+                unit: "억",
+                prev: `${(kSalesSumPrev / EOK).toFixed(2)}억`,
+                delta: pct(kSalesSum, kSalesSumPrev),
+                spark: kSalesSpark,
+              },
+              {
+                label: "건당 공헌이익",
+                value: manwon(kCpu),
+                unit: "",
+                prev: manwon(kCpuPrev),
+                delta: pctAbs(kCpu, kCpuPrev),
+                spark: kCpuSpark,
+              },
+            ].map((k) => (
+              <div key={k.label} className="bg-white p-[13px_15px_11px]">
+                <dt className="mb-[5px] text-[11px] font-semibold text-[var(--color-gray-500)]">
+                  {k.label}
+                </dt>
+                <div className="flex items-end justify-between gap-2">
+                  <div className="num text-[24px] font-bold leading-[28px] tracking-[-.6px]">
+                    {k.value}
+                    {k.unit && (
+                      <i className="ml-0.5 text-[12px] font-semibold not-italic tracking-normal text-[var(--color-gray-500)]">
+                        {k.unit}
+                      </i>
+                    )}
+                  </div>
+                  <div className="text-right whitespace-nowrap">
+                    <div className="text-[12px] font-bold">
+                      <Delta value={k.delta} />
+                    </div>
+                    <div className="num mt-px text-[10px] text-[var(--color-gray-400)]">
+                      전월 {k.prev}
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-[6px]">
+                  <Sparkline
+                    values={k.spark}
+                    color={dirColor(
+                      k.spark[0] !== 0
+                        ? ((k.spark[k.spark.length - 1] - k.spark[0]) /
+                            Math.abs(k.spark[0])) *
+                            100
+                        : 0,
+                      1.5,
+                    )}
+                    width={132}
+                    height={26}
+                  />
+                </div>
+              </div>
+            ))}
+          </dl>
+          <div className="flex flex-wrap items-center gap-x-[18px] gap-y-1 border-t border-[var(--color-gray-200)] bg-[var(--color-gray-25)] p-[9px_17px] text-[11px] text-[var(--color-gray-400)]">
+            <span>계약완료(raw_contracts) 기준 · 전월 같은 일자(1–{dayCut}일) 대비</span>
+            <span>
+              BM 구성:{" "}
+              {(["BM1", "BM2", "BM3"] as const)
+                .filter((b) => bmCntIa[b] > 0)
+                .map((b) => `${b} ${fmtN(bmCntIa[b])}건`)
+                .join(" · ") || "—"}
+            </span>
+            <span>타일의 선 = 최근 12개월 추이 (매월 1–{dayCut}일 같은 기간)</span>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ ② 카테고리별 성과 + ③ 증감 요인 ═══ */}
+      <div className="mb-[24px] grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
+        <section>
+          <div className="mb-[11px] flex flex-wrap items-baseline gap-2.5">
+            <h2 className={iaSectionHead}>카테고리별 성과</h2>
+            <span className="text-[12px] text-[var(--color-gray-500)]">
+              그룹 클릭 → 카테고리 × {label}
+            </span>
+          </div>
+          <div className={`${iaPanel} overflow-hidden`}>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[480px] bg-white text-[12px]">
+                <thead>
+                  <tr className="border-b border-[var(--color-gray-200)]">
+                    <th className={`${iaTh} text-left`}>그룹</th>
+                    <th className={iaTh}>계약완료</th>
+                    <th className={iaTh}>전월</th>
+                    <th className={iaTh}>증감</th>
+                    <th className={iaTh}>매출</th>
+                    <th className={iaTh}>건당 공헌이익</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {groupRows.map((g) => {
+                    const diff = g.cnt - g.cntPrev;
+                    return (
+                      <tr
+                        key={g.key}
+                        className="border-t border-[var(--color-line-2)] hover:bg-[var(--color-gray-25)]"
+                      >
+                        <td className={`${iaTd} text-left`}>
+                          <Link
+                            href={`/categories/${encodeURIComponent(g.key)}/${encodeURIComponent(label)}`}
+                            className="font-bold text-[var(--color-gray-700)] hover:text-[var(--color-primary)] hover:underline"
+                          >
+                            {g.key}
+                          </Link>
+                        </td>
+                        <td className={`${iaTd} num font-bold`}>
+                          {fmtN(g.cnt)}
+                        </td>
+                        <td className={`${iaTd} num text-[var(--color-gray-500)]`}>
+                          {fmtN(g.cntPrev)}
+                        </td>
+                        <td
+                          className={`${iaTd} num font-bold`}
+                          style={{ color: dirColor(diff, 0) }}
+                        >
+                          {signedInt(diff)}
+                        </td>
+                        <td className={`${iaTd} num`}>
+                          {fmtN(g.sales / MAN)}만원
+                        </td>
+                        <td className={`${iaTd} num`}>
+                          {manwon(perDeal(g.margin, g.cnt))}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <p className="border-t border-[var(--color-line-2)] p-[9px_16px] text-[11px] text-[var(--color-gray-500)]">
+              증감은 전월 같은 기간(1–{dayCut}일) 대비 계약완료 건수 기준
+            </p>
+          </div>
+        </section>
+
+        <section>
+          <div className="mb-[11px] flex flex-wrap items-baseline gap-2.5">
+            <h2 className={iaSectionHead}>무엇 때문에 변했나</h2>
+            <span className="text-[12px] text-[var(--color-gray-500)]">
+              계약완료 기여 상위 상품 · 클릭 → 상품 상세
+            </span>
+          </div>
+          <div className={iaPanel}>
+            <div className="grid grid-cols-1 gap-x-6 px-[17px] pt-[6px] pb-[13px] md:grid-cols-2">
+              {[
+                {
+                  title: "증가 기여 상품",
+                  items: prodCountDiff.filter((x) => x.value > 0).slice(0, 4),
+                  empty: "증가 기여 상품이 없습니다.",
+                },
+                {
+                  title: "감소 기여 상품",
+                  items: prodCountDiff.filter((x) => x.value < 0).slice(0, 4),
+                  empty: "감소 기여 상품이 없습니다.",
+                },
+              ].map((col) => (
+                <div key={col.title}>
+                  <div className="pt-[6px] pb-[2px] text-[11px] font-bold text-[var(--color-gray-500)]">
+                    {col.title}
+                  </div>
+                  {col.items.length ? (
+                    <ul>
+                      {col.items.map((x) => {
+                        const { productName, modelName } = prodNameOf(x.key);
+                        const cat = prodMap.get(x.key)?.category ?? null;
+                        const linkable = productName !== "(상품명 없음)";
+                        const nameBlock = (
+                          <>
+                            <span className="block truncate text-[12px] font-bold group-hover/prod:text-[var(--color-primary)] group-hover/prod:underline">
+                              {productName}
+                            </span>
+                            {modelName && (
+                              <span className="block truncate font-mono text-[10px] text-[var(--color-gray-400)]">
+                                {modelName}
+                              </span>
+                            )}
+                          </>
+                        );
+                        return (
+                          <li
+                            key={x.key}
+                            className="flex items-baseline gap-[9px] border-t border-[var(--color-line-2)] py-[8px] first:border-t-0"
+                          >
+                            {linkable ? (
+                              <Link
+                                href={prodHref(cat, productName)}
+                                className="group/prod min-w-0 flex-1"
+                              >
+                                {nameBlock}
+                              </Link>
+                            ) : (
+                              <span className="min-w-0 flex-1">{nameBlock}</span>
+                            )}
+                            <b
+                              className="num flex-none text-[12px] font-bold"
+                              style={{ color: dirColor(x.value, 0) }}
+                            >
+                              {x.value > 0 ? "+" : "−"}
+                              {fmtN(Math.abs(x.value))}
+                              <i className="ml-px text-[10px] font-semibold not-italic opacity-70">
+                                건
+                              </i>
+                            </b>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <p className="py-3 text-[12px] text-[var(--color-gray-400)]">
+                      {col.empty}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      </div>
+
+      {/* ═══ ④ 상품별 성과 ═══ */}
+      <section className="mb-[24px]">
+        <div className="mb-[11px] flex flex-wrap items-baseline gap-2.5">
+          <h2 className={iaSectionHead}>상품별 성과</h2>
+          <span className="text-[12px] text-[var(--color-gray-500)]">
+            이번 달 계약완료 상위 {topProducts.length}개 · 상품명 클릭 → 상품
+            상세
+          </span>
+        </div>
+        <div className={`${iaPanel} overflow-hidden`}>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] bg-white text-[12px]">
+              <thead>
+                <tr className="border-b border-[var(--color-gray-200)]">
+                  <th className={`${iaTh} text-left`}>상품</th>
+                  <th className={`${iaTh} text-left`}>카테고리</th>
+                  <th className={iaTh}>계약완료</th>
+                  <th className={iaTh}>전월</th>
+                  <th className={iaTh}>증감</th>
+                  <th className={iaTh}>매출</th>
+                  <th className={iaTh}>건당 공헌이익</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topProducts.map((a) => {
+                  const { productName, modelName } = prodNameOf(a.key);
+                  const diff = a.cnt - a.cntPrev;
+                  const linkable = productName !== "(상품명 없음)";
+                  const nameBlock = (
+                    <>
+                      <span className="block truncate font-bold text-[var(--color-gray-700)] group-hover/prod:text-[var(--color-primary)] group-hover/prod:underline">
+                        {productName}
+                      </span>
+                      {modelName && (
+                        <span className="block truncate font-mono text-[10px] text-[var(--color-gray-400)]">
+                          {modelName}
+                        </span>
+                      )}
+                    </>
+                  );
+                  return (
+                    <tr
+                      key={a.key}
+                      className="border-t border-[var(--color-line-2)] hover:bg-[var(--color-gray-25)]"
+                    >
+                      <td className={`${iaTd} max-w-[320px] text-left`}>
+                        {linkable ? (
+                          <Link
+                            href={prodHref(a.category, productName)}
+                            className="group/prod block"
+                          >
+                            {nameBlock}
+                          </Link>
+                        ) : (
+                          nameBlock
+                        )}
+                      </td>
+                      <td className={`${iaTd} text-left text-[var(--color-gray-500)]`}>
+                        {a.category ?? "기타"}
+                      </td>
+                      <td className={`${iaTd} num font-bold`}>{fmtN(a.cnt)}</td>
+                      <td className={`${iaTd} num text-[var(--color-gray-500)]`}>
+                        {fmtN(a.cntPrev)}
+                      </td>
+                      <td
+                        className={`${iaTd} num font-bold`}
+                        style={{ color: dirColor(diff, 0) }}
+                      >
+                        {signedInt(diff)}
+                      </td>
+                      <td className={`${iaTd} num`}>{fmtN(a.sales / MAN)}만원</td>
+                      <td className={`${iaTd} num`}>
+                        {manwon(perDeal(a.margin, a.cnt))}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ ⑤ 수익성 분해 ═══ */}
+      <section className="mb-[24px]">
+        <div className="mb-[11px] flex flex-wrap items-baseline gap-2.5">
+          <h2 className={iaSectionHead}>공헌이익은 왜 변했나</h2>
+          <span className="text-[12px] text-[var(--color-gray-500)]">
+            판매량 · 건당 수익성 · 상품 믹스 — 세 항의 합이 변화량과 일치
+          </span>
+        </div>
+        <div className={`${iaPanel} p-[16px_17px_13px]`}>
+          <Bridge
+            parts={[
+              { label: "판매량 효과", value: marginBridge.volume },
+              { label: "건당 수익성", value: marginBridge.within },
+              { label: "상품 믹스", value: marginBridge.mix },
+            ]}
+            total={marginBridge.total}
+            totalLabel="Δ공헌이익"
+          />
+          <p className="mt-[10px] text-[11px] text-[var(--color-gray-500)]">
+            {`"많이 팔아서 늘었나(판매량), 한 건당 더 벌어서 늘었나(건당), 잘 버는 상품으로 옮겨가서 늘었나(믹스)"를 분리합니다. 상품 단위 원인은 위의 기여 목록에서 이어집니다.`}
+          </p>
+        </div>
+      </section>
+
+      {/* ═══ 상세 데이터 — 기존 화면 전체를 접힘으로 보존 ═══ */}
+      <details className={`${iaPanel} overflow-hidden`}>
+        <summary className="cursor-pointer p-[13px_17px] text-[13px] font-semibold text-[var(--color-gray-600)] hover:text-[var(--color-gray-900)]">
+          상세 데이터 (기존 화면)
+          <span className="ml-2 text-[11px] font-normal text-[var(--color-gray-400)]">
+            성과 원인 분석 · 카테고리별 현황 · 점유율 · 포지션 · 경쟁 분석 ·
+            원본 데이터 — 주문확정/계약완료 토글과 BM 필터는 이 안에서만
+            적용됩니다
+          </span>
+        </summary>
+        <div className="border-t border-[var(--color-line-2)] px-5 pb-5">
+
       {/* 뷰 토글 + BM 필터 */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 pt-4">
         <div className="flex items-center gap-3">
           <span className="text-m text-gray-400">
             {view === "order" ? "주문확정일 기준" : "계약완료일 기준"}
@@ -1652,7 +2239,7 @@ export default async function CompanyPage({
           <div className="mb-4 flex items-center gap-2">
             <h2 className="text-base font-semibold text-gray-700">
               {mapping.group === "정수기"
-                ? "정수기 & 크로스셀 내 포지션"
+                ? "정수기 & 공청기·비데 내 포지션"
                 : "가전&상조 내 포지션"}
             </h2>
             <span className="text-xs text-gray-400">
@@ -1664,7 +2251,7 @@ export default async function CompanyPage({
             categoryAllData={categoryAllData}
             title={
               mapping.group === "정수기"
-                ? "정수기 & 크로스셀 내 포지션"
+                ? "정수기 & 공청기·비데 내 포지션"
                 : "가전&상조 내 포지션"
             }
             companyLabel={label}
@@ -1991,6 +2578,8 @@ export default async function CompanyPage({
         </details>
       </div>
 
+        </div>
+      </details>
     </div>
   );
 }

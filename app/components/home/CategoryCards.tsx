@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import Sparkline from "./Sparkline";
+import { judgeState, paceColor } from "@/lib/status";
 import {
   CARD_GRID,
   CARD_SHELL,
@@ -11,11 +12,8 @@ import {
   deltaArrow,
   deltaColor,
   filterChip,
-  judgePace,
-  paceColor,
   paceFraction,
   manwon,
-  stateStyle,
 } from "./cardKit";
 
 export type CategoryCard = {
@@ -175,7 +173,7 @@ export default function CategoryCards({
 
       <div className={CARD_GRID}>
         {list.map((c) => {
-          const st = judgePace(c.sales, c.pace);
+          const st = judgeState(c.sales, c.pace);
           const chg =
             c.salesPrev > 0 ? (c.sales / c.salesPrev - 1) * 100 : 0;
           const dirCol = deltaColor(chg);
@@ -224,7 +222,10 @@ export default function CategoryCards({
                     </span>
                   </div>
                 </div>
-                <span className={STATE_PILL} style={stateStyle(st.cls)}>
+                <span
+                  className={STATE_PILL}
+                  style={{ color: st.color, background: st.background }}
+                >
                   {st.text}
                 </span>
               </div>
