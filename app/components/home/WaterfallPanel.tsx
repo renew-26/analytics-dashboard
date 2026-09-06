@@ -40,7 +40,7 @@ function signed(n: number, decimals: number) {
  * 최대 증가·감소 요인 한 장.
  *
  * 방향색(빨강=증가, 파랑=감소)은 변화량에만 쓴다 — 여기 값은 순수한 변화량이라
- * 규칙 그대로다. 다만 색만으로 뜻을 전하지 않도록 "끌어올린/끌어내린"이라는
+ * 규칙 그대로다. 다만 색만으로 뜻을 전하지 않도록 "상승/하락"이라는
  * 역할 라벨을 항상 붙인다.
  */
 function TopDriver({
@@ -160,7 +160,7 @@ export default function WaterfallPanel({
           변화 분해
         </h3>
         <span className="text-[11px] text-[var(--color-gray-400)]">
-          전월 동기간 → 이번 달 · 막대·행을 누르면 상세 페이지
+          전월 동기간 → 이번 달 · 막대·행을 누르면 상세로 이동
         </span>
       </div>
 
@@ -218,8 +218,8 @@ export default function WaterfallPanel({
       {(topPos || topNeg) && (
         <div className="grid grid-cols-1 gap-2.5 px-[17px] pb-3 sm:grid-cols-2">
           {[
-            { role: "가장 크게 끌어내린 곳", it: topNeg },
-            { role: "가장 크게 끌어올린 곳", it: topPos },
+            { role: "가장 크게 하락", it: topNeg },
+            { role: "가장 크게 상승", it: topPos },
           ].map(({ role, it }) =>
             !it ? null : (
               <TopDriver
@@ -262,8 +262,8 @@ export default function WaterfallPanel({
             </span>
           </div>
           <div className="mb-2.5 text-[11px] text-[var(--color-gray-400)]">
-            증가·감소 각 상위 {MOVER_LIMIT}곳 · 단위 {m.unit} · 상품 단위까지는
-            렌탈사 상세에서 이어진다
+            증가·감소 각 상위 {MOVER_LIMIT}곳 · 단위 {m.unit} · 상품 단위는
+            렌탈사 상세에서 확인
           </div>
 
           {ups.length === 0 && downs.length === 0 ? (

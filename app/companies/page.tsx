@@ -1,5 +1,6 @@
 import { fetchRows } from "@/lib/fetch-rows";
 import { getPeriod, getDataAsOf } from "@/lib/period";
+import { recentYmsOf } from "@/lib/format";
 import {
   buildCompanyCards,
   countInstall90d,
@@ -19,18 +20,8 @@ export const dynamic = "force-dynamic";
 export default async function CompaniesPage() {
   const { curr, prev, day: dayCut } = getPeriod(await getDataAsOf());
 
-  // 최근 12개월 창 — 카드 스파크라인·평소 페이스·티어(90일)까지 이 한 번으로 충분
-  const currYm = curr.end.slice(0, 7);
-  const recentYms: string[] = [];
-  {
-    const [y, mo] = currYm.split("-").map(Number);
-    for (let i = 11; i >= 0; i--) {
-      const d = new Date(y, mo - 1 - i, 1);
-      recentYms.push(
-        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
-      );
-    }
-  }
+  // 최근 12개월 창 — 스파크라인·평소 페이스·티어(90일)까지 이 한 번으로 충분
+  const recentYms = recentYmsOf(curr.end);
 
   const rows = await fetchRows<CardContractRow>({
     select:
@@ -78,7 +69,7 @@ export default async function CompaniesPage() {
       <div>
         <div className="mb-[6px] text-[12px] text-[var(--color-gray-500)]">
           {visibleCards.length}개사 · 평소 페이스(최근 3개월 같은 기간 평균)
-          대비 · 카드 클릭 시 렌탈사 상세
+          대비 · 렌탈사 클릭 시 상세로 이동
         </div>
         {/* 티어 요약 — 색 단독 금지: 칩에 항상 T1/T2/T3 텍스트가 붙는다 */}
         <div className="flex flex-wrap items-center gap-x-[13px] gap-y-1.5">

@@ -2,7 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { getPeriod, getDataAsOf } from "@/lib/period";
-import { BIZ_CATEGORIES, bizCategoryOf, isBizCategory } from "@/lib/biz-category";
+import {
+  catGroupOf,
+  categoryGroup,
+  isCategoryGroup,
+} from "@/lib/biz-category";
 import {
   CARD_DEFS,
   countInstall90d,
@@ -12,42 +16,25 @@ import {
 } from "@/lib/company-cards";
 import { getBM } from "@/lib/company-map";
 import { resolveTier, TIER_META } from "@/lib/tiers";
-import { diffMap, sumBy, trimLeadingGap } from "@/lib/decompose";
+import {
+  diffMap,
+  marginDecompose,
+  sumBy,
+  trimLeadingGap,
+  volumePriceDecompose,
+} from "@/lib/decompose";
+import { EOK, MAN, fmt, pct, pctAbs, recentYmsOf, signedInt } from "@/lib/format";
 import Sparkline from "@/app/components/home/Sparkline";
 import { deltaColor as dirColor, manwon, TAG } from "@/app/components/home/cardKit";
+import Breadcrumb from "@/app/components/Breadcrumb";
+import Bridge from "@/app/components/Bridge";
+import Delta from "@/app/components/Delta";
 
 export const dynamic = "force-dynamic";
 
-const EOK = 100_000_000;
-const MAN = 10_000;
 const PAGE = 50000;
 /** 월렌탈료로 볼 수 없는 값(0·1원 등 견적 미입력 흔적)은 평균에서 뺀다 */
 const MIN_VALID_FEE = 1000;
-
-const fmt = (n: number) => Math.round(n).toLocaleString("ko-KR");
-const signedInt = (n: number) =>
-  n === 0 ? "0" : `${n > 0 ? "+" : "−"}${fmt(Math.abs(n))}`;
-
-function pct(curr: number, prev: number) {
-  if (prev === 0) return null;
-  return ((curr - prev) / prev) * 100;
-}
-function pctAbs(curr: number, prev: number) {
-  if (prev === 0) return null;
-  return ((curr - prev) / Math.abs(prev)) * 100;
-}
-
-function Delta({ value, unit = "%" }: { value: number | null; unit?: string }) {
-  if (value === null || !Number.isFinite(value))
-    return <span className="text-[var(--color-gray-400)]">—</span>;
-  const arrow = value > 1.5 ? "▲" : value < -1.5 ? "▼" : "—";
-  return (
-    <span className="num" style={{ color: dirColor(value) }}>
-      {arrow} {Math.abs(value).toFixed(1)}
-      {unit}
-    </span>
-  );
-}
 
 const panel =
   "rounded-[12px] border border-[var(--color-gray-200)] bg-white shadow-[0_1px_2px_rgba(28,35,56,.04),0_2px_8px_rgba(28,35,56,.05)]";
@@ -72,24 +59,14 @@ export default async function CategoryCompanyPage({
   const p = await params;
   const key = decodeURIComponent(p.category);
   const label = decodeURIComponent(p.company);
-  if (!isBizCategory(key)) notFound();
+  if (!isCategoryGroup(key)) notFound();
   const def = CARD_DEFS.find((d) => d.label === label);
   if (!def) notFound();
-  const axis = BIZ_CATEGORIES.find((b) => b.key === key)!;
+  const group = categoryGroup(key)!;
 
   const { curr, prev, month, day: dayCut } = getPeriod(await getDataAsOf());
 
-  const currYm = curr.end.slice(0, 7);
-  const recentYms: string[] = [];
-  {
-    const [y, mo] = currYm.split("-").map(Number);
-    for (let i = 11; i >= 0; i--) {
-      const d = new Date(y, mo - 1 - i, 1);
-      recentYms.push(
-        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
-      );
-    }
-  }
+  const recentYms = recentYmsOf(curr.end);
 
   // 이 렌탈사의 12개월 전체 행 — 티어(전체 실적)와 축 필터 양쪽에 쓴다
   const all: Row[] = [];
@@ -118,7 +95,7 @@ export default async function CategoryCompanyPage({
   const install90 = countInstall90d(labelRows, curr.end);
   const tier = resolveTier(label, install90.get(label) ?? 0).tier;
 
-  const axisRows = labelRows.filter((r) => bizCategoryOf(r.category) === key);
+  const axisRows = labelRows.filter((r) => catGroupOf(r.category) === key);
   const currRows = axisRows.filter(
     (r) => r.contract_date >= curr.start && r.contract_date <= curr.end,
   );
@@ -131,10 +108,14 @@ export default async function CategoryCompanyPage({
     rows.reduce((s, r) => s + of(r), 0);
   const cnt = currRows.length;
   const cntPrev = prevRows.length;
-  const amt = sum(currRows, (r) => r.total_rental_fee ?? 0) / EOK;
-  const amtPrev = sum(prevRows, (r) => r.total_rental_fee ?? 0) / EOK;
-  const sales = sum(currRows, (r) => r.sales ?? 0) / EOK;
-  const salesPrev = sum(prevRows, (r) => r.sales ?? 0) / EOK;
+  const amtSum = sum(currRows, (r) => r.total_rental_fee ?? 0);
+  const amtSumPrev = sum(prevRows, (r) => r.total_rental_fee ?? 0);
+  const amt = amtSum / EOK;
+  const amtPrev = amtSumPrev / EOK;
+  const salesSum = sum(currRows, (r) => r.sales ?? 0);
+  const salesSumPrev = sum(prevRows, (r) => r.sales ?? 0);
+  const sales = salesSum / EOK;
+  const salesPrev = salesSumPrev / EOK;
   const margin = sum(currRows, (r) => r.contribution_margin ?? 0);
   const marginPrev = sum(prevRows, (r) => r.contribution_margin ?? 0);
   const cpu = perDeal(margin, cnt);
@@ -231,11 +212,30 @@ export default async function CategoryCompanyPage({
     sumBy(prevRows, prodKeyOf, (r) => (r.sales ?? 0) / MAN),
   );
 
+  // ── 지표별 변화 원인 — 합이 Δ와 정확히 일치하는 가법 분해 ──
+  const amtBridge = volumePriceDecompose(cnt, amtSum, cntPrev, amtSumPrev);
+  const salesBridge = volumePriceDecompose(
+    cnt,
+    salesSum,
+    cntPrev,
+    salesSumPrev,
+  );
+  const marginBridge = marginDecompose(
+    currRows,
+    prevRows,
+    prodKeyOf,
+    (r) => r.contribution_margin ?? 0,
+  );
+
   // BM 구성 (이번 달)
   const bmCnt = { BM1: 0, BM2: 0, BM3: 0 };
   for (const r of currRows) bmCnt[getBM(r.partner_company)] += 1;
 
-  const multiCat = axis.cats.length > 1;
+  const multiCat = group.cats.length > 1;
+
+  /** 최종 depth(상품 페이지)로 내려가는 경로 */
+  const prodHref = (productName: string) =>
+    `/categories/${encodeURIComponent(key)}/${encodeURIComponent(label)}/${encodeURIComponent(productName)}`;
 
   const th =
     "bg-[var(--color-gray-25)] p-[9px_12px] text-right text-[11px] font-bold whitespace-nowrap text-[var(--color-gray-400)]";
@@ -243,7 +243,14 @@ export default async function CategoryCompanyPage({
 
   return (
     <div className="min-h-screen space-y-[24px] bg-[var(--color-page)] px-10 pt-8 pb-16">
-      {/* 제목·기준 배지는 상단 헤더(Header.tsx)가 담당 — 본문은 티어와 이동 경로만 */}
+      {/* 제목·기준 배지는 상단 헤더(Header.tsx)가 담당 — 본문은 위치·티어·이동 경로만 */}
+      <Breadcrumb
+        items={[
+          { label: "카테고리", href: "/categories" },
+          { label: key, href: `/categories/${encodeURIComponent(key)}` },
+          { label },
+        ]}
+      />
       <div className="flex flex-wrap items-center gap-[8px]">
         <span
           className="rounded-[4px] px-[6px] py-[2px] text-[11px] font-bold"
@@ -393,21 +400,34 @@ export default async function CategoryCompanyPage({
             const downs = m.diff.filter((x) => x.value < 0).slice(0, 4);
             const renderRow = (x: { key: string; value: number }) => {
               const { productName, modelName } = prodNameOf(x.key);
+              const linkable = productName !== "(상품명 없음)";
+              const nameBlock = (
+                <>
+                  <span className="block truncate text-[12px] font-bold group-hover/prod:text-[var(--color-primary)] group-hover/prod:underline">
+                    {productName}
+                  </span>
+                  {modelName && (
+                    <span className="block truncate font-mono text-[10px] text-[var(--color-gray-400)]">
+                      {modelName}
+                    </span>
+                  )}
+                </>
+              );
               return (
                 <li
                   key={x.key}
                   className="flex items-baseline gap-[9px] border-t border-[var(--color-line-2)] py-[8px] first:border-t-0"
                 >
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[12px] font-bold">
-                      {productName}
-                    </span>
-                    {modelName && (
-                      <span className="block truncate font-mono text-[10px] text-[var(--color-gray-400)]">
-                        {modelName}
-                      </span>
-                    )}
-                  </span>
+                  {linkable ? (
+                    <Link
+                      href={prodHref(productName)}
+                      className="group/prod min-w-0 flex-1"
+                    >
+                      {nameBlock}
+                    </Link>
+                  ) : (
+                    <span className="min-w-0 flex-1">{nameBlock}</span>
+                  )}
                   <b
                     className="num flex-none text-[12px] font-bold"
                     style={{ color: dirColor(x.value, 0) }}
@@ -434,7 +454,7 @@ export default async function CategoryCompanyPage({
                 <div className="grid grid-cols-1 gap-x-6 border-t border-[var(--color-line-2)] px-[17px] pt-[6px] pb-[13px] md:grid-cols-2">
                   <div>
                     <div className="pt-[6px] pb-[2px] text-[11px] font-bold text-[var(--color-gray-500)]">
-                      끌어올린 상품
+                      증가 기여 상품
                     </div>
                     {ups.length ? (
                       <ul>{ups.map(renderRow)}</ul>
@@ -446,7 +466,7 @@ export default async function CategoryCompanyPage({
                   </div>
                   <div>
                     <div className="pt-[6px] pb-[2px] text-[11px] font-bold text-[var(--color-gray-500)]">
-                      끌어내린 상품
+                      감소 기여 상품
                     </div>
                     {downs.length ? (
                       <ul>{downs.map(renderRow)}</ul>
@@ -497,19 +517,34 @@ export default async function CategoryCompanyPage({
                     {topProducts.map((a) => {
                       const { productName, modelName } = prodNameOf(a.key);
                       const diff = a.cnt - a.cntPrev;
+                      const linkable = productName !== "(상품명 없음)";
+                      const nameBlock = (
+                        <>
+                          <span className="block truncate font-bold text-[var(--color-gray-700)] group-hover/prod:text-[var(--color-primary)] group-hover/prod:underline">
+                            {productName}
+                          </span>
+                          {modelName && (
+                            <span className="block truncate font-mono text-[10px] text-[var(--color-gray-400)]">
+                              {modelName}
+                            </span>
+                          )}
+                        </>
+                      );
                       return (
                         <tr
                           key={a.key}
                           className="border-t border-[var(--color-line-2)] hover:bg-[var(--color-gray-25)]"
                         >
                           <td className={`${td} max-w-[320px] text-left`}>
-                            <span className="block truncate font-bold text-[var(--color-gray-700)]">
-                              {productName}
-                            </span>
-                            {modelName && (
-                              <span className="block truncate font-mono text-[10px] text-[var(--color-gray-400)]">
-                                {modelName}
-                              </span>
+                            {linkable ? (
+                              <Link
+                                href={prodHref(productName)}
+                                className="group/prod block"
+                              >
+                                {nameBlock}
+                              </Link>
+                            ) : (
+                              nameBlock
                             )}
                           </td>
                           {multiCat && (
@@ -549,10 +584,73 @@ export default async function CategoryCompanyPage({
             )}
             <p className="mt-[10px] text-[11px] text-[var(--color-gray-500)]">
               평균 월렌탈료는 1,000원 미만(견적 미입력 흔적)을 제외한 평균 ·
-              매출·공헌이익은 이번 달 기준 구간 합계입니다.
+              매출·공헌이익은 이번 달 기준 구간 합계 · 상품명 클릭 → 상품
+              상세(
+              <span className="font-mono text-[10px]">
+                /categories/{key}/{label}/상품명
+              </span>
+              )
             </p>
           </div>
         </div>
+      </section>
+
+      {/* ── ④ 지표별 변화 원인 ───────────────────────── */}
+      <section>
+        <div className="mb-[11px] flex flex-wrap items-baseline gap-2.5">
+          <h2 className={sectionHead}>지표별 변화 원인</h2>
+          <span className="text-[12px] text-[var(--color-gray-500)]">
+            각 항의 합이 변화량과 정확히 일치하는 가법 분해 · 전월 동기간 대비
+          </span>
+        </div>
+        <div className="grid grid-cols-1 gap-[13px] xl:grid-cols-3">
+          <div className={`${panel} p-[14px_17px_13px]`}>
+            <h3 className="mb-[12px] text-[14px] font-bold tracking-[-.2px]">
+              거래액 <Delta value={pct(amt, amtPrev)} />
+            </h3>
+            <Bridge
+              parts={[
+                { label: "판매량 효과", value: amtBridge.volume },
+                { label: "건당 거래액 효과", value: amtBridge.price },
+              ]}
+              total={amtBridge.total}
+              totalLabel="Δ거래액"
+            />
+          </div>
+          <div className={`${panel} p-[14px_17px_13px]`}>
+            <h3 className="mb-[12px] text-[14px] font-bold tracking-[-.2px]">
+              매출 <Delta value={pct(sales, salesPrev)} />
+            </h3>
+            <Bridge
+              parts={[
+                { label: "판매량 효과", value: salesBridge.volume },
+                { label: "건당 매출 효과", value: salesBridge.price },
+              ]}
+              total={salesBridge.total}
+              totalLabel="Δ매출"
+            />
+          </div>
+          <div className={`${panel} p-[14px_17px_13px]`}>
+            <h3 className="mb-[12px] text-[14px] font-bold tracking-[-.2px]">
+              공헌이익{" "}
+              <span className="text-[11px] font-semibold text-[var(--color-gray-400)]">
+                판매량·건당·믹스 분해
+              </span>
+            </h3>
+            <Bridge
+              parts={[
+                { label: "판매량 효과", value: marginBridge.volume },
+                { label: "건당 수익성", value: marginBridge.within },
+                { label: "상품 믹스", value: marginBridge.mix },
+              ]}
+              total={marginBridge.total}
+              totalLabel="Δ공헌이익"
+            />
+          </div>
+        </div>
+        <p className="mt-[8px] text-[11px] text-[var(--color-gray-500)]">
+          {`"많이 팔아서 변했나(판매량), 한 건의 크기가 변했나(건당), 잘 버는 상품으로 옮겨갔나(믹스)"를 분리합니다. 상품 단위 원인은 위의 기여 목록과 상품 상세에서 이어집니다.`}
+        </p>
       </section>
     </div>
   );

@@ -5,44 +5,8 @@
  * 흩어지면 한쪽만 고쳐져 기준이 갈라지므로 여기 하나만 둔다.
  */
 
-/** 평소 페이스 대비 판정 — 목표치를 새로 입력받지 않아도 성립한다 */
-export function judgePace(curr: number, pace: number) {
-  const idx = pace > 0 ? (curr / pace) * 100 : 100;
-  if (idx >= 110) return { cls: "s-hot", text: "호조", idx };
-  if (idx >= 90) return { cls: "s-ok", text: "정상", idx };
-  if (idx >= 80) return { cls: "s-warn", text: "주의", idx };
-  return { cls: "s-crit", text: "이상", idx };
-}
-
-/** 상태 pill 색 — 색 단독으로 뜻을 전하지 않으므로 항상 텍스트를 동반한다 */
-export function stateStyle(cls: string) {
-  switch (cls) {
-    case "s-hot":
-      return { color: "var(--color-up)", background: "var(--color-up-100)" };
-    case "s-warn":
-      return {
-        color: "var(--color-sev-warn)",
-        background: "var(--color-sev-warn-100)",
-      };
-    case "s-crit":
-      return {
-        color: "var(--color-sev-crit)",
-        background: "var(--color-sev-crit-100)",
-      };
-    default:
-      return {
-        color: "var(--color-gray-600)",
-        background: "var(--color-gray-100)",
-      };
-  }
-}
-
-export function paceColor(idx: number) {
-  if (idx >= 110) return "var(--color-up)";
-  if (idx >= 90) return "var(--color-gray-600)";
-  if (idx >= 80) return "var(--color-sev-warn)";
-  return "var(--color-sev-crit)";
-}
+// 상태 판정(3단계)과 페이스 색은 lib/status.ts로 승격됐다 —
+// judgeState / paceColor / STATE_META를 쓴다.
 
 /** 방향색은 변화량에만 쓴다. 값의 좋고 나쁨에는 쓰지 않는다. */
 export function deltaColor(chg: number, flatBand = 1.5) {

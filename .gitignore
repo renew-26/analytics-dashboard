@@ -40,3 +40,5 @@ next-env.d.ts
 # 재현은 skills-lock.json으로 한다 (npx skills experimental_install).
 .agents/
 .gstack/
+# 브레인스토밍 비주얼 컴패니언 세션 산출물 — 로컬 목업 전용
+.superpowers/
