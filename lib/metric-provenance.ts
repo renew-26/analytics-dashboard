@@ -5,7 +5,16 @@
  * 컬럼명은 실제 DB 컬럼 그대로 적는다 — 구성원이 Redash 에서 검산할 수 있어야 한다.
  */
 
-import { SOURCE, type Basis, type Metric, type Baseline } from "@/lib/metric-review";
+import {
+  SOURCE,
+  type Basis,
+  type Metric,
+  type Baseline,
+  type PnlLadder,
+  type CohortMonthRow,
+  type LeadTime,
+  type FunnelBlock,
+} from "@/lib/metric-review";
 import { fmt, koreanWon } from "@/lib/format";
 
 export type Provenance = {
@@ -34,13 +43,24 @@ export function sourceLine(
 
 const col = (basis: Basis, metric: Metric) => `${SOURCE[basis].table}.${metric.column}`;
 
+/** 부호 붙은 대입값 — 산식이 상수가 아니라 실제 차액을 보여주게 한다 */
+const signedFmt = (metric: Metric, delta: number) =>
+  `${delta >= 0 ? "+" : "−"}${metric.fmt(Math.abs(delta))}`;
+
 export const pv = {
-  value(metric: Metric, basis: Basis, excludedRows: number, prevLabel: string): Provenance {
+  value(
+    metric: Metric,
+    basis: Basis,
+    excludedRows: number,
+    prevLabel: string,
+    curr: number,
+    prev: number,
+  ): Provenance {
     return {
       source: `출처 ${col(basis, metric)}`,
-      formula: `산식 ${SOURCE[basis].label} 기준 당월 합계`,
+      formula: `산식 ${metric.fmt(prev)} → ${metric.fmt(curr)} (${signedFmt(metric, curr - prev)})`,
       compare: `전월 동기간 ${prevLabel}`,
-      caveat: excludedRows > 0 ? `sales NULL ${fmt(excludedRows)}행 제외` : undefined,
+      caveat: excludedRows > 0 ? `${metric.column} NULL ${fmt(excludedRows)}행 제외` : undefined,
     };
   },
 
@@ -61,10 +81,17 @@ export const pv = {
     };
   },
 
-  waterfall(metric: Metric, basis: Basis, prevLabel: string, currLabel: string): Provenance {
+  waterfall(
+    metric: Metric,
+    basis: Basis,
+    prevLabel: string,
+    currLabel: string,
+    prevTotal: number,
+    currTotal: number,
+  ): Provenance {
     return {
       source: `출처 ${col(basis, metric)}`,
-      formula: "산식 그룹별 (이번달 − 전월 동기간) · 델타의 합 = 총액 변화",
+      formula: `산식 그룹별 (이번달 − 전월 동기간) 델타의 합 = ${metric.fmt(prevTotal)} → ${metric.fmt(currTotal)}`,
       compare: `${prevLabel} → ${currLabel}`,
     };
   },
@@ -77,40 +104,54 @@ export const pv = {
     };
   },
 
-  rank(metric: Metric, basis: Basis): Provenance {
+  rank(metric: Metric, basis: Basis, total: number): Provenance {
     return {
       source: `출처 ${col(basis, metric)}`,
-      formula: "산식 당월 합계 내림차순 상위 5",
+      formula: `산식 당월 합계(${metric.fmt(total)}) 내림차순 상위 5`,
     };
   },
 
-  pnl(basis: Basis): Provenance {
+  pnl(basis: Basis, curr: PnlLadder): Provenance {
     return {
       source: `출처 ${SOURCE[basis].table}.total_rental_fee · sales · sales_incentive · bad_debt · promotion · cost_of_goods · financial_cost · contribution_margin`,
-      formula: "산식 거래액 → 수수료 매출 → (−)장려금·대손·기타원가 → 공헌이익",
+      formula: `산식 거래액 ${koreanWon(curr.gmv)} → 수수료 ${koreanWon(curr.sales)} → 공헌이익 ${koreanWon(curr.cm)}`,
       caveat: "거래액은 구 정의(월렌탈료 × 기간) — 정확 GMV 는 통합 원장 이관 후",
     };
   },
 
-  cohort(basis: Basis): Provenance {
+  /** basis 무관 — 계약완료를 계약일이 아니라 주문일로 묶어 두 테이블을 모두 읽는다 */
+  cohort(rows: CohortMonthRow[]): Provenance {
+    const source = `출처 ${SOURCE.order.table}.order_confirmed_at · ${SOURCE.contract.table}.order_confirmed_at`;
+    const row = rows.at(-1);
+    if (!row) {
+      return {
+        source,
+        formula: "산식 같은 달 주문 중 지금까지 계약된 비율",
+        caveat: "코호트 데이터 없음",
+      };
+    }
+    const pctStr = row.countPct === null ? "—" : `${row.countPct.toFixed(1)}%`;
     return {
-      source: `출처 raw_orders.order_confirmed_at · raw_contracts.order_confirmed_at`,
-      formula: "산식 같은 달 주문 중 지금까지 계약된 비율",
-      caveat: "집계 기준 무관 · 당월은 진행 중",
+      source,
+      formula: `산식 주문 ${fmt(row.orderCount)}건 중 계약 ${fmt(row.contractCount)}건 = ${pctStr}`,
+      caveat: `집계 기준 무관${row.maturing ? " · 당월은 진행 중" : ""}`,
     };
   },
 
-  leadTime(basis: Basis): Provenance {
+  leadTime(basis: Basis, lt: LeadTime): Provenance {
+    const median = lt.medianDays === null ? "—" : `${lt.medianDays}일`;
+    const p75 = lt.p75Days === null ? "—" : `${lt.p75Days}일`;
     return {
       source: `출처 ${SOURCE[basis].table}.quote_date → order_confirmed_at`,
-      formula: "산식 두 날짜의 일수 차 · 중앙값과 상위 75%",
+      formula: `산식 두 날짜의 일수 차 · 중앙값 ${median} · 상위 75% ${p75} (표본 ${fmt(lt.withQuote)}건)`,
+      caveat: lt.withoutQuote > 0 ? `quote_date 없음 ${fmt(lt.withoutQuote)}건 제외` : undefined,
     };
   },
 
-  funnel(basis: Basis): Provenance {
+  funnel(basis: Basis, f: FunnelBlock): Provenance {
     return {
       source: `출처 ${SOURCE[basis].table}.quote_date · order_confirmed_at · contract_date`,
-      formula: "산식 당월 견적 코호트의 단계별 통과 건수 ÷ 견적 건수",
+      formula: `산식 ${f.stages.map((s) => `${s.label} ${fmt(s.count)}`).join(" → ")}`,
       caveat: "견적만 한 건 미포함 — 원천에 없음",
     };
   },
