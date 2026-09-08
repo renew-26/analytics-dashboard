@@ -7,8 +7,14 @@ import {
   METRICS,
   catSeries,
   bmSeries,
+  buildKpi,
+  buildTrend,
+  buildWaterfall,
+  buildComposition,
+  buildRank,
   type ReviewRow,
 } from "@/lib/metric-review";
+import { getPeriod } from "@/lib/period";
 
 type Row = { date: string; sales: number | null };
 const dateOf = (r: Row) => r.date;
@@ -155,5 +161,120 @@ describe("시리즈 색", () => {
 
   it("BM 3계열", () => {
     expect(bmSeries().map((s) => s.key)).toEqual(["BM1", "BM2", "BM3"]);
+  });
+});
+
+function row(p: Partial<ReviewRow> & { date: string }): ReviewRow {
+  return {
+    quote_date: null, order_confirmed_at: p.date,
+    category: "정수기", brand: "코웨이", partner_company: "이니렌탈",
+    rental_company: "코웨이", sales: 1000, contribution_margin: 400,
+    total_rental_fee: 10000, sales_incentive: 300, bad_debt: 100,
+    promotion: 0, cost_of_goods: 0, financial_cost: 200,
+    ...p,
+  };
+}
+
+const PERIOD = getPeriod("2026-09-07"); // curr 9/1~9/7 · prev 8/1~8/7
+
+describe("buildKpi", () => {
+  const rows = [
+    ...Array.from({ length: 7 }, (_, i) => row({ date: `2026-09-0${i + 1}`, sales: 100 })),
+    ...Array.from({ length: 7 }, (_, i) => row({ date: `2026-08-0${i + 1}`, sales: 50 })),
+  ];
+
+  it("이번달 합계와 전월 동기간 대비를 준다", () => {
+    const k = buildKpi(METRICS.revenue, rows, PERIOD, null);
+    expect(k.curr).toBe(700);
+    expect(k.prev).toBe(350);
+    expect(k.mom).toBe(100);
+    expect(k.count).toBe(7);
+  });
+
+  it("건수 지표는 행을 센다", () => {
+    const k = buildKpi(METRICS.count, rows, PERIOD, null);
+    expect(k.curr).toBe(7);
+  });
+
+  it("sales NULL 행은 매출에서 빼고 뺀 건수를 보고한다", () => {
+    const withNull = [...rows, row({ date: "2026-09-05", sales: null })];
+    const k = buildKpi(METRICS.revenue, withNull, PERIOD, null);
+    expect(k.curr).toBe(700);
+    expect(k.excludedRows).toBe(1);
+    expect(buildKpi(METRICS.count, withNull, PERIOD, null).curr).toBe(8);
+  });
+
+  it("전월이 0이면 mom 이 null — Infinity 를 내지 않는다", () => {
+    const onlyCurr = rows.filter((r) => r.date.startsWith("2026-09"));
+    expect(buildKpi(METRICS.revenue, onlyCurr, PERIOD, null).mom).toBeNull();
+  });
+});
+
+describe("buildTrend", () => {
+  const rows = [
+    row({ date: "2026-09-01", category: "정수기", partner_company: "이니렌탈", sales: 100 }),
+    row({ date: "2026-09-01", category: "TV", partner_company: "이니렌탈", sales: 50 }),
+    row({ date: "2026-09-02", category: "정수기", partner_company: "이니렌탈", sales: 200 }),
+  ];
+
+  it("일별 포인트를 카테고리 그룹으로 쌓는다", () => {
+    const t = buildTrend(METRICS.revenue, rows, PERIOD);
+    const d1 = t.daily.byCat.find((p) => p.label === "9/1")!;
+    expect(d1["정수기"]).toBe(100);
+    expect(d1["대형가전"]).toBe(50);
+    const d2 = t.daily.byCat.find((p) => p.label === "9/2")!;
+    expect(d2["정수기"]).toBe(200);
+  });
+
+  it("이번달 모든 날짜가 값 없이도 자리를 갖는다", () => {
+    const t = buildTrend(METRICS.revenue, rows, PERIOD);
+    expect(t.daily.byCat).toHaveLength(7); // 9/1~9/7
+    expect(t.daily.byCat.at(-1)!["정수기"]).toBe(0);
+  });
+});
+
+describe("buildWaterfall", () => {
+  it("델타 막대의 합이 총액 변화와 같다", () => {
+    const rows = [
+      row({ date: "2026-09-01", category: "정수기", sales: 300 }),
+      row({ date: "2026-09-02", category: "TV", sales: 100 }),
+      row({ date: "2026-08-01", category: "정수기", sales: 500 }),
+    ];
+    const items = buildWaterfall(METRICS.revenue, rows, PERIOD, "category", 1);
+    const deltas = items.filter((i) => i.type === "delta").reduce((s, i) => s + i.value, 0);
+    const first = items[0].value;
+    const last = items.at(-1)!.value;
+    expect(Number(deltas.toFixed(6))).toBe(Number((last - first).toFixed(6)));
+  });
+});
+
+describe("buildComposition", () => {
+  const rows = [
+    row({ date: "2026-09-01", category: "정수기", sales: 750 }),
+    row({ date: "2026-09-02", category: "TV", sales: 250 }),
+  ];
+
+  it("비중 합이 100%", () => {
+    const c = buildComposition(METRICS.revenue, rows, PERIOD);
+    const sum = c.byCategory.reduce((s, x) => s + x.sharePct, 0);
+    expect(Number(sum.toFixed(6))).toBe(100);
+    expect(c.byCategory.find((x) => x.name === "정수기")!.sharePct).toBe(75);
+  });
+
+  it("합계가 0이면 비중은 null 이고 항목은 비어 있다", () => {
+    const c = buildComposition(METRICS.revenue, [], PERIOD);
+    expect(c.total).toBe(0);
+    expect(c.byCategory).toEqual([]);
+  });
+});
+
+describe("buildRank", () => {
+  it("상위 5개를 값 내림차순으로 준다", () => {
+    const rows = ["a", "b", "c", "d", "e", "f"].map((b, i) =>
+      row({ date: "2026-09-01", brand: b, sales: (6 - i) * 100 }),
+    );
+    const r = buildRank(METRICS.revenue, rows, PERIOD);
+    expect(r.brands.map((x) => x.name)).toEqual(["a", "b", "c", "d", "e"]);
+    expect(r.brands[0].value).toBe(600);
   });
 });

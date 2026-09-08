@@ -8,6 +8,9 @@
 import { CATEGORY_GROUP_KEYS, catGroupOf } from "@/lib/biz-category";
 import { getBM } from "@/lib/company-map";
 import { fmt, koreanWon } from "@/lib/format";
+import type { Period } from "@/lib/period";
+import * as weekHelpers from "@/lib/week";
+import type { WaterfallItem } from "@/app/components/home/Waterfall";
 
 /**
  * 원천 — 이관 완료 시 이 블록만 raw_prop_items / 4678 로 교체한다.
@@ -80,7 +83,10 @@ export type TrendPoint = { label: string } & Record<string, string | number>;
 export type TrendSeries = { key: string; color: string };
 
 /** DESIGN.md 카테고리 팔레트 — 흰 배경 대비 검증된 5색, 순서대로 쓴다 */
-const CAT_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"];
+const CAT_COLORS = [
+  "var(--color-cat-1)", "var(--color-cat-2)", "var(--color-cat-3)",
+  "var(--color-cat-4)", "var(--color-cat-5)",
+];
 const REST_COLOR = "var(--color-gray-400)";
 
 /** 6그룹 중 "기타"는 순서가 아니라 잔여이므로 팔레트를 쓰지 않고 회색으로 둔다 */
@@ -150,12 +156,8 @@ export function monthlyBaseline<T>(
   valueOf: (r: T) => number,
   asOf: string,
 ): Baseline {
-  // 행이 없으면 asOf 자신을 earliestYm 으로 둔다 — null 로 두면 completedMonths 의
-  // earliestYm 필터가 무력화되어 데이터가 0건인데도 3개월치 days 가 잡혀 perDay 가
-  // 0 으로 나온다(null 이어야 할 자리).
-  const earliestYm = rows.length
-    ? rows.map(dateOf).reduce((a, b) => (a < b ? a : b)).slice(0, 7)
-    : asOf.slice(0, 7);
+  if (rows.length === 0) return { perDay: null, perWeek: null, months: [], days: 0, total: 0 };
+  const earliestYm = rows.map(dateOf).reduce((a, b) => (a < b ? a : b)).slice(0, 7);
   const months = completedMonths(asOf, earliestYm);
   const set = new Set(months);
   let total = 0;
@@ -173,4 +175,256 @@ export function paceVsBaseline(
 ): number | null {
   if (perDay === null || perDay === 0 || currDays === 0) return null;
   return (currTotal / currDays / perDay - 1) * 100;
+}
+
+const TOP_N = 5;
+
+function inRange(d: string, a: string, b: string) {
+  return d >= a && d <= b;
+}
+
+function daysBetweenInclusive(a: string, b: string) {
+  const ms = new Date(`${b}T00:00:00`).getTime() - new Date(`${a}T00:00:00`).getTime();
+  return Math.round(ms / 86_400_000) + 1;
+}
+
+export function sumBy<T>(rows: T[], keyOf: (r: T) => string, valueOf: (r: T) => number) {
+  const m = new Map<string, number>();
+  for (const r of rows) m.set(keyOf(r), (m.get(keyOf(r)) ?? 0) + valueOf(r));
+  return m;
+}
+
+export type RankItem = { name: string; value: number; sharePct: number };
+
+export function topN(m: Map<string, number>, n: number, total: number): RankItem[] {
+  return [...m.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, n)
+    .map(([name, value]) => ({
+      name,
+      value,
+      sharePct: total > 0 ? (value / total) * 100 : 0,
+    }));
+}
+
+/** metric 이 제외하는 행을 걸러내고, 몇 행을 뺐는지 함께 준다 */
+function usable(metric: Metric, rows: ReviewRow[]) {
+  const kept = rows.filter((r) => metric.includeRow(r));
+  return { kept, excluded: rows.length - kept.length };
+}
+
+export type KpiBlock = {
+  curr: number;
+  prev: number;
+  mom: number | null;
+  count: number;
+  prevCount: number;
+  avgUnitPrice: number;
+  cm: number;
+  cmMom: number | null;
+  pace: number | null;
+  baseline: Baseline;
+  currDays: number;
+  excludedRows: number;
+};
+
+export function buildKpi(
+  metric: Metric,
+  rows: ReviewRow[],
+  period: Period,
+  baseline: Baseline | null,
+): KpiBlock {
+  const { kept, excluded } = usable(metric, rows);
+  const currRows = kept.filter((r) => inRange(r.date, period.curr.start, period.curr.end));
+  const prevRows = kept.filter((r) => inRange(r.date, period.prev.start, period.prev.end));
+
+  const curr = currRows.reduce((s, r) => s + metric.valueOf(r), 0);
+  const prev = prevRows.reduce((s, r) => s + metric.valueOf(r), 0);
+  const cm = currRows.reduce((s, r) => s + (r.contribution_margin ?? 0), 0);
+  const cmPrev = prevRows.reduce((s, r) => s + (r.contribution_margin ?? 0), 0);
+  const currDays = daysBetweenInclusive(period.curr.start, period.curr.end);
+  const base = baseline ?? monthlyBaseline(kept, (r) => r.date, (r) => metric.valueOf(r), period.curr.end);
+
+  return {
+    curr,
+    prev,
+    mom: prev === 0 ? null : ((curr - prev) / prev) * 100,
+    count: currRows.length,
+    prevCount: prevRows.length,
+    avgUnitPrice: currRows.length > 0
+      ? currRows.reduce((s, r) => s + (r.sales ?? 0), 0) / currRows.length
+      : 0,
+    cm,
+    cmMom: cmPrev === 0 ? null : ((cm - cmPrev) / cmPrev) * 100,
+    pace: paceVsBaseline(curr, currDays, base.perDay),
+    baseline: base,
+    currDays,
+    excludedRows: excluded,
+  };
+}
+
+export type TrendBlock = {
+  daily: { byCat: TrendPoint[]; byBm: TrendPoint[] };
+  weekly: { byCat: TrendPoint[]; byBm: TrendPoint[] };
+  catSeries: TrendSeries[];
+  bmSeries: TrendSeries[];
+  /** 마지막 주가 진행 중이면 그 인덱스 — 속 빈 표시로 구분한다 */
+  weeklyOpenIndex: number | null;
+};
+
+const WEEKS_BACK = 6;
+
+function stack(
+  metric: Metric,
+  rows: ReviewRow[],
+  bucketOf: (r: ReviewRow) => string,
+  keyOf: (r: ReviewRow) => string,
+  buckets: { key: string; label: string }[],
+  seriesKeys: string[],
+): TrendPoint[] {
+  const grid = new Map<string, Map<string, number>>();
+  for (const b of buckets) grid.set(b.key, new Map(seriesKeys.map((k) => [k, 0])));
+  for (const r of rows) {
+    const g = grid.get(bucketOf(r));
+    if (!g) continue;
+    const k = keyOf(r);
+    if (!g.has(k)) continue;
+    g.set(k, (g.get(k) ?? 0) + metric.valueOf(r));
+  }
+  return buckets.map((b) => {
+    const p: TrendPoint = { label: b.label };
+    for (const [k, v] of grid.get(b.key)!) p[k] = v;
+    return p;
+  });
+}
+
+export function buildTrend(metric: Metric, rows: ReviewRow[], period: Period): TrendBlock {
+  const { kept } = usable(metric, rows);
+  const cats = catSeries();
+  const bms = bmSeries();
+
+  const dayBuckets: { key: string; label: string }[] = [];
+  for (let d = new Date(`${period.curr.start}T00:00:00`); ; d.setDate(d.getDate() + 1)) {
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    dayBuckets.push({ key, label: `${d.getMonth() + 1}/${d.getDate()}` });
+    if (key >= period.curr.end) break;
+  }
+
+  const { getWeekIndex, getWeekLabel } = weekHelpers;
+  const lastWeek = getWeekIndex(period.curr.end);
+  const weekBuckets = Array.from({ length: WEEKS_BACK }, (_, i) => {
+    const idx = lastWeek - (WEEKS_BACK - 1 - i);
+    return { key: String(idx), label: getWeekLabel(idx).range };
+  });
+
+  const dayOf = (r: ReviewRow) => r.date;
+  const weekOf = (r: ReviewRow) => String(getWeekIndex(r.date));
+  const currRows = kept.filter((r) => inRange(r.date, period.curr.start, period.curr.end));
+
+  return {
+    daily: {
+      byCat: stack(metric, currRows, dayOf, (r) => groupOf(r.category), dayBuckets, cats.map((s) => s.key)),
+      byBm: stack(metric, currRows, dayOf, (r) => bmOf(r.partner_company), dayBuckets, bms.map((s) => s.key)),
+    },
+    weekly: {
+      byCat: stack(metric, kept, weekOf, (r) => groupOf(r.category), weekBuckets, cats.map((s) => s.key)),
+      byBm: stack(metric, kept, weekOf, (r) => bmOf(r.partner_company), weekBuckets, bms.map((s) => s.key)),
+    },
+    catSeries: cats,
+    bmSeries: bms,
+    weeklyOpenIndex: WEEKS_BACK - 1,
+  };
+}
+
+/**
+ * 전월 동기간 → 이번달을 기여도로 분해한다.
+ * 그룹이 전체를 빈틈없이 나누므로 델타의 합은 총액 변화와 같다.
+ */
+export function buildWaterfall(
+  metric: Metric,
+  rows: ReviewRow[],
+  period: Period,
+  by: "category" | "rental",
+  divisor: number,
+): WaterfallItem[] {
+  const { kept } = usable(metric, rows);
+  const keyOf = by === "category"
+    ? (r: ReviewRow) => groupOf(r.category)
+    : (r: ReviewRow) => r.rental_company ?? "그 외";
+  const currRows = kept.filter((r) => inRange(r.date, period.curr.start, period.curr.end));
+  const prevRows = kept.filter((r) => inRange(r.date, period.prev.start, period.prev.end));
+  const c = sumBy(currRows, keyOf, (r) => metric.valueOf(r));
+  const p = sumBy(prevRows, keyOf, (r) => metric.valueOf(r));
+
+  const keys = [...new Set([...c.keys(), ...p.keys()])];
+  const deltas = keys
+    .map((k) => ({ label: k, delta: (c.get(k) ?? 0) - (p.get(k) ?? 0) }))
+    .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+
+  // 항목이 많으면 상위 6개만 세우고 나머지는 "그 외"로 접는다 — 합은 그대로 보존된다.
+  const head = deltas.slice(0, 6);
+  const restSum = deltas.slice(6).reduce((s, d) => s + d.delta, 0);
+  const shown = restSum === 0 ? head : [...head, { label: "그 외", delta: restSum }];
+
+  const prevTotal = [...p.values()].reduce((s, v) => s + v, 0);
+  const currTotal = [...c.values()].reduce((s, v) => s + v, 0);
+
+  return [
+    { label: "전월 동기간", type: "total", value: prevTotal / divisor },
+    ...shown.map((d) => ({ label: d.label, type: "delta" as const, value: d.delta / divisor })),
+    { label: "이번달", type: "total", value: currTotal / divisor },
+  ];
+}
+
+export type CompositionBlock = {
+  total: number;
+  byCategory: RankItem[];
+  byBm: RankItem[];
+  byRental: RankItem[];
+};
+
+export function buildComposition(
+  metric: Metric,
+  rows: ReviewRow[],
+  period: Period,
+): CompositionBlock {
+  const { kept } = usable(metric, rows);
+  const currRows = kept.filter((r) => inRange(r.date, period.curr.start, period.curr.end));
+  const total = currRows.reduce((s, r) => s + metric.valueOf(r), 0);
+  if (total === 0) return { total: 0, byCategory: [], byBm: [], byRental: [] };
+
+  const catMap = sumBy(currRows, (r) => groupOf(r.category), (r) => metric.valueOf(r));
+  const bmMap = sumBy(currRows, (r) => bmOf(r.partner_company), (r) => metric.valueOf(r));
+  const rcMap = sumBy(currRows, (r) => r.rental_company ?? "그 외", (r) => metric.valueOf(r));
+
+  const rentalTop = topN(rcMap, TOP_N, total);
+  const rest = total - rentalTop.reduce((s, x) => s + x.value, 0);
+
+  return {
+    total,
+    byCategory: topN(catMap, catMap.size, total),
+    byBm: topN(bmMap, bmMap.size, total),
+    byRental: rest > 0
+      ? [...rentalTop, { name: "그 외", value: rest, sharePct: (rest / total) * 100 }]
+      : rentalTop,
+  };
+}
+
+export type RankBlock = {
+  categories: RankItem[];
+  brands: RankItem[];
+  partners: RankItem[];
+};
+
+export function buildRank(metric: Metric, rows: ReviewRow[], period: Period): RankBlock {
+  const { kept } = usable(metric, rows);
+  const currRows = kept.filter((r) => inRange(r.date, period.curr.start, period.curr.end));
+  const total = currRows.reduce((s, r) => s + metric.valueOf(r), 0);
+  const of = (keyOf: (r: ReviewRow) => string) =>
+    topN(sumBy(currRows, keyOf, (r) => metric.valueOf(r)), TOP_N, total);
+  return {
+    categories: of((r) => r.category ?? "미분류"),
+    brands: of((r) => r.brand ?? "미분류"),
+    partners: of((r) => r.partner_company ?? "미분류"),
+  };
 }
