@@ -26,11 +26,8 @@ export default function Panel({
 }) {
   return (
     <section
-      className="rounded-xl bg-white border border-[var(--color-gray-200)] p-[17px] flex flex-col"
-      style={{
-        boxShadow: "0 1px 2px rgba(28,35,56,.04), 0 2px 8px rgba(28,35,56,.05)",
-        height: fixedHeight ? 320 : undefined,
-      }}
+      className="rounded-xl bg-white border border-[var(--color-gray-200)] p-[17px] flex flex-col shadow-sm"
+      style={{ height: fixedHeight ? 320 : undefined }}
     >
       <header className="flex items-start justify-between gap-3 mb-3">
         <div className="min-w-0">

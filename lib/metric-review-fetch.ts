@@ -41,12 +41,10 @@ type WideRawRow = {
 /**
  * basis 기준 창(본문 4개월)을 손익 컬럼까지 전부 당긴다.
  *
- * quote_date 는 basis="order" 일 때만 셀렉트한다. app/revenue-analysis/page.tsx
- * 의 기존 와이드 쿼리와 코호트 쿼리(CohortContractRow = Omit<CohortOrderRow,
- * "quote_date">) 둘 다 raw_contracts 에서는 quote_date 를 셀렉트하지 않는다 —
- * 실측으로 검증된 그 패턴을 따른다. 없는 컬럼을 셀렉트하면 계약 기준 조회 전체가
- * 에러로 죽는데, 그건 "행이 줄어드는 것"이 아니라 "완전히 빈 화면"이라 이 파일의
- * 요구사항(죽지 않는다)을 어긴다.
+ * quote_date 는 basis="order" 일 때만 셀렉트한다. 컬럼 자체는 두 테이블에 모두
+ * 있지만(2026-09-08 리뷰에서 직접 조회 확인), raw_contracts 쪽은 항상 NULL이다
+ * — 2026-06 이후 19,071행 중 값이 있는 행 0건. 있어도 안 채워지는 컬럼을 계약
+ * 기준 조회마다 매번 셀렉트할 이유가 없어 basis="contract" 일 때는 뺀다.
  */
 export async function fetchReviewRows(
   basis: Basis,
@@ -112,21 +110,26 @@ type CohortRawRow = {
 /**
  * 코호트용 좁은 컬럼 페치 — 본문 창(4개월)보다 긴 6개월치를 최소 컬럼으로 당긴다.
  *
- * 두 테이블 모두 "order_confirmed_at" 으로 필터·정렬한다. raw_contracts 도
+ * 테이블명은 SOURCE[basis].table 로만 정한다 — 리터럴로 박아넣지 않는다(원천
+ * 이관 시 SOURCE 한 곳만 바꾸면 되게 하려는 lib/metric-provenance.ts pv.cohort
+ * 와 같은 원칙).
+ *
+ * 두 테이블 모두 "order_confirmed_at" 으로 필터·정렬한다. basis="contract" 여도
  * contract_date 가 아니다 — buildCohort(lib/metric-review.ts)의 주석과
  * pv.cohort(lib/metric-provenance.ts)의 source 문자열
  * (`${SOURCE.contract.table}.order_confirmed_at`, contract_date 가 아님)이
  * 이미 "계약완료를 계약일이 아니라 주문일로 묶는다"를 못박아 두었다. 계약 쪽을
- * contract_date 로 걸면 호출부(Task 10)가 두 테이블에 같은 6개월 창을 넘기는
- * 전제가 깨져 전환율이 아니라 달력이 된다.
+ * contract_date 로 걸면 호출부가 두 basis에 같은 6개월 창을 넘기는 전제가 깨져
+ * 전환율이 아니라 달력이 된다.
  */
 export async function fetchCohortRows(
-  table: "raw_orders" | "raw_contracts",
+  basis: Basis,
   start: string,
   end: string,
 ): Promise<ReviewRow[]> {
+  const table = SOURCE[basis].table;
   const dateCol = "order_confirmed_at";
-  const select = table === "raw_orders" ? "quote_date, order_confirmed_at, sales" : "order_confirmed_at, sales";
+  const select = basis === "order" ? "quote_date, order_confirmed_at, sales" : "order_confirmed_at, sales";
 
   const rows: ReviewRow[] = [];
   for (let from = 0; ; from += COHORT_PAGE) {
