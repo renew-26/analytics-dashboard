@@ -31,7 +31,7 @@ function StackTooltip({
   const total = payload.reduce((s, p) => s + (p.value || 0), 0);
   return (
     <div className="rounded-lg bg-white border border-[var(--color-gray-200)] px-3.5 py-2.5 text-xs min-w-[180px]"
-         style={{ boxShadow: "0 8px 24px rgba(30,30,60,.18)" }}>
+         style={{ boxShadow: "var(--sh-pop)" }}>
       <div className="font-semibold text-[var(--color-gray-900)] mb-1.5">
         {label} <span className="font-medium text-[var(--color-gray-500)]">합계 <span className="num">{metric.fmt(total)}</span></span>
       </div>

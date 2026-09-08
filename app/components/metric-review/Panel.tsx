@@ -26,7 +26,7 @@ export default function Panel({
 }) {
   return (
     <section
-      className="rounded-xl bg-white border border-[var(--color-gray-200)] p-[17px] flex flex-col shadow-sm"
+      className="rounded-xl bg-white border border-[var(--color-gray-200)] p-[17px] flex flex-col shadow-[0_1px_2px_rgba(28,35,56,.04),0_2px_8px_rgba(28,35,56,.05)]"
       style={{ height: fixedHeight ? 320 : undefined }}
     >
       <header className="flex items-start justify-between gap-3 mb-3">

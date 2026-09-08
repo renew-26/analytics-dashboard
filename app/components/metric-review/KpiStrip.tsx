@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import Delta from "@/app/components/Delta";
+import { EOK, MAN } from "@/lib/format";
 import type { KpiBlock, Metric } from "@/lib/metric-review";
 
 function Tile({
@@ -57,12 +58,12 @@ export default function KpiStrip({
       <Tile
         title="이번달 거래건수"
         value={`${kpi.count.toLocaleString("ko-KR")}건`}
-        sub={<>건당 <span className="num">{Math.round(kpi.avgUnitPrice / 10_000).toLocaleString("ko-KR")}</span>만원</>}
+        sub={<>건당 <span className="num">{Math.round(kpi.avgUnitPrice / MAN).toLocaleString("ko-KR")}</span>만원</>}
         note="행 수 · sales ÷ 행 수"
       />
       <Tile
         title="이번달 공헌이익"
-        value={`${(kpi.cm / 100_000_000).toFixed(2)}억`}
+        value={`${(kpi.cm / EOK).toFixed(2)}억`}
         sub={<>전월 동기간 <span className="num">{prevLabel}</span> 대비</>}
         badge={<Delta value={kpi.cmMom} />}
         note="contribution_margin 합계"
