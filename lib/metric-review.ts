@@ -7,7 +7,7 @@
 
 import { CATEGORY_GROUP_KEYS, catGroupOf } from "@/lib/biz-category";
 import { getBM } from "@/lib/company-map";
-import { fmt, koreanWon } from "@/lib/format";
+import { fmt, koreanWon, recentYmsOf } from "@/lib/format";
 import type { Period } from "@/lib/period";
 import * as weekHelpers from "@/lib/week";
 import type { WaterfallItem } from "@/app/components/home/Waterfall";
@@ -443,5 +443,152 @@ export function buildRank(metric: Metric, rows: ReviewRow[], period: Period): Ra
     categories: of((r) => r.category ?? "미분류"),
     brands: of((r) => r.brand ?? "미분류"),
     partners: of((r) => r.partner_company ?? "미분류"),
+  };
+}
+
+export type PnlLadder = {
+  gmv: number; sales: number; incentive: number; badDebt: number;
+  other: number; cm: number;
+  /** sales − 장려금 − 대손 − 기타원가 − cm. 0이 아니면 컬럼 정의가 어긋난 것 */
+  residual: number;
+  count: number;
+};
+
+function sumPnl(rows: ReviewRow[]): PnlLadder {
+  const l = { gmv: 0, sales: 0, incentive: 0, badDebt: 0, other: 0, cm: 0 };
+  for (const r of rows) {
+    l.gmv += r.total_rental_fee ?? 0;
+    l.sales += r.sales ?? 0;
+    l.incentive += r.sales_incentive ?? 0;
+    l.badDebt += r.bad_debt ?? 0;
+    l.other += (r.promotion ?? 0) + (r.cost_of_goods ?? 0) + (r.financial_cost ?? 0);
+    l.cm += r.contribution_margin ?? 0;
+  }
+  return { ...l, residual: l.sales - l.incentive - l.badDebt - l.other - l.cm, count: rows.length };
+}
+
+export function buildPnl(rows: ReviewRow[], period: Period) {
+  return {
+    curr: sumPnl(rows.filter((r) => inRange(r.date, period.curr.start, period.curr.end))),
+    prev: sumPnl(rows.filter((r) => inRange(r.date, period.prev.start, period.prev.end))),
+  };
+}
+
+export type CohortMonthRow = {
+  ym: string; label: string;
+  orderCount: number; orderValue: number;
+  contractCount: number; contractValue: number;
+  countPct: number | null; valuePct: number | null;
+  /** 아직 계약이 들어오고 있는 달 — 낮은 전환율이 실적이 아니라 시간이다 */
+  maturing: boolean;
+};
+
+/**
+ * 주문월 코호트 — 계약완료를 계약일이 아니라 주문일로 묶는다.
+ * 계약일로 나누면 지난달 주문이 이번달 분자에 섞여 월초엔 낮고 월말엔 높아지는
+ * '달력'이 나온다. 집계 기준(basis)과 무관하게 같은 값이다.
+ */
+export function buildCohort(
+  orders: ReviewRow[],
+  contracts: ReviewRow[],
+  asOf: string,
+  months = 6,
+): CohortMonthRow[] {
+  const yms = recentYmsOf(asOf, months);
+  const currYm = asOf.slice(0, 7);
+  const ymOf = (r: ReviewRow) => (r.order_confirmed_at ?? r.date).slice(0, 7);
+
+  return yms.map((ym) => {
+    const o = orders.filter((r) => ymOf(r) === ym);
+    const c = contracts.filter((r) => ymOf(r) === ym);
+    const orderValue = o.reduce((s, r) => s + (r.sales ?? 0), 0);
+    const contractValue = c.reduce((s, r) => s + (r.sales ?? 0), 0);
+    return {
+      ym,
+      label: `${ym.slice(2, 4)}.${ym.slice(5, 7)}`,
+      orderCount: o.length,
+      orderValue,
+      contractCount: c.length,
+      contractValue,
+      countPct: o.length > 0 ? (c.length / o.length) * 100 : null,
+      valuePct: orderValue > 0 ? (contractValue / orderValue) * 100 : null,
+      maturing: ym >= currYm,
+    };
+  });
+}
+
+export type LeadTimeBucket = { label: string; count: number; pct: number };
+export type LeadTime = {
+  withQuote: number; withoutQuote: number;
+  medianDays: number | null; p75Days: number | null;
+  buckets: LeadTimeBucket[];
+};
+
+function quantile(sorted: number[], q: number): number | null {
+  if (sorted.length === 0) return null;
+  const i = Math.min(sorted.length - 1, Math.floor(sorted.length * q));
+  return sorted[i];
+}
+
+export function buildLeadTime(rows: ReviewRow[]): LeadTime {
+  const days: number[] = [];
+  let withoutQuote = 0;
+  for (const r of rows) {
+    const to = r.order_confirmed_at ?? r.date;
+    if (!r.quote_date || !to) { withoutQuote++; continue; }
+    days.push(Math.max(0, daysBetweenInclusive(r.quote_date, to) - 1));
+  }
+  days.sort((a, b) => a - b);
+  const defs: { label: string; test: (d: number) => boolean }[] = [
+    { label: "당일", test: (d) => d === 0 },
+    { label: "1~3일", test: (d) => d >= 1 && d <= 3 },
+    { label: "4~7일", test: (d) => d >= 4 && d <= 7 },
+    { label: "8일+", test: (d) => d >= 8 },
+  ];
+  return {
+    withQuote: days.length,
+    withoutQuote,
+    medianDays: quantile(days, 0.5),
+    p75Days: quantile(days, 0.75),
+    buckets: defs.map((b) => {
+      const count = days.filter(b.test).length;
+      return { label: b.label, count, pct: days.length > 0 ? (count / days.length) * 100 : 0 };
+    }),
+  };
+}
+
+export type FunnelStage = { label: string; count: number; convPct: number | null; note?: string };
+export type FunnelBlock = { stages: FunnelStage[] };
+
+/**
+ * 이번달 견적(quote_date) 코호트의 단계별 통과 건수.
+ *
+ * 한계: 견적만 하고 주문에 이르지 않은 건은 원천에 없다 — 2026-09-08 실측에서
+ * 9/1~7 견적 코호트 924건이 전부 order_confirmed_at 을 갖고 있었다.
+ * 첫 단계 분모가 운영시트보다 작다는 뜻이며 화면에 명시한다.
+ */
+export function buildFunnel(
+  orders: ReviewRow[],
+  contracts: ReviewRow[],
+  period: Period,
+): FunnelBlock {
+  const inCohort = (r: ReviewRow) =>
+    !!r.quote_date && inRange(r.quote_date, period.curr.start, period.curr.end);
+  const quoted = orders.filter(inCohort);
+  const ordered = quoted.filter((r) => !!r.order_confirmed_at);
+  const contracted = contracts.filter(inCohort);
+
+  const mk = (label: string, count: number, base: number | null, note?: string): FunnelStage => ({
+    label, count,
+    convPct: base === null || base === 0 ? null : (count / base) * 100,
+    note,
+  });
+
+  return {
+    stages: [
+      mk("견적신청", quoted.length, null, "주문까지 간 견적만 — 원천 한계"),
+      mk("주문확정", ordered.length, quoted.length),
+      mk("계약완료", contracted.length, quoted.length),
+    ],
   };
 }

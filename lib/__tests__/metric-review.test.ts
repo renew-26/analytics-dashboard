@@ -12,6 +12,10 @@ import {
   buildWaterfall,
   buildComposition,
   buildRank,
+  buildPnl,
+  buildCohort,
+  buildLeadTime,
+  buildFunnel,
   type ReviewRow,
 } from "@/lib/metric-review";
 import { getPeriod } from "@/lib/period";
@@ -311,5 +315,95 @@ describe("buildRank", () => {
     const r = buildRank(METRICS.revenue, rows, PERIOD);
     expect(r.brands.map((x) => x.name)).toEqual(["a", "b", "c", "d", "e"]);
     expect(r.brands[0].value).toBe(600);
+  });
+});
+
+describe("buildPnl", () => {
+  it("거래액→수수료→공헌이익 계층을 더하고 잔차를 낸다", () => {
+    const rows = [
+      row({ date: "2026-09-01", total_rental_fee: 10000, sales: 1000,
+            sales_incentive: 300, bad_debt: 100, promotion: 50,
+            cost_of_goods: 100, financial_cost: 50, contribution_margin: 400 }),
+    ];
+    const l = buildPnl(rows, PERIOD).curr;
+    expect(l.gmv).toBe(10000);
+    expect(l.sales).toBe(1000);
+    expect(l.incentive).toBe(300);
+    expect(l.badDebt).toBe(100);
+    expect(l.other).toBe(200); // promotion + cost_of_goods + financial_cost
+    expect(l.cm).toBe(400);
+    expect(l.residual).toBe(0); // 1000 − 300 − 100 − 200 − 400
+    expect(l.count).toBe(1);
+  });
+
+  it("컬럼 정의가 어긋나면 잔차가 0이 아니다", () => {
+    const rows = [row({ date: "2026-09-01", sales: 1000, sales_incentive: 0,
+      bad_debt: 0, promotion: 0, cost_of_goods: 0, financial_cost: 0,
+      contribution_margin: 999 })];
+    expect(buildPnl(rows, PERIOD).curr.residual).toBe(1);
+  });
+});
+
+describe("buildCohort", () => {
+  it("주문월로 묶고 그 중 계약된 비율을 낸다", () => {
+    const rows = [
+      row({ date: "2026-09-01", order_confirmed_at: "2026-09-01", sales: 100 }),
+      row({ date: "2026-09-02", order_confirmed_at: "2026-09-02", sales: 100 }),
+    ];
+    const contracts = [row({ date: "2026-09-03", order_confirmed_at: "2026-09-01", sales: 100 })];
+    const c = buildCohort(rows, contracts, "2026-09-07", 1);
+    expect(c[0].ym).toBe("2026-09");
+    expect(c[0].orderCount).toBe(2);
+    expect(c[0].contractCount).toBe(1);
+    expect(c[0].countPct).toBe(50);
+    expect(c[0].maturing).toBe(true); // 기준일이 속한 달은 아직 계약이 들어온다
+  });
+
+  it("주문이 0인 달은 비율이 null", () => {
+    const c = buildCohort([], [], "2026-09-07", 1);
+    expect(c[0].countPct).toBeNull();
+  });
+});
+
+describe("buildLeadTime", () => {
+  it("견적신청→주문확정 일수를 버킷으로 나눈다", () => {
+    const rows = [
+      row({ date: "2026-09-01", quote_date: "2026-09-01" }), // 당일
+      row({ date: "2026-09-03", quote_date: "2026-09-01" }), // 2일
+      row({ date: "2026-09-10", quote_date: "2026-09-01" }), // 9일
+      row({ date: "2026-09-05", quote_date: null }),          // 견적일 없음
+    ];
+    const lt = buildLeadTime(rows);
+    expect(lt.withQuote).toBe(3);
+    expect(lt.withoutQuote).toBe(1);
+    expect(lt.medianDays).toBe(2);
+    expect(lt.buckets.find((b) => b.label === "당일")!.count).toBe(1);
+    expect(lt.buckets.find((b) => b.label === "8일+")!.count).toBe(1);
+  });
+
+  it("견적일이 하나도 없으면 중앙값이 null", () => {
+    expect(buildLeadTime([row({ date: "2026-09-01", quote_date: null })]).medianDays).toBeNull();
+  });
+});
+
+describe("buildFunnel", () => {
+  it("견적 코호트의 단계별 건수와 전환율을 준다", () => {
+    const orders = [
+      row({ date: "2026-09-01", quote_date: "2026-09-01" }),
+      row({ date: "2026-09-02", quote_date: "2026-09-02" }),
+      row({ date: "2026-09-03", quote_date: "2026-09-03" }),
+      row({ date: "2026-09-04", quote_date: "2026-09-04" }),
+    ];
+    const contracts = [row({ date: "2026-09-05", quote_date: "2026-09-01" })];
+    const f = buildFunnel(orders, contracts, PERIOD);
+    expect(f.stages.map((s) => s.count)).toEqual([4, 4, 1]);
+    expect(f.stages[2].convPct).toBe(25);
+    expect(f.stages[0].convPct).toBeNull(); // 첫 단계는 비교 대상이 없다
+  });
+
+  it("단계 건수가 뒤 단계로 갈수록 줄어든다", () => {
+    const f = buildFunnel([row({ date: "2026-09-01", quote_date: "2026-09-01" })], [], PERIOD);
+    const counts = f.stages.map((s) => s.count);
+    expect(counts).toEqual([...counts].sort((a, b) => b - a));
   });
 });
