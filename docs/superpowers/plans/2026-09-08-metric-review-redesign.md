@@ -2535,8 +2535,8 @@ export default async function RevenueAnalysisPage({
 
   const [{ rows: allRows, lastSyncedAt }, cohortOrders, cohortContracts] = await Promise.all([
     fetchReviewRows(basis, start, period.curr.end),
-    fetchCohortRows("raw_orders", cohortStart(period.curr.end), period.curr.end),
-    fetchCohortRows("raw_contracts", cohortStart(period.curr.end), period.curr.end),
+    fetchCohortRows("order", cohortStart(period.curr.end), period.curr.end),
+    fetchCohortRows("contract", cohortStart(period.curr.end), period.curr.end),
   ]);
 
   const rows = bm === "전체" ? allRows : allRows.filter((r) => getBM(r.partner_company) === bm);
