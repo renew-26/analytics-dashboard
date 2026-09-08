@@ -350,13 +350,22 @@ describe("buildCohort", () => {
       row({ date: "2026-09-01", order_confirmed_at: "2026-09-01", sales: 100 }),
       row({ date: "2026-09-02", order_confirmed_at: "2026-09-02", sales: 100 }),
     ];
-    const contracts = [row({ date: "2026-09-03", order_confirmed_at: "2026-09-01", sales: 100 })];
-    const c = buildCohort(rows, contracts, "2026-09-07", 1);
-    expect(c[0].ym).toBe("2026-09");
-    expect(c[0].orderCount).toBe(2);
-    expect(c[0].contractCount).toBe(1);
-    expect(c[0].countPct).toBe(50);
-    expect(c[0].maturing).toBe(true); // 기준일이 속한 달은 아직 계약이 들어온다
+    // 주문은 8월에 냈지만 계약은 9월에 체결됐다 — 계약일로 묶으면 9월 분자에 섞인다.
+    // 주문월(order_confirmed_at) 기준이면 이 건은 8월 코호트에 잡혀야 한다.
+    const contracts = [row({ date: "2026-09-03", order_confirmed_at: "2026-08-25", sales: 100 })];
+    const c = buildCohort(rows, contracts, "2026-09-07", 2);
+    const [aug, sep] = c;
+
+    expect(aug.ym).toBe("2026-08");
+    expect(aug.orderCount).toBe(0);
+    expect(aug.contractCount).toBe(1); // 계약일(9월)이 아니라 주문월(8월)로 잡힌다
+    expect(aug.countPct).toBeNull(); // 8월 주문이 없으니 분모가 0
+
+    expect(sep.ym).toBe("2026-09");
+    expect(sep.orderCount).toBe(2);
+    expect(sep.contractCount).toBe(0); // 계약일 기준이었다면 여기 섞였을 건이 안 보인다
+    expect(sep.countPct).toBe(0);
+    expect(sep.maturing).toBe(true); // 기준일이 속한 달은 아직 계약이 들어온다
   });
 
   it("주문이 0인 달은 비율이 null", () => {
