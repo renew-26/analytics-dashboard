@@ -234,7 +234,7 @@ export function buildKpi(
   period: Period,
   baseline: Baseline | null,
 ): KpiBlock {
-  const { kept, excluded } = usable(metric, rows);
+  const { kept } = usable(metric, rows);
   const currRows = kept.filter((r) => inRange(r.date, period.curr.start, period.curr.end));
   const prevRows = kept.filter((r) => inRange(r.date, period.prev.start, period.prev.end));
 
@@ -245,21 +245,30 @@ export function buildKpi(
   const currDays = daysBetweenInclusive(period.curr.start, period.curr.end);
   const base = baseline ?? monthlyBaseline(kept, (r) => r.date, (r) => metric.valueOf(r), period.curr.end);
 
+  // excludedRows 는 화면 옆에 나란히 찍히는 이번달 수치의 근거이므로, 이번달
+  // 구간 밖(기준선용으로 딸려온 과거 달)의 제외 건수가 섞이면 안 된다.
+  const currRowsRaw = rows.filter((r) => inRange(r.date, period.curr.start, period.curr.end));
+  const excludedRows = currRowsRaw.length - currRows.length;
+
+  // avgUnitPrice 는 "건당 단가"이므로 sales 가 NULL 인 행(건수 지표가 포함하는
+  // raw_contracts 레거시 행 포함)을 0 으로 섞으면 단가가 실제보다 낮게 나온다.
+  const currRowsWithSales = currRows.filter((r) => r.sales !== null);
+
   return {
     curr,
     prev,
     mom: prev === 0 ? null : ((curr - prev) / prev) * 100,
     count: currRows.length,
     prevCount: prevRows.length,
-    avgUnitPrice: currRows.length > 0
-      ? currRows.reduce((s, r) => s + (r.sales ?? 0), 0) / currRows.length
+    avgUnitPrice: currRowsWithSales.length > 0
+      ? currRowsWithSales.reduce((s, r) => s + (r.sales ?? 0), 0) / currRowsWithSales.length
       : 0,
     cm,
     cmMom: cmPrev === 0 ? null : ((cm - cmPrev) / cmPrev) * 100,
     pace: paceVsBaseline(curr, currDays, base.perDay),
     baseline: base,
     currDays,
-    excludedRows: excluded,
+    excludedRows,
   };
 }
 
@@ -332,7 +341,15 @@ export function buildTrend(metric: Metric, rows: ReviewRow[], period: Period): T
     },
     catSeries: cats,
     bmSeries: bms,
-    weeklyOpenIndex: WEEKS_BACK - 1,
+    // curr.end 다음날도 같은 주차면 curr.end 가 그 주의 마지막 날이 아니라는
+    // 뜻 — 그 주는 아직 진행 중이다. 다음날이 다음 주차로 넘어갔다면 curr.end
+    // 가 그 주의 마지막 날이었다는 뜻이므로 그 주는 이미 완결됐다.
+    weeklyOpenIndex: (() => {
+      const nextDay = new Date(`${period.curr.end}T00:00:00`);
+      nextDay.setDate(nextDay.getDate() + 1);
+      const nextDayKey = `${nextDay.getFullYear()}-${String(nextDay.getMonth() + 1).padStart(2, "0")}-${String(nextDay.getDate()).padStart(2, "0")}`;
+      return getWeekIndex(nextDayKey) === lastWeek ? WEEKS_BACK - 1 : null;
+    })(),
   };
 }
 

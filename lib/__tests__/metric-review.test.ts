@@ -208,6 +208,28 @@ describe("buildKpi", () => {
     const onlyCurr = rows.filter((r) => r.date.startsWith("2026-09"));
     expect(buildKpi(METRICS.revenue, onlyCurr, PERIOD, null).mom).toBeNull();
   });
+
+  it("excludedRows 는 이번달 구간의 제외 건수만 센다 — 기준선용 과거 달의 제외는 안 센다", () => {
+    const withHistory = [
+      ...rows,
+      row({ date: "2026-09-05", sales: null }), // 이번달 — 센다
+      row({ date: "2026-06-10", sales: null }), // 기준선용 과거 달 — 안 센다
+      row({ date: "2026-07-10", sales: null }), // 기준선용 과거 달 — 안 센다
+    ];
+    const k = buildKpi(METRICS.revenue, withHistory, PERIOD, null);
+    expect(k.excludedRows).toBe(1);
+  });
+
+  it("건수 지표의 avgUnitPrice 는 sales NULL 행을 빼고 평균한다", () => {
+    const mixed = [
+      row({ date: "2026-09-01", sales: 100 }),
+      row({ date: "2026-09-02", sales: 300 }),
+      row({ date: "2026-09-03", sales: null }),
+    ];
+    const k = buildKpi(METRICS.count, mixed, PERIOD, null);
+    expect(k.count).toBe(3); // 건수는 NULL 도 포함해서 센다
+    expect(k.avgUnitPrice).toBe(200); // 단가는 NULL 을 빼고 평균한다 — 0 으로 섞으면 안 된다
+  });
 });
 
 describe("buildTrend", () => {
@@ -230,6 +252,19 @@ describe("buildTrend", () => {
     const t = buildTrend(METRICS.revenue, rows, PERIOD);
     expect(t.daily.byCat).toHaveLength(7); // 9/1~9/7
     expect(t.daily.byCat.at(-1)!["정수기"]).toBe(0);
+  });
+
+  it("마지막 주가 진행 중이면 그 인덱스를 준다", () => {
+    // PERIOD.curr.end = 2026-09-07, 그 주(35주차)의 마지막 날은 09-10 — 아직 진행 중
+    const t = buildTrend(METRICS.revenue, rows, PERIOD);
+    expect(t.weeklyOpenIndex).toBe(5);
+  });
+
+  it("마지막 주가 그 주의 마지막 날에 끝나면 null 이다 — 이미 완결됐다", () => {
+    // 09-03 은 34주차의 마지막 날
+    const endOfWeekPeriod = getPeriod("2026-09-03");
+    const t = buildTrend(METRICS.revenue, rows, endOfWeekPeriod);
+    expect(t.weeklyOpenIndex).toBeNull();
   });
 });
 
