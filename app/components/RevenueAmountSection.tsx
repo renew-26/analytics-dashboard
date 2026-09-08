@@ -42,6 +42,58 @@ function fmt(n: number) {
   return n.toLocaleString("ko-KR");
 }
 
+/** 전기 대비 증감 — ±1.5% 이내는 방향색 대신 회색 "—" (DESIGN: 변화가 미미할 때) */
+function Delta({ curr, prev }: { curr: number; prev: number | undefined }) {
+  if (prev === undefined || prev === 0) return null;
+  const p = ((curr - prev) / prev) * 100;
+  if (Math.abs(p) <= 1.5) return <span className="text-[var(--color-gray-400)]">—</span>;
+  const up = p > 0;
+  return (
+    <span style={{ color: up ? "var(--color-up)" : "var(--color-down)" }}>
+      {up ? "▲" : "▼"}
+      {Math.abs(p).toFixed(0)}%
+    </span>
+  );
+}
+
+/**
+ * 금액 + (비중 · 전기 대비). 첫 열은 진행중인 기간이라 완료된 전기와 비교하면
+ * "달력"이 나오므로 증감을 생략하고 비중만 남긴다.
+ */
+function AmountCell({
+  value,
+  total,
+  prev,
+  inProgress,
+  strong,
+}: {
+  value: number;
+  total?: number;
+  prev?: number;
+  inProgress: boolean;
+  strong?: boolean;
+}) {
+  if (value <= 0 && !strong) {
+    return (
+      <td className="px-4 py-2 text-center cell-highlight">
+        <span className="text-gray-200">-</span>
+      </td>
+    );
+  }
+  const share = total && total > 0 ? (value / total) * 100 : null;
+  return (
+    <td className="px-4 py-2 text-center cell-highlight num">
+      <div className={strong ? "font-semibold text-gray-800" : "text-gray-800"}>
+        {fmt(value)}
+      </div>
+      <div className="mt-0.5 flex justify-center gap-1.5 text-[11px] leading-4 text-gray-400">
+        {share !== null && <span>{share.toFixed(1)}%</span>}
+        {!inProgress && <Delta curr={value} prev={prev} />}
+      </div>
+    </td>
+  );
+}
+
 export default function RevenueAmountSection({
   monthly,
   weekly,
@@ -50,23 +102,27 @@ export default function RevenueAmountSection({
   categoryChartYDomainMonthly,
   categoryChartYDomainWeekly,
 }: Props) {
-  const [tab, setTab] = useState<"monthly" | "weekly">("weekly");
+  // 페이지 상단이 월 단위(이번달·전월 동기간)로 말하므로 여기도 월별로 시작한다
+  const [tab, setTab] = useState<"monthly" | "weekly">("monthly");
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-2">
         <div className="flex gap-0 border-b border-gray-100">
-          <TabButton
-            label="주차별"
-            active={tab === "weekly"}
-            onClick={() => setTab("weekly")}
-          />
           <TabButton
             label="월별"
             active={tab === "monthly"}
             onClick={() => setTab("monthly")}
           />
+          <TabButton
+            label="주차별"
+            active={tab === "weekly"}
+            onClick={() => setTab("weekly")}
+          />
         </div>
+        <p className="text-[11px] text-gray-400">
+          셀 아래 = 열 합계 대비 비중 · 전기 대비 증감 (첫 열은 진행중이라 증감 생략)
+        </p>
       </div>
 
       {tab === "monthly" && (
@@ -118,6 +174,7 @@ export default function RevenueAmountSection({
             <RcAmountTable
               columns={monthly.columns}
               rcAmounts={monthly.rcAmounts}
+              totals={monthly.totals}
             />
           </div>
         </>
@@ -172,6 +229,7 @@ export default function RevenueAmountSection({
             <RcAmountTable
               columns={weekly.columns}
               rcAmounts={weekly.rcAmounts}
+              totals={weekly.totals}
             />
           </div>
         </>
@@ -226,12 +284,13 @@ function CategoryAmountTable({
             <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[130px] border-r border-gray-100">
               상품 카테고리
             </th>
-            {columns.map((c) => (
+            {columns.map((c, i) => (
               <th
                 key={c.key}
                 className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[110px] cell-highlight"
               >
                 {c.label}
+                {i === 0 && <span className="ml-1 font-medium text-gray-300">진행중</span>}
               </th>
             ))}
           </tr>
@@ -250,17 +309,14 @@ function CategoryAmountTable({
               <td className="px-4 py-3 text-xs text-gray-600 text-center border-r border-gray-100">
                 {row.cat ?? "그 외"}
               </td>
-              {columns.map((c) => (
-                <td
+              {columns.map((c, i) => (
+                <AmountCell
                   key={c.key}
-                  className="px-4 py-3 text-center text-gray-800 cell-highlight"
-                >
-                  {getAmount(c.key, row.cat) > 0 ? (
-                    fmt(getAmount(c.key, row.cat))
-                  ) : (
-                    <span className="text-gray-200">-</span>
-                  )}
-                </td>
+                  value={getAmount(c.key, row.cat)}
+                  total={totals[c.key]}
+                  prev={columns[i + 1] ? getAmount(columns[i + 1].key, row.cat) : undefined}
+                  inProgress={i === 0}
+                />
               ))}
             </tr>
           ))}
@@ -271,13 +327,14 @@ function CategoryAmountTable({
             >
               전체
             </td>
-            {columns.map((c) => (
-              <td
+            {columns.map((c, i) => (
+              <AmountCell
                 key={c.key}
-                className="px-4 py-3 text-center font-semibold text-gray-800 cell-highlight"
-              >
-                {fmt(totals[c.key] ?? 0)}
-              </td>
+                value={totals[c.key] ?? 0}
+                prev={columns[i + 1] ? totals[columns[i + 1].key] : undefined}
+                inProgress={i === 0}
+                strong
+              />
             ))}
           </tr>
         </tbody>
@@ -306,12 +363,13 @@ function BmAmountTable({
             <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[100px] sticky left-0 bg-white z-10 border-r border-gray-100">
               BM
             </th>
-            {columns.map((c) => (
+            {columns.map((c, i) => (
               <th
                 key={c.key}
                 className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[110px] cell-highlight"
               >
                 {c.label}
+                {i === 0 && <span className="ml-1 font-medium text-gray-300">진행중</span>}
               </th>
             ))}
           </tr>
@@ -322,17 +380,14 @@ function BmAmountTable({
               <td className="px-4 py-3 text-xs font-semibold text-gray-600 text-center sticky left-0 bg-white border-r border-gray-100">
                 {bm}
               </td>
-              {columns.map((c) => (
-                <td
+              {columns.map((c, i) => (
+                <AmountCell
                   key={c.key}
-                  className="px-4 py-3 text-center text-gray-800 cell-highlight"
-                >
-                  {getAmount(c.key, bm) > 0 ? (
-                    fmt(getAmount(c.key, bm))
-                  ) : (
-                    <span className="text-gray-200">-</span>
-                  )}
-                </td>
+                  value={getAmount(c.key, bm)}
+                  total={totals[c.key]}
+                  prev={columns[i + 1] ? getAmount(columns[i + 1].key, bm) : undefined}
+                  inProgress={i === 0}
+                />
               ))}
             </tr>
           ))}
@@ -340,13 +395,14 @@ function BmAmountTable({
             <td className="px-4 py-3 text-xs font-semibold text-gray-400 text-center sticky left-0 bg-white border-r border-gray-100">
               전체
             </td>
-            {columns.map((c) => (
-              <td
+            {columns.map((c, i) => (
+              <AmountCell
                 key={c.key}
-                className="px-4 py-3 text-center font-semibold text-gray-800 cell-highlight"
-              >
-                {fmt(totals[c.key] ?? 0)}
-              </td>
+                value={totals[c.key] ?? 0}
+                prev={columns[i + 1] ? totals[columns[i + 1].key] : undefined}
+                inProgress={i === 0}
+                strong
+              />
             ))}
           </tr>
         </tbody>
@@ -358,9 +414,11 @@ function BmAmountTable({
 function RcAmountTable({
   columns,
   rcAmounts,
+  totals,
 }: {
   columns: PeriodColumn[];
   rcAmounts: Record<string, Record<string, number>>;
+  totals: Record<string, number>;
 }) {
   function getAmount(colKey: string, dbName: string): number {
     return rcAmounts[colKey]?.[dbName] ?? 0;
@@ -373,12 +431,13 @@ function RcAmountTable({
             <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[160px] sticky left-0 bg-white z-10 border-r border-gray-100">
               렌탈사
             </th>
-            {columns.map((c) => (
+            {columns.map((c, i) => (
               <th
                 key={c.key}
                 className="px-4 py-3 text-center text-xs font-semibold text-gray-400 min-w-[110px] cell-highlight"
               >
                 {c.label}
+                {i === 0 && <span className="ml-1 font-medium text-gray-300">진행중</span>}
               </th>
             ))}
           </tr>
@@ -389,17 +448,14 @@ function RcAmountTable({
               <td className="px-4 py-3 text-xs font-semibold text-gray-600 text-center sticky left-0 bg-white border-r border-gray-100">
                 {rc.label}
               </td>
-              {columns.map((c) => (
-                <td
+              {columns.map((c, i) => (
+                <AmountCell
                   key={c.key}
-                  className="px-4 py-3 text-center text-gray-800 cell-highlight"
-                >
-                  {getAmount(c.key, rc.dbName) > 0 ? (
-                    fmt(getAmount(c.key, rc.dbName))
-                  ) : (
-                    <span className="text-gray-200">-</span>
-                  )}
-                </td>
+                  value={getAmount(c.key, rc.dbName)}
+                  total={totals[c.key]}
+                  prev={columns[i + 1] ? getAmount(columns[i + 1].key, rc.dbName) : undefined}
+                  inProgress={i === 0}
+                />
               ))}
             </tr>
           ))}
