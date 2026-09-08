@@ -2551,7 +2551,12 @@ export default async function RevenueAnalysisPage({
   const rank = buildRank(metric, rows, period);
   const pnl = buildPnl(rows.filter((r) => metric.includeRow(r)), period);
   const cohort = buildCohort(cohortOrders, cohortContracts, period.curr.end);
-  const leadTime = buildLeadTime(rows.filter((r) => r.date >= period.curr.start));
+  // 리드타임은 견적→주문 구간이라 집계 기준과 무관하다. basis 행을 쓰면 계약완료
+  // 기준에서 quote_date 가 전량 NULL(실측 19,071행 중 0건)이라 카드가 통째로 빈다.
+  // 코호트와 같은 주문 원장을 쓴다.
+  const leadTime = buildLeadTime(
+    cohortOrders.filter((r) => (r.order_confirmed_at ?? r.date) >= period.curr.start),
+  );
   const wfCategory = buildWaterfall(metric, rows, period, "category", EOK);
   const wfRental = buildWaterfall(metric, rows, period, "rental", EOK);
 
