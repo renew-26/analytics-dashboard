@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { sourceLine, pv } from "@/lib/metric-provenance";
 import {
   SOURCE,
@@ -90,10 +90,10 @@ describe("pv.composition", () => {
 });
 
 describe("pv.rank", () => {
-  it("당월 합계 실수를 산식에 넣는다", () => {
-    const p = pv.rank(METRICS.count, "order", 1921);
-    expect(p.formula).toContain("1,921건");
-    expect(p.source).toBe(`출처 ${SOURCE.order.table}.${METRICS.count.column}`);
+  it("당월 합계 대비 비중 산식과 정렬 기준을 함께 적는다", () => {
+    const p = pv.rank(METRICS.revenue, "order", 473_000_000);
+    expect(p.formula).toBe("산식 항목 ÷ 당월 합계(4.73억) × 100 · 값 내림차순 상위 5");
+    expect(p.source).toBe(`출처 ${SOURCE.order.table}.${METRICS.revenue.column}`);
   });
 });
 
@@ -168,5 +168,61 @@ describe("pv.funnel", () => {
     expect(p.source).toBe(`출처 ${SOURCE.order.table}.quote_date · order_confirmed_at · contract_date`);
     expect(p.formula).toBe("산식 견적신청 924 → 주문확정 924 → 계약완료 112");
     expect(p.caveat).toContain("견적만 한 건 미포함");
+  });
+});
+
+/**
+ * SOURCE 를 실제 값과 다른 센티널로 바꿔치기해서, 테이블명/쿼리번호를 문자열
+ * 리터럴로 박아넣은 빌더가 있으면 이 테스트가 실패하게 한다.
+ * `SOURCE.order.table` 을 그대로 보간하는 assertion 은 오늘의 실제 값
+ * ("raw_orders")과 하드코딩 리터럴이 우연히 같아서 하드코딩을 잡아내지 못한다 —
+ * 그래서 실제 값과 다른 센티널을 주입해 출력에 그 센티널이 그대로 나오는지 본다.
+ */
+describe("SOURCE 치환 시 출력이 따라간다 (하드코딩 가드)", () => {
+  afterEach(() => {
+    vi.doUnmock("@/lib/metric-review");
+    vi.resetModules();
+  });
+
+  it("테이블명·쿼리번호를 적는 모든 빌더가 SOURCE 값을 그대로 반영한다", async () => {
+    vi.resetModules();
+    vi.doMock("@/lib/metric-review", async (importOriginal) => {
+      const actual = await importOriginal<typeof import("@/lib/metric-review")>();
+      return {
+        ...actual,
+        SOURCE: {
+          order: { table: "TBL_ORDER_SENTINEL", dateCol: "order_confirmed_at", redash: 9999, label: "주문확정" },
+          contract: { table: "TBL_CONTRACT_SENTINEL", dateCol: "contract_date", redash: 8888, label: "계약완료" },
+        },
+      };
+    });
+
+    const mod = await import("@/lib/metric-provenance");
+    const { METRICS: M } = await import("@/lib/metric-review");
+
+    const s1 = mod.sourceLine("order", 1, "2026-06-01", "2026-09-07", null);
+    expect(s1).toContain("TBL_ORDER_SENTINEL");
+    expect(s1).toContain("#9999");
+    const s2 = mod.sourceLine("contract", 1, "2026-06-01", "2026-09-07", null);
+    expect(s2).toContain("TBL_CONTRACT_SENTINEL");
+    expect(s2).toContain("#8888");
+
+    expect(mod.pv.value(M.revenue, "order", 0, "x", 1, 1).source).toContain("TBL_ORDER_SENTINEL");
+    expect(
+      mod.pv.baseline(M.revenue, { perDay: 1, perWeek: 7, months: [], days: 0, total: 0 }, "order").source,
+    ).toContain("TBL_ORDER_SENTINEL");
+    expect(mod.pv.waterfall(M.revenue, "order", "a", "b", 1, 1).source).toContain("TBL_ORDER_SENTINEL");
+    expect(mod.pv.composition(M.revenue, "order", 1).source).toContain("TBL_ORDER_SENTINEL");
+    expect(mod.pv.rank(M.revenue, "order", 1).source).toContain("TBL_ORDER_SENTINEL");
+    expect(
+      mod.pv.pnl("order", { gmv: 0, sales: 0, incentive: 0, badDebt: 0, other: 0, cm: 0, residual: 0, count: 0 }).source,
+    ).toContain("TBL_ORDER_SENTINEL");
+    const cohortSource = mod.pv.cohort([]).source;
+    expect(cohortSource).toContain("TBL_ORDER_SENTINEL");
+    expect(cohortSource).toContain("TBL_CONTRACT_SENTINEL");
+    expect(
+      mod.pv.leadTime("order", { withQuote: 0, withoutQuote: 0, medianDays: null, p75Days: null, buckets: [] }).source,
+    ).toContain("TBL_ORDER_SENTINEL");
+    expect(mod.pv.funnel("order", { stages: [] }).source).toContain("TBL_ORDER_SENTINEL");
   });
 });

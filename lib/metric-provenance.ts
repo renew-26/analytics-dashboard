@@ -107,7 +107,7 @@ export const pv = {
   rank(metric: Metric, basis: Basis, total: number): Provenance {
     return {
       source: `출처 ${col(basis, metric)}`,
-      formula: `산식 당월 합계(${metric.fmt(total)}) 내림차순 상위 5`,
+      formula: `산식 항목 ÷ 당월 합계(${metric.fmt(total)}) × 100 · 값 내림차순 상위 5`,
     };
   },
 
