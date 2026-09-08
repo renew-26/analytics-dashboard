@@ -2578,7 +2578,7 @@ export default async function RevenueAnalysisPage({
         <TrendPanel metric={metric} trend={trend} baseline={baseline} currLabel={currLabel}
                     provenance={pv.baseline(metric, baseline, basis)} />
         <Panel title="증감 원인" sub={`${prevLabel} → ${currLabel} · 억원`}
-               provenance={pv.waterfall(metric, basis, prevLabel, currLabel)}>
+               provenance={pv.waterfall(metric, basis, prevLabel, currLabel, kpi.prev, kpi.curr)}>
           <Waterfall items={wfCategory} decimals={2} unit="억" />
         </Panel>
         <CompositionPanel metric={metric} composition={composition} catSeries={catSeries()}
@@ -2587,13 +2587,13 @@ export default async function RevenueAnalysisPage({
 
       <div className="grid grid-cols-3 gap-4">
         <LadderPanel mode="pnl" pnl={pnl} currLabel={currLabel} prevLabel={prevLabel}
-                     provenance={pv.pnl(basis)} />
-        <CohortPanel rows={cohort} leadTime={leadTime} provenance={pv.cohort(basis)} />
-        <RankPanel metric={metric} rank={rank} provenance={pv.rank(metric, basis)} />
+                     provenance={pv.pnl(basis, pnl.curr)} />
+        <CohortPanel rows={cohort} leadTime={leadTime} provenance={pv.cohort(cohort)} />
+        <RankPanel metric={metric} rank={rank} provenance={pv.rank(metric, basis, kpi.curr)} />
       </div>
 
       <Panel title="렌탈사 기여" sub={`${prevLabel} → ${currLabel} · 억원`} fixedHeight={false}
-             provenance={pv.waterfall(metric, basis, prevLabel, currLabel)}>
+             provenance={pv.waterfall(metric, basis, prevLabel, currLabel, kpi.prev, kpi.curr)}>
         <Waterfall items={wfRental} decimals={2} unit="억" />
       </Panel>
 
@@ -2724,8 +2724,9 @@ Task 10의 `app/revenue-analysis/page.tsx`를 복사해 아래 네 곳만 바꾼
 const funnel = buildFunnel(cohortOrders, cohortContracts, period);
 // …
 <LadderPanel mode="funnel" funnel={funnel} currLabel={currLabel}
-             provenance={pv.funnel(basis)} />
+             provenance={pv.funnel(basis, funnel)} />
 ```
+   `buildPnl` 호출과 import 를 빼고 `buildFunnel` 을 넣는다. `pv.pnl(basis, pnl.curr)` 호출도 함께 사라진다.
    그리고 `buildPnl` 호출과 `import` 에서 `buildPnl`을 뺀 뒤 `buildFunnel`을 넣는다.
 4. 접힘을 바꾼다:
 ```tsx
