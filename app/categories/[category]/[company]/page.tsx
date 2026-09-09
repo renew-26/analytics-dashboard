@@ -14,7 +14,7 @@ import {
   perDeal,
   type CardContractRow,
 } from "@/lib/company-cards";
-import { getBM } from "@/lib/company-map";
+import { dbNamesOf, getBM } from "@/lib/company-map";
 import { resolveTier, TIER_META } from "@/lib/tiers";
 import {
   diffMap,
@@ -26,7 +26,6 @@ import {
 import { EOK, MAN, fmt, pct, pctAbs, recentYmsOf, signedInt } from "@/lib/format";
 import Sparkline from "@/app/components/home/Sparkline";
 import { deltaColor as dirColor, manwon, TAG } from "@/app/components/home/cardKit";
-import Breadcrumb from "@/app/components/Breadcrumb";
 import Bridge from "@/app/components/Bridge";
 import Delta from "@/app/components/Delta";
 
@@ -78,7 +77,7 @@ export default async function CategoryCompanyPage({
         .select(
           "contract_date, rental_company, category, partner_company, total_rental_fee, contribution_margin, sales, product_name, model_name, monthly_fee",
         )
-        .eq("rental_company", def.dbName)
+        .in("rental_company", dbNamesOf(def))
         .gte("contract_date", `${recentYms[0]}-01`)
         .lte("contract_date", curr.end)
         .order("prop_item_usid", { ascending: true })
@@ -93,7 +92,7 @@ export default async function CategoryCompanyPage({
   // dbName 하나가 여러 label로 나뉘는 경우(LG, KT, BS렌탈)를 카테고리 조건으로 가른다
   const labelRows = all.filter((r) => matchesCompany(def, r));
   const install90 = countInstall90d(labelRows, curr.end);
-  const tier = resolveTier(label, install90.get(label) ?? 0).tier;
+  const tier = resolveTier(install90.get(label) ?? 0);
 
   const axisRows = labelRows.filter((r) => catGroupOf(r.category) === key);
   const currRows = axisRows.filter(
@@ -243,14 +242,7 @@ export default async function CategoryCompanyPage({
 
   return (
     <div className="min-h-screen space-y-[24px] bg-[var(--color-page)] px-10 pt-8 pb-16">
-      {/* 제목·기준 배지는 상단 헤더(Header.tsx)가 담당 — 본문은 위치·티어·이동 경로만 */}
-      <Breadcrumb
-        items={[
-          { label: "카테고리", href: "/categories" },
-          { label: key, href: `/categories/${encodeURIComponent(key)}` },
-          { label },
-        ]}
-      />
+      {/* 제목·경로·기준 배지는 상단 헤더(Header.tsx)가 담당 — 본문은 티어·이동 경로만 */}
       <div className="flex flex-wrap items-center gap-[8px]">
         <span
           className="rounded-[4px] px-[6px] py-[2px] text-[11px] font-bold"

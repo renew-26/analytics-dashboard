@@ -19,6 +19,7 @@ import type { CompanyMonthData, CompanyOrderData } from "./page";
 type CompanyMapEntry = {
   label: string;
   dbName: string;
+  aliases?: string[];
   categoryIs?: string | string[];
   categoryNot?: string | string[];
 };
@@ -41,6 +42,11 @@ function hasBatchim(str: string): boolean {
 }
 function josa(str: string, withBatchim: string, withoutBatchim: string) {
   return hasBatchim(str) ? withBatchim : withoutBatchim;
+}
+
+/** 이 회사가 원천에서 쓰는 이름 전부 (SK_I = SK + SK브로드밴드) */
+function namesOf(e: CompanyMapEntry): string[] {
+  return e.aliases ? [e.dbName, ...e.aliases] : [e.dbName];
 }
 
 function getEntry(
@@ -195,8 +201,9 @@ export default function CompareClient({
   // 선택된 회사의 데이터 필터 (categoryIs/categoryNot 적용)
   const dataA = useMemo(() => {
     if (!entryA) return [];
+    const names = namesOf(entryA);
     return data.filter((d) => {
-      if (d.company !== entryA.dbName) return false;
+      if (!names.includes(d.company)) return false;
       if (entryA.categoryIs) {
         const cis = entryA.categoryIs;
         if (
@@ -220,8 +227,9 @@ export default function CompareClient({
   }, [data, entryA]);
   const dataB = useMemo(() => {
     if (!entryB) return [];
+    const names = namesOf(entryB);
     return data.filter((d) => {
-      if (d.company !== entryB.dbName) return false;
+      if (!names.includes(d.company)) return false;
       if (entryB.categoryIs) {
         const cis = entryB.categoryIs;
         if (
@@ -321,7 +329,7 @@ export default function CompareClient({
     // orders 필터
     function filterOrders(entry: CompanyMapEntry) {
       return orderData.filter((d) => {
-        if (d.company !== entry.dbName) return false;
+        if (!namesOf(entry).includes(d.company)) return false;
         if (entry.categoryIs) {
           const cis = entry.categoryIs;
           if (
@@ -438,7 +446,7 @@ export default function CompareClient({
     // A사 주문건수 (정렬용)
     const catOrderA = new Map<string, number>();
     for (const d of orderData) {
-      if (d.company !== entryA.dbName) continue;
+      if (!namesOf(entryA).includes(d.company)) continue;
       if (entryA.categoryIs) {
         const cis = entryA.categoryIs;
         if (
@@ -513,7 +521,7 @@ export default function CompareClient({
 
     const catOrderA = new Map<string, number>();
     for (const d of orderData) {
-      if (d.company !== entryA.dbName) continue;
+      if (!namesOf(entryA).includes(d.company)) continue;
       if (entryA.categoryIs) {
         const cis = entryA.categoryIs;
         if (

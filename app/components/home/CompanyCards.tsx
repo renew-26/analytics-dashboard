@@ -92,7 +92,6 @@ function HighlightCard({ c, st }: Judged) {
               </span>
             )}
             <span className={TAG}>{c.bm}</span>
-            <span className={TAG}>{c.group}</span>
             <span className="num rounded-[4px] bg-[var(--color-gray-100)] px-[5px] py-0.5 font-mono text-[10px] font-bold text-[var(--color-gray-500)]">
               #{c.rank}
               {rankMove !== 0 && (
@@ -232,21 +231,17 @@ function HighlightCard({ c, st }: Judged) {
  */
 export default function CompanyCards({
   companies,
-  groups,
 }: {
   companies: CompanyCard[];
-  groups: string[];
 }) {
   // 기본 정렬이 "변화폭 큰 순"인 이유: 1위가 누구인지는 매달 같은 사실이라
   // 정보가 없다. 이번 달 뭐가 달라졌는지가 정보다.
   const [sort, setSort] = useState<string>("change");
-  const [group, setGroup] = useState<string>("all");
   const [tier, setTier] = useState<string>("all");
 
   const hasTiers = companies.some((c) => c.tier);
 
   const list: Judged[] = companies
-    .filter((c) => group === "all" || c.group === group)
     .filter((c) => {
       if (tier === "all") return true;
       if (tier === "etc") return !c.tier || c.tier === "T3";
@@ -312,29 +307,6 @@ export default function CompanyCards({
             <span className="w-3" />
           </>
         )}
-        <span className="mr-0.5 text-[11px] font-bold text-[var(--color-gray-400)]">
-          그룹
-        </span>
-        <button
-          type="button"
-          aria-pressed={group === "all"}
-          onClick={() => setGroup("all")}
-          className={chip(group === "all")}
-        >
-          전체
-        </button>
-        {groups.map((g) => (
-          <button
-            key={g}
-            type="button"
-            aria-pressed={group === g}
-            onClick={() => setGroup(g)}
-            className={chip(group === g)}
-          >
-            {g}
-          </button>
-        ))}
-        <span className="w-3" />
         <span className="mr-0.5 text-[11px] font-bold text-[var(--color-gray-400)]">
           정렬
         </span>
@@ -411,7 +383,6 @@ export default function CompanyCards({
                             {c.tier}
                           </span>
                         )}
-                        <span className={TAG}>{c.group}</span>
                       </Link>
                     </td>
                     <td className={`${td} text-left`}>

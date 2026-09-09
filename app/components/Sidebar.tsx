@@ -76,18 +76,20 @@ export default function Sidebar() {
       {/* 네비게이션 */}
       <nav className="flex-1 min-h-0 overflow-y-auto px-2 py-2">
         {/* ── 새 IA: 홈 → 카테고리 → 렌탈사 (분석이 내려가는 순서) ── */}
-        <NavItem href="/" label="홈" active={pathname === "/"} />
+        <NavItem href="/" label="홈" active={pathname === "/"} variant="top" />
 
-        <SectionHeader label="카테고리" />
-        {/* 카테고리 메인 + 그 아래 카테고리 그룹(6그룹) 평면 목록.
+        {/* 카테고리 — 목록의 부모가 곧 "전체"다. 섹션 라벨과 "전체 카테고리"를
+            함께 세우면 같은 말이 두 줄로 겹친다. 부모 항목이 /categories 로 가고
+            그 아래 6그룹이 들여쓰기로 매달린다.
             3축은 내비 계층이 아니라 그룹 페이지 안에서 드러난다 —
             내비에 3축을 세우면 클릭 한 번이 더 들고, 그룹이 축에 가려진다. */}
         <NavItem
           href="/categories"
-          label="전체 카테고리"
+          label="카테고리"
           active={pathname === "/categories"}
+          variant="top"
         />
-        <div className="mb-1 pl-4">
+        <div className="ml-[19px] border-l border-[var(--color-gray-200)] pl-[5px]">
           {CATEGORY_GROUPS.map((g) => (
             <NavItem
               key={g.key}
@@ -98,179 +100,183 @@ export default function Sidebar() {
                 pathname === `/categories/${g.key}` ||
                 pathname.startsWith(`/categories/${g.key}/`)
               }
+              variant="sub"
             />
           ))}
         </div>
 
-        <SectionHeader label="렌탈사" />
         <NavItem
           href="/companies"
-          label="전체 렌탈사"
+          label="렌탈사"
           active={pathname === "/companies"}
+          variant="top"
         />
 
         {/* ── 레거시 메뉴 ──────────────────────────────────
             1차 내비는 홈·카테고리·렌탈사 셋이다. 기존 화면은 지우지 않되
             접어 두어, 매일 쓰는 세 축이 목록 위쪽에서 밀려나지 않게 한다.
             현재 위치가 이 안에 있으면 열린 채로 그린다. */}
-        <details className="mt-4 border-t border-[var(--color-line-2)] pt-2" open={legacyActive}>
+        <details
+          className="mt-4 border-t border-[var(--color-line-2)] pt-2"
+          open={legacyActive}
+        >
           <summary className="cursor-pointer list-none px-3 py-2 text-[10px] font-semibold tracking-wider text-[#a1a5ac] uppercase hover:text-[#586177]">
             기타 분석 ▾
           </summary>
 
-        {/* 매출 분석 섹션 */}
-        <SectionHeader label="매출 분석" />
-        <NavItem
-          href="/revenue-analysis"
-          label="수수료 매출"
-          active={pathname === "/revenue-analysis"}
-        />
-        <NavItem
-          href="/transaction-count"
-          label="전체 거래건수"
-          active={pathname === "/transaction-count"}
-        />
+          {/* 매출 분석 섹션 */}
+          <SectionHeader label="매출 분석" />
+          <NavItem
+            href="/revenue-analysis"
+            label="수수료 매출"
+            active={pathname === "/revenue-analysis"}
+          />
+          <NavItem
+            href="/transaction-count"
+            label="전체 거래건수"
+            active={pathname === "/transaction-count"}
+          />
 
-        {/* 렌탈사별 매출 추이 섹션 */}
-        <SectionHeader label="렌탈사별 매출 추이" />
+          {/* 렌탈사별 매출 추이 섹션 */}
+          <SectionHeader label="렌탈사별 매출 추이" />
 
-        {NAV_SECTIONS.map((section, index) => {
-          const hasActive = section.items.some(
-            (item) => item.href === pathname,
-          );
-          const isOpen = openIndex === index || hasActive;
+          {NAV_SECTIONS.map((section, index) => {
+            const hasActive = section.items.some(
+              (item) => item.href === pathname,
+            );
+            const isOpen = openIndex === index || hasActive;
 
-          return (
-            <div key={section.group} className="mt-2">
-              <button
-                onClick={() => toggle(index)}
-                className={`press w-full flex items-center justify-between px-3 py-1.5 rounded-lg group transition ${
-                  isOpen ? "bg-[#f3f5f9]" : "hover:bg-[#f3f5f9]"
-                }`}
-              >
-                <span
-                  className={`text-sm font-medium transition ${
-                    hasActive || isOpen ? "text-[#222222]" : "text-[#586177]"
-                  } group-hover:text-[#222222]`}
-                >
-                  {section.group}
-                </span>
-                <span
-                  className={`text-[#a1a5ac] text-xs transition-transform duration-150 ease-[var(--ease-out)] group-hover:text-[#586177] ${
-                    isOpen ? "rotate-180" : ""
+            return (
+              <div key={section.group} className="mt-2">
+                <button
+                  onClick={() => toggle(index)}
+                  className={`press w-full flex items-center justify-between px-3 py-1.5 rounded-lg group transition ${
+                    isOpen ? "bg-[#f3f5f9]" : "hover:bg-[#f3f5f9]"
                   }`}
                 >
-                  ▾
-                </span>
-              </button>
+                  <span
+                    className={`text-sm font-medium transition ${
+                      hasActive || isOpen ? "text-[#222222]" : "text-[#586177]"
+                    } group-hover:text-[#222222]`}
+                  >
+                    {section.group}
+                  </span>
+                  <span
+                    className={`text-[#a1a5ac] text-xs transition-transform duration-150 ease-[var(--ease-out)] group-hover:text-[#586177] ${
+                      isOpen ? "rotate-180" : ""
+                    }`}
+                  >
+                    ▾
+                  </span>
+                </button>
 
-              {/* 0fr→1fr 그리드 전환. 조건부 렌더(`isOpen &&`)로 두면 순간 등장·소멸이라
+                {/* 0fr→1fr 그리드 전환. 조건부 렌더(`isOpen &&`)로 두면 순간 등장·소멸이라
                   같은 앱의 브랜드분석 아코디언과 느낌이 갈린다.
                   닫힌 동안 링크가 탭 순회에 남지 않도록 inert 를 건다. */}
-              <div
-                className="grid transition-[grid-template-rows,opacity] duration-200 ease-[var(--ease-out)] motion-reduce:transition-none"
-                style={{
-                  gridTemplateRows: isOpen ? "1fr" : "0fr",
-                  opacity: isOpen ? 1 : 0,
-                }}
-                inert={!isOpen}
-              >
-                <div className="overflow-hidden min-h-0">
-                  <div className="mt-1 pl-2">
-                    {/* 그룹 요약 — 개별 렌탈사보다 상위 개념이라 목록 맨 위 */}
-                    <NavItem
-                      href={`/group/${section.group}`}
-                      label="그룹 요약"
-                      active={pathname === `/group/${section.group}`}
-                    />
-                    {section.items.map((item) => (
+                <div
+                  className="grid transition-[grid-template-rows,opacity] duration-200 ease-[var(--ease-out)] motion-reduce:transition-none"
+                  style={{
+                    gridTemplateRows: isOpen ? "1fr" : "0fr",
+                    opacity: isOpen ? 1 : 0,
+                  }}
+                  inert={!isOpen}
+                >
+                  <div className="overflow-hidden min-h-0">
+                    <div className="mt-1 pl-2">
+                      {/* 그룹 요약 — 개별 렌탈사보다 상위 개념이라 목록 맨 위 */}
                       <NavItem
-                        key={item.href}
-                        href={item.href}
-                        label={item.label}
-                        active={pathname === item.href}
+                        href={`/group/${section.group}`}
+                        label="그룹 요약"
+                        active={pathname === `/group/${section.group}`}
                       />
-                    ))}
+                      {section.items.map((item) => (
+                        <NavItem
+                          key={item.href}
+                          href={item.href}
+                          label={item.label}
+                          active={pathname === item.href}
+                        />
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
 
-        {/* 상품 전략 섹션 */}
-        <SectionHeader label="상품 전략" />
-        <NavItem
-          href="/operation-efficiency"
-          label="운영효율뷰"
-          active={pathname === "/operation-efficiency"}
-        />
-        <NavItem
-          href="/category-trends"
-          label="카테고리 트렌드"
-          active={pathname === "/category-trends"}
-        />
-        {/* 카테고리 상세는 페이지 내 탭으로 카테고리를 바꾸므로
+          {/* 상품 전략 섹션 */}
+          <SectionHeader label="상품 전략" />
+          <NavItem
+            href="/operation-efficiency"
+            label="운영효율뷰"
+            active={pathname === "/operation-efficiency"}
+          />
+          <NavItem
+            href="/category-trends"
+            label="카테고리 트렌드"
+            active={pathname === "/category-trends"}
+          />
+          {/* 카테고리 상세는 페이지 내 탭으로 카테고리를 바꾸므로
             사이드바에는 최대 카테고리 하나만 진입점으로 둔다 */}
-        <NavItem
-          href="/category/정수기"
-          label="카테고리 상세"
-          active={pathname.startsWith("/category/")}
-        />
-        <NavItem
-          href="/brand-analysis"
-          label="브랜드 분석"
-          active={pathname === "/brand-analysis"}
-        />
+          <NavItem
+            href="/category/정수기"
+            label="카테고리 상세"
+            active={pathname.startsWith("/category/")}
+          />
+          <NavItem
+            href="/brand-analysis"
+            label="브랜드 분석"
+            active={pathname === "/brand-analysis"}
+          />
 
-        {/* 수익성 분석 섹션 */}
-        <SectionHeader label="수익성 분석" />
-        <NavItem
-          href="/exception-approval"
-          label="예외승인 분석"
-          active={pathname === "/exception-approval"}
-        />
+          {/* 수익성 분석 섹션 */}
+          <SectionHeader label="수익성 분석" />
+          <NavItem
+            href="/exception-approval"
+            label="예외승인 분석"
+            active={pathname === "/exception-approval"}
+          />
 
-        {/* 렌탈사 분석 섹션 */}
-        <SectionHeader label="렌탈사 분석" />
-        <NavItem
-          href="/compare"
-          label="렌탈사 비교"
-          active={pathname === "/compare"}
-        />
-        <NavItem
-          href="/conversion"
-          label="전환율 분석"
-          active={pathname === "/conversion"}
-        />
+          {/* 렌탈사 분석 섹션 */}
+          <SectionHeader label="렌탈사 분석" />
+          <NavItem
+            href="/compare"
+            label="렌탈사 비교"
+            active={pathname === "/compare"}
+          />
+          <NavItem
+            href="/conversion"
+            label="전환율 분석"
+            active={pathname === "/conversion"}
+          />
 
-        {/* 시장 정보 섹션 */}
-        <SectionHeader label="시장 정보" />
-        <NavItem
-          href="/margin-analysis"
-          label="타사 비교"
-          active={pathname === "/margin-analysis"}
-        />
-        <NavItem
-          href="/products"
-          label="상품 관리"
-          active={pathname === "/products"}
-        />
-        <NavItem
-          href="/product-lookup"
-          label="상품 지원금 조회"
-          active={pathname === "/product-lookup"}
-        />
-        <NavItem
-          href="/survey-selection/appliance"
-          label="조사 상품 선정 - 가전"
-          active={pathname === "/survey-selection/appliance"}
-        />
-        <NavItem
-          href="/survey-selection/tps"
-          label="조사 상품 선정 - TPS"
-          active={pathname === "/survey-selection/tps"}
-        />
+          {/* 시장 정보 섹션 */}
+          <SectionHeader label="시장 정보" />
+          <NavItem
+            href="/margin-analysis"
+            label="타사 비교"
+            active={pathname === "/margin-analysis"}
+          />
+          <NavItem
+            href="/products"
+            label="상품 관리"
+            active={pathname === "/products"}
+          />
+          <NavItem
+            href="/product-lookup"
+            label="상품 지원금 조회"
+            active={pathname === "/product-lookup"}
+          />
+          <NavItem
+            href="/survey-selection/appliance"
+            label="조사 상품 선정 - 가전"
+            active={pathname === "/survey-selection/appliance"}
+          />
+          <NavItem
+            href="/survey-selection/tps"
+            label="조사 상품 선정 - TPS"
+            active={pathname === "/survey-selection/tps"}
+          />
         </details>
       </nav>
     </aside>
@@ -289,16 +295,26 @@ function NavItem({
   href,
   label,
   active,
+  variant,
 }: {
   href: string;
   label: string;
   active: boolean;
+  /** top = 1차 내비(홈·카테고리·렌탈사), sub = 그 아래 매달린 항목.
+      크기 두 단계(14/20 600 · 12/16 500)로만 계층을 낸다 — 항목 사이를
+      띄워서 계층을 만들면 목록이 흩어지고, 붙여 놓으면 부모가 안 보인다. */
+  variant?: "top" | "sub";
 }) {
+  const size = variant === "sub" ? "py-[6px] text-xs" : "py-2 text-sm";
+  const rest =
+    variant === "top"
+      ? "font-semibold text-[var(--color-gray-900)] hover:bg-[#f3f5f9]"
+      : "text-[#586177] hover:bg-[#f3f5f9]";
   return (
     <Link
       href={href}
-      className={`press w-full text-left px-3 py-2 rounded-lg text-sm mb-0.5 flex items-center gap-2 transition ${
-        active ? "font-semibold" : "text-[#586177] hover:bg-[#f3f5f9]"
+      className={`press w-full text-left px-3 rounded-lg mb-0.5 flex items-center gap-2 transition ${size} ${
+        active ? "font-semibold" : rest
       }`}
       style={
         active

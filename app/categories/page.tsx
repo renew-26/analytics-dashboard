@@ -8,7 +8,6 @@ import CategoryCards from "@/app/components/home/CategoryCards";
 import Sparkline from "@/app/components/home/Sparkline";
 import { deltaColor as dirColor, manwon } from "@/app/components/home/cardKit";
 import GroupTable, { type GroupRow } from "@/app/components/category/GroupTable";
-import Breadcrumb from "@/app/components/Breadcrumb";
 import Delta from "@/app/components/Delta";
 
 export const dynamic = "force-dynamic";
@@ -146,9 +145,7 @@ export default async function CategoriesPage() {
 
   return (
     <div className="min-h-screen space-y-[24px] bg-[var(--color-page)] px-10 pt-8 pb-16">
-      {/* 제목·기준 배지는 상단 헤더(Header.tsx)가 담당한다 */}
-      <Breadcrumb items={[{ label: "카테고리" }]} />
-
+      {/* 제목·경로·기준 배지는 상단 헤더(Header.tsx)가 담당한다 */}
       {/* ── ① 이번 달 요약 ──────────────────────────── */}
       <section>
         <h2 className={`mb-[11px] ${sectionHead}`}>

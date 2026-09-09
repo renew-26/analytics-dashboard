@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { getPeriod, getDataAsOf } from "@/lib/period";
 import { catGroupOf, isCategoryGroup } from "@/lib/biz-category";
+import { dbNamesOf } from "@/lib/company-map";
 import {
   CARD_DEFS,
   matchesCompany,
@@ -13,7 +14,6 @@ import { volumePriceDecompose, trimLeadingGap } from "@/lib/decompose";
 import { fmt, pct, pctAbs, recentYmsOf, EOK } from "@/lib/format";
 import Sparkline from "@/app/components/home/Sparkline";
 import { deltaColor as dirColor, manwon, TAG } from "@/app/components/home/cardKit";
-import Breadcrumb from "@/app/components/Breadcrumb";
 import Bridge from "@/app/components/Bridge";
 import Delta from "@/app/components/Delta";
 
@@ -71,7 +71,7 @@ export default async function ProductPage({
         .select(
           "contract_date, rental_company, category, partner_company, total_rental_fee, contribution_margin, sales, product_name, model_name, monthly_fee, sales_incentive, promotion, bad_debt, cost_of_goods, financial_cost, management_type, contract_months",
         )
-        .eq("rental_company", def.dbName)
+        .in("rental_company", dbNamesOf(def))
         .eq("product_name", product)
         .gte("contract_date", `${recentYms[0]}-01`)
         .lte("contract_date", curr.end)
@@ -232,17 +232,6 @@ export default async function ProductPage({
   return (
     <div className="min-h-screen space-y-[24px] bg-[var(--color-page)] px-10 pt-8 pb-16">
       <div className="flex flex-wrap items-center gap-x-[14px] gap-y-[8px]">
-        <Breadcrumb
-          items={[
-            { label: "카테고리", href: "/categories" },
-            { label: key, href: `/categories/${encodeURIComponent(key)}` },
-            {
-              label,
-              href: `/categories/${encodeURIComponent(key)}/${encodeURIComponent(label)}`,
-            },
-            { label: product },
-          ]}
-        />
         <span className={TAG}>{category}</span>
         {models.length > 0 && (
           <span className="font-mono text-[10px] text-[var(--color-gray-400)]">

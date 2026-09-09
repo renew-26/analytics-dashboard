@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { COMPANY_MAP } from "@/lib/company-map";
+import Breadcrumb, { type Crumb } from "@/app/components/Breadcrumb";
 
 export default function Header({
   lastUpdated,
@@ -19,8 +19,11 @@ export default function Header({
   const rawPathname = usePathname();
   const pathname = decodeURIComponent(rawPathname);
 
-  let group: string | null = null;
   let title = "이달의 요약";
+  // 현재 위치는 h1이 맡으므로 crumbs에는 "위로 가는 길"만 담는다.
+  // 비어 있으면 그리지 않는다 — 홈 하나짜리 경로는 사이드바가 이미 하는 말이라
+  // 제목 위에 군더더기 한 줄만 남는다. 2depth부터 경로가 의미를 갖는다.
+  let crumbs: Crumb[] = [];
 
   if (pathname === "/weekly-products") {
     title = "렌탈사별 상품 현황";
@@ -37,13 +40,21 @@ export default function Header({
   } else if (pathname === "/categories") {
     title = "전체 카테고리";
   } else if (pathname.startsWith("/categories/")) {
-    // /categories/{카테고리}[/{렌탈사}[/{상품}]] — 마지막 depth를 제목으로 세운다
+    // /categories/{카테고리}[/{렌탈사}[/{상품}]] — 마지막 depth를 제목으로 세우고
+    // 그 위 depth는 전부 경로로 남긴다
     const [, , cat, co, prod] = pathname.split("/");
-    group = "카테고리";
+    const catHref = `/categories/${encodeURIComponent(cat ?? "")}`;
+    crumbs = [{ label: "카테고리", href: "/categories" }];
+    if (cat && co) crumbs.push({ label: cat, href: catHref });
+    if (cat && co && prod)
+      crumbs.push({
+        label: co,
+        href: `${catHref}/${encodeURIComponent(co)}`,
+      });
     title = prod ?? (co ? `${cat} × ${co}` : (cat ?? "카테고리"));
   } else if (pathname.startsWith("/company/")) {
     title = pathname.replace("/company/", "");
-    group = COMPANY_MAP.find((c) => c.label === title)?.group ?? null;
+    crumbs = [{ label: "렌탈사", href: "/companies" }];
   }
 
   const isHome = pathname === "/";
@@ -54,14 +65,17 @@ export default function Header({
 
   return (
     <header className="px-12 py-4 border-b border-[var(--color-gray-200)] bg-white flex-shrink-0 flex items-center gap-4 flex-wrap">
-      <h1 className="text-xl font-bold text-[var(--color-gray-900)]">
-        {group && (
-          <span className="font-normal text-[var(--color-gray-400)]">
-            {group} /{" "}
-          </span>
+      {/* 현재 위치(경로)는 본문이 아니라 상단바가 진다 — 본문 첫 줄은 분석으로 시작한다 */}
+      <div className="min-w-0">
+        {crumbs.length > 0 && (
+          <div className="mb-[2px]">
+            <Breadcrumb items={crumbs} />
+          </div>
         )}
-        {isHome && basis ? `${basis.month}월 요약` : title}
-      </h1>
+        <h1 className="text-xl font-bold text-[var(--color-gray-900)]">
+          {isHome && basis ? `${basis.month}월 요약` : title}
+        </h1>
+      </div>
 
       <div className="flex-1" />
 
