@@ -106,6 +106,7 @@ type CohortRawRow = {
   order_confirmed_at: string;
   partner_company: string | null;
   sales: number | null;
+  prop_item_usid: string | number | null;
 };
 
 /**
@@ -131,8 +132,8 @@ export async function fetchCohortRows(
   const table = SOURCE[basis].table;
   const dateCol = "order_confirmed_at";
   const select = basis === "order"
-    ? "quote_date, order_confirmed_at, partner_company, sales"
-    : "order_confirmed_at, partner_company, sales";
+    ? "quote_date, order_confirmed_at, partner_company, sales, prop_item_usid"
+    : "order_confirmed_at, partner_company, sales, prop_item_usid";
 
   const rows: ReviewRow[] = [];
   for (let from = 0; ; from += COHORT_PAGE) {
@@ -160,6 +161,7 @@ export async function fetchCohortRows(
         partner_company: r.partner_company ?? null,
         rental_company: null,
         sales: r.sales ?? null,
+        prop_item_usid: r.prop_item_usid ?? null,
         contribution_margin: null,
         total_rental_fee: null,
         sales_incentive: null,

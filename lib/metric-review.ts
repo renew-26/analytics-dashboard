@@ -30,6 +30,8 @@ export type ReviewRow = {
   date: string;
   quote_date: string | null;
   order_confirmed_at: string | null;
+  /** raw_orders/raw_contracts 공통 식별자 — 코호트 신원 매칭(buildFunnel)에만 쓴다 */
+  prop_item_usid?: string | number | null;
   category: string | null;
   brand: string | null;
   partner_company: string | null;
@@ -576,7 +578,18 @@ export function buildFunnel(
     !!r.quote_date && inRange(r.quote_date, period.curr.start, period.curr.end);
   const quoted = orders.filter(inCohort);
   const ordered = quoted.filter((r) => !!r.order_confirmed_at);
-  const contracted = contracts.filter(inCohort);
+  // raw_contracts.quote_date 는 전 행 NULL이라(2026-09-08 실측) inCohort로 계약을
+  // 거르면 세 번째 단계가 항상 0이 된다. 두 테이블 모두 prop_item_usid로 이어지므로
+  // 견적 코호트의 신원(id) 집합에 속하는지로 맞춘다 — 날짜 창 근사가 아니라 정확한
+  // 멤버십 테스트다.
+  const ids = new Set(
+    quoted
+      .map((r) => r.prop_item_usid)
+      .filter((id): id is string | number => id !== null && id !== undefined),
+  );
+  const contracted = contracts.filter(
+    (r) => r.prop_item_usid !== null && r.prop_item_usid !== undefined && ids.has(r.prop_item_usid),
+  );
 
   const mk = (label: string, count: number, base: number | null, note?: string): FunnelStage => ({
     label, count,

@@ -398,12 +398,13 @@ describe("buildLeadTime", () => {
 describe("buildFunnel", () => {
   it("견적 코호트의 단계별 건수와 전환율을 준다", () => {
     const orders = [
-      row({ date: "2026-09-01", quote_date: "2026-09-01" }),
-      row({ date: "2026-09-02", quote_date: "2026-09-02" }),
-      row({ date: "2026-09-03", quote_date: "2026-09-03" }),
-      row({ date: "2026-09-04", quote_date: "2026-09-04" }),
+      row({ date: "2026-09-01", quote_date: "2026-09-01", prop_item_usid: "A1" }),
+      row({ date: "2026-09-02", quote_date: "2026-09-02", prop_item_usid: "A2" }),
+      row({ date: "2026-09-03", quote_date: "2026-09-03", prop_item_usid: "A3" }),
+      row({ date: "2026-09-04", quote_date: "2026-09-04", prop_item_usid: "A4" }),
     ];
-    const contracts = [row({ date: "2026-09-05", quote_date: "2026-09-01" })];
+    // 실제 데이터처럼 계약 행은 quote_date 를 갖지 않는다 — id(prop_item_usid)로만 잡힌다.
+    const contracts = [row({ date: "2026-09-05", quote_date: null, prop_item_usid: "A1" })];
     const f = buildFunnel(orders, contracts, PERIOD);
     expect(f.stages.map((s) => s.count)).toEqual([4, 4, 1]);
     expect(f.stages[2].convPct).toBe(25);
@@ -414,5 +415,23 @@ describe("buildFunnel", () => {
     const f = buildFunnel([row({ date: "2026-09-01", quote_date: "2026-09-01" })], [], PERIOD);
     const counts = f.stages.map((s) => s.count);
     expect(counts).toEqual([...counts].sort((a, b) => b - a));
+  });
+
+  it("raw_contracts.quote_date 가 전부 NULL이어도 prop_item_usid로 계약완료를 잡는다", () => {
+    // 실제 데이터의 실측 조건 그대로 재현: 계약 행은 quote_date 를 갖지 않는다.
+    const orders = [
+      row({ date: "2026-09-01", quote_date: "2026-09-01", prop_item_usid: "A1" }),
+      row({ date: "2026-09-02", quote_date: "2026-09-02", prop_item_usid: "A2" }),
+    ];
+    const contracts = [
+      row({ date: "2026-09-05", quote_date: null, prop_item_usid: "A1" }),
+      // 코호트 밖 id — 섞여 들어오면 안 된다
+      row({ date: "2026-09-06", quote_date: null, prop_item_usid: "Z9" }),
+      // id 없는 행 — undefined끼리 매칭되면 안 된다
+      row({ date: "2026-09-06", quote_date: null, prop_item_usid: null }),
+    ];
+    const f = buildFunnel(orders, contracts, PERIOD);
+    expect(f.stages[2].count).toBe(1);
+    expect(f.stages[2].convPct).toBe(50);
   });
 });
