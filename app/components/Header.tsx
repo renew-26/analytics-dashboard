@@ -32,6 +32,10 @@ export default function Header({
     title = "조사 상품 선정 - 가전";
   } else if (pathname === "/survey-selection/tps") {
     title = "조사 상품 선정 - TPS";
+  } else if (pathname === "/revenue-analysis") {
+    title = "수수료 매출";
+  } else if (pathname === "/transaction-count") {
+    title = "전체 거래건수";
   } else if (pathname === "/companies") {
     title = "렌탈사 요약";
   } else if (pathname === "/categories") {
