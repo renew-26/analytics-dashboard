@@ -187,8 +187,8 @@ function WaterfallSection({ stages }: { stages: WaterfallStage[] }) {
     <section>
       <h2 className="text-lg font-bold text-[#222222] mb-1">지원금 → 손익 영향</h2>
       <p className="text-xs text-[#a1a5ac] mb-4">
-        예외승인 건 전체 합산 — 매출에서 타사 지원금·비용·대손비·타겟마진이 얼마씩
-        깎여 최종 잔여마진에 이르는지 보여줍니다
+        예외승인 건 전체 합산 — 매출에서 예외승인 지원금이 얼마나 깎여 최종
+        공헌이익에 이르는지 보여줍니다
       </p>
       <div className="bg-white border border-[#ebebe9] rounded-xl p-5">
         <ResponsiveContainer width="100%" height={320}>
@@ -227,12 +227,13 @@ function WaterfallSection({ stages }: { stages: WaterfallStage[] }) {
   );
 }
 
-// ─── 3. Impact Breakdown (5단계) ──────────────────────────────────────────────
+// ─── 3. Impact Breakdown ──────────────────────────────────────────────────────
 
+// "대손"(bad_debt_hit)은 인터넷 카테고리에서 항상 0건이라 카드에서 뺐다(2026-09-10).
+// 분류 자체는 그대로 5단계라 실제로 발생하면 stats에는 잡히지만 화면엔 안 보인다.
 const IMPACT_ORDER: ImpactCategory[] = [
   "safe",
   "margin_hit",
-  "bad_debt_hit",
   "both_hit",
   "reverse",
 ];
@@ -267,7 +268,7 @@ function ImpactBreakdownCard({
         예외승인 {total.toLocaleString("ko-KR")}건을 영향 범위별로 분류합니다
       </p>
       <div className="bg-white border border-[#ebebe9] rounded-xl p-6">
-        <div className="grid grid-cols-5 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           {IMPACT_ORDER.map((key) => {
             const label = IMPACT_LABEL[key];
             const s = stats[key];

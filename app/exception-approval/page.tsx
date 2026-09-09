@@ -443,25 +443,25 @@ function buildExceptionDetails(rows: PropItemRow[]): ExceptionDetail[] {
 }
 
 /**
- * 지원금 → 손익 영향 워터폴 — 예외승인 건 전체를 합산해 5단계로 쪼갠다.
+ * 지원금 → 손익 영향 워터폴 — 예외승인 건 전체를 합산해 4단계로 쪼갠다.
  * 각 합계는 computeRowImpact가 이미 검증한 값(매출/공헌이익 등)의 단순 합이라
  * 워터폴과 KPI·상세표 숫자가 항상 맞아떨어진다.
  *
- * 타겟마진 영향은 순차 차감이 아니라 최종 공헌이익 대비 독립 판정이라(computeRowImpact
- * 주석 참고) 워터폴에 "타겟마진" 단계로 이어붙일 수 없다 — 최종 공헌이익에서 멈춘다.
+ * 타겟마진·대손비 영향은 순차 차감이 아니라 최종 공헌이익 대비 독립 판정이라
+ * (computeRowImpact 주석 참고) 워터폴에 별도 단계로 이어붙일 수 없다 — 대손비는
+ * 인터넷 카테고리에서 항상 0으로 나와 단계 자체를 뺐다(2026-09-10). 최종 공헌이익
+ * 계산에는 여전히 반영된다.
  */
 function buildWaterfallData(rows: PropItemRow[]): WaterfallStage[] {
   const exceptionRows = rows.filter(isException);
   let totalSales = 0;
   let totalSubsidy = 0;
-  let totalBadDebt = 0;
   let totalContribution = 0;
 
   for (const r of exceptionRows) {
     const impact = computeRowImpact(r);
     totalSales += impact.sales;
     totalSubsidy += impact.totalSubsidy;
-    totalBadDebt += impact.badDebt;
     totalContribution += impact.contributionMargin;
   }
 
@@ -471,7 +471,6 @@ function buildWaterfallData(rows: PropItemRow[]): WaterfallStage[] {
     { label: "매출", value: Math.round(totalSales), delta: 0, isAnchor: true },
     { label: "예외승인 지원금", value: Math.round(afterSubsidy), delta: Math.round(-totalSubsidy), isAnchor: false },
     { label: "지원금 차감 후 매출", value: Math.round(afterSubsidy), delta: 0, isAnchor: true },
-    { label: "대손비", value: Math.round(totalContribution), delta: Math.round(-totalBadDebt), isAnchor: false },
     { label: "최종 공헌이익", value: Math.round(totalContribution), delta: 0, isAnchor: true },
   ];
 }
