@@ -132,10 +132,14 @@ function calcContributionMargin(r: PropItemRow, isExc: boolean): number {
  * 전부 이 함수를 거치므로 정의가 갈릴 일이 없다.
  *
  * 최종 공헌이익 = 수수료 - 예외승인 지원금(렌트리+타사 합산) - 대손비 + 상품권.
- * 타겟마진·대손비 영향은 순차 차감이 아니라 이 공헌이익 하나를 기준으로 각각
- * 독립적으로 부족분을 잰다: 타겟마진 영향 = min(타겟마진, max(0, 타겟마진-공헌이익)),
- * 대손비 영향도 동일 패턴 — 대칭이고, 공헌이익이 아무리 깊은 마이너스여도 각 영향은
- * 그 버퍼 크기(타겟마진/대손비) 자체를 넘지 않게 상한을 건다(2026-09-10 확정).
+ * 각 영향은 이 공헌이익 하나를 기준으로 재고, 그 버퍼 크기(타겟마진/대손비)를
+ * 넘지 않게 상한을 건다: min(버퍼, max(0, 버퍼 - 공헌이익)).
+ *
+ * 단, 두 버퍼는 나란하지 않고 **순서가 있다** — 타겟마진이 먼저 깎이고 대손비가
+ * 그다음이다. 그래서 대손비에 영향이 갔다면 그 앞의 타겟마진은 이미 전액 소진된
+ * 것이므로 타겟마진 영향은 전액으로 본다(2026-09-10 확정).
+ * 이 보정이 없으면 타겟마진 100·대손 50·공헌이익 30일 때 대손은 20 맞았는데
+ * 타겟마진은 70만 맞은 것으로 잡혀, 이미 다 깎인 버퍼가 아직 30 남은 것처럼 읽힌다.
  * 역마진은 이 공헌이익 자체가 마이너스인 경우.
  */
 function computeRowImpact(r: PropItemRow) {
@@ -150,8 +154,12 @@ function computeRowImpact(r: PropItemRow) {
   const contributionMargin = sales - totalSubsidy - badDebt + voucher;
   const isReverseMargin = contributionMargin < 0;
 
-  const targetMarginHit = Math.min(targetMargin, Math.max(0, targetMargin - contributionMargin));
   const badDebtHit = Math.min(badDebt, Math.max(0, badDebt - contributionMargin));
+  // 대손까지 갔다면 그 앞의 타겟마진은 전액 소진된 것이다 (위 주석의 버퍼 순서)
+  const targetMarginHit =
+    badDebtHit > 0
+      ? targetMargin
+      : Math.min(targetMargin, Math.max(0, targetMargin - contributionMargin));
   const totalImpact = targetMarginHit + badDebtHit;
 
   let marginImpact: ImpactCategory = "safe";
