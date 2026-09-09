@@ -133,8 +133,9 @@ function calcContributionMargin(r: PropItemRow, isExc: boolean): number {
  *
  * 최종 공헌이익 = 수수료 - 예외승인 지원금(렌트리+타사 합산) - 대손비 + 상품권.
  * 타겟마진·대손비 영향은 순차 차감이 아니라 이 공헌이익 하나를 기준으로 각각
- * 독립적으로 판정한다: 공헌이익이 타겟마진에 못 미치면 타겟마진 전액이, 대손비에
- * 못 미치면 그 부족분(대손비-공헌이익)이 영향이다(2026-09-09 확정).
+ * 독립적으로 부족분을 잰다: 타겟마진 영향 = min(타겟마진, max(0, 타겟마진-공헌이익)),
+ * 대손비 영향도 동일 패턴 — 대칭이고, 공헌이익이 아무리 깊은 마이너스여도 각 영향은
+ * 그 버퍼 크기(타겟마진/대손비) 자체를 넘지 않게 상한을 건다(2026-09-10 확정).
  * 역마진은 이 공헌이익 자체가 마이너스인 경우.
  */
 function computeRowImpact(r: PropItemRow) {
@@ -149,8 +150,8 @@ function computeRowImpact(r: PropItemRow) {
   const contributionMargin = sales - totalSubsidy - badDebt + voucher;
   const isReverseMargin = contributionMargin < 0;
 
-  const targetMarginHit = contributionMargin < targetMargin ? targetMargin : 0;
-  const badDebtHit = contributionMargin < badDebt ? badDebt - contributionMargin : 0;
+  const targetMarginHit = Math.min(targetMargin, Math.max(0, targetMargin - contributionMargin));
+  const badDebtHit = Math.min(badDebt, Math.max(0, badDebt - contributionMargin));
   const totalImpact = targetMarginHit + badDebtHit;
 
   let marginImpact: ImpactCategory = "safe";
