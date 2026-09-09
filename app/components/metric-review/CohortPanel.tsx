@@ -9,9 +9,9 @@ export default function CohortPanel({
 }) {
   // 리드타임은 코호트와 다른 산식(quote_date → order_confirmed_at, 주문 원장
   // 고정)이다 — 패널 근거줄은 코호트를 설명하므로, 이 소절 전용 캡션을 따로
-  // 붙인다. basis 는 항상 "order" — fetchCohortRows 가 quote_date 를 order
-  // 테이블에서만 select 하므로 리드타임은 basis 와 무관하게 주문 원장 고정이다.
-  const ltProv = pv.leadTime("order", leadTime);
+  // 붙인다. pv.leadTime 은 basis 인자를 받지 않는다 — quote_date 를 select
+  // 하는 원장은 raw_orders 뿐이라 리드타임은 언제나 주문 원장 고정이다.
+  const ltProv = pv.leadTime(leadTime);
 
   return (
     <Panel

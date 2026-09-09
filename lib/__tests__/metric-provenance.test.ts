@@ -141,7 +141,7 @@ describe("pv.cohort", () => {
 describe("pv.leadTime", () => {
   it("중앙값·상위75%·표본 실수를 산식에 넣는다", () => {
     const lt: LeadTime = { withQuote: 900, withoutQuote: 24, medianDays: 2, p75Days: 5, buckets: [] };
-    const p = pv.leadTime("order", lt);
+    const p = pv.leadTime(lt);
     expect(p.formula).toContain("중앙값 2일");
     expect(p.formula).toContain("상위 75% 5일");
     expect(p.formula).toContain("900건");
@@ -151,7 +151,7 @@ describe("pv.leadTime", () => {
 
   it("제외 건이 없으면 caveat 이 없다", () => {
     const lt: LeadTime = { withQuote: 900, withoutQuote: 0, medianDays: 2, p75Days: 5, buckets: [] };
-    expect(pv.leadTime("order", lt).caveat).toBeUndefined();
+    expect(pv.leadTime(lt).caveat).toBeUndefined();
   });
 });
 
@@ -221,7 +221,7 @@ describe("SOURCE 치환 시 출력이 따라간다 (하드코딩 가드)", () =>
     expect(cohortSource).toContain("TBL_ORDER_SENTINEL");
     expect(cohortSource).toContain("TBL_CONTRACT_SENTINEL");
     expect(
-      mod.pv.leadTime("order", { withQuote: 0, withoutQuote: 0, medianDays: null, p75Days: null, buckets: [] }).source,
+      mod.pv.leadTime({ withQuote: 0, withoutQuote: 0, medianDays: null, p75Days: null, buckets: [] }).source,
     ).toContain("TBL_ORDER_SENTINEL");
     expect(mod.pv.funnel("order", { stages: [] }).source).toContain("TBL_ORDER_SENTINEL");
   });

@@ -138,11 +138,17 @@ export const pv = {
     };
   },
 
-  leadTime(basis: Basis, lt: LeadTime): Provenance {
+  /**
+   * basis 를 받지 않는다 — 리드타임은 견적신청 → 주문확정 구간이라 집계 기준과
+   * 무관하고, quote_date 를 select 하는 원장은 raw_orders 뿐이다(계약완료
+   * 테이블은 이 컬럼이 전량 NULL). basis 를 인자로 두면 호출부가 사실과 다르게
+   * "계약 테이블에서 쟀다"고 표기할 여지가 생긴다.
+   */
+  leadTime(lt: LeadTime): Provenance {
     const median = lt.medianDays === null ? "—" : `${lt.medianDays}일`;
     const p75 = lt.p75Days === null ? "—" : `${lt.p75Days}일`;
     return {
-      source: `출처 ${SOURCE[basis].table}.quote_date → order_confirmed_at`,
+      source: `출처 ${SOURCE.order.table}.quote_date → order_confirmed_at`,
       formula: `산식 두 날짜의 일수 차 · 중앙값 ${median} · 상위 75% ${p75} (표본 ${fmt(lt.withQuote)}건)`,
       caveat: lt.withoutQuote > 0 ? `quote_date 없음 ${fmt(lt.withoutQuote)}건 제외` : undefined,
     };
