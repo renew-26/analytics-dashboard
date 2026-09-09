@@ -25,6 +25,21 @@ describe("sourceLine", () => {
     expect(s).toContain("contract_date");
     expect(s).toContain("#4445");
   });
+
+  it("BM 필터가 전체면 필터를 언급하지 않는다", () => {
+    const s = sourceLine("order", 100, "2026-06-01", "2026-09-07", null, "ALL");
+    expect(s).not.toContain("필터");
+    expect(s).not.toContain("getBM");
+  });
+
+  it("BM 필터가 걸려 있으면 필터와 분류 출처를 밝힌다", () => {
+    const s = sourceLine("order", 42, "2026-06-01", "2026-09-07", null, "BM3");
+    expect(s).toContain("BM3");
+    expect(s).toContain("필터");
+    expect(s).toContain("getBM");
+    expect(s).toContain("company-map.ts");
+    expect(s).toContain("42행");
+  });
 });
 
 describe("pv.baseline", () => {
@@ -156,7 +171,11 @@ describe("pv.leadTime", () => {
 });
 
 describe("pv.funnel", () => {
-  it("단계별 실제 건수를 산식에 넣고, 원천 한계를 항상 붙인다", () => {
+  it("basis 를 받지 않는다 — 퍼널은 basis 무관이다", () => {
+    expect(pv.funnel.length).toBe(1);
+  });
+
+  it("단계별 실제 건수를 산식에 넣고, 실제로 읽은 조인 키(prop_item_usid)를 밝힌다", () => {
     const f: FunnelBlock = {
       stages: [
         { label: "견적신청", count: 924, convPct: null },
@@ -164,8 +183,14 @@ describe("pv.funnel", () => {
         { label: "계약완료", count: 112, convPct: 12.1 },
       ],
     };
-    const p = pv.funnel("order", f);
-    expect(p.source).toBe(`출처 ${SOURCE.order.table}.quote_date · order_confirmed_at · contract_date`);
+    const p = pv.funnel(f);
+    expect(p.source).toContain(SOURCE.order.table);
+    expect(p.source).toContain("quote_date");
+    expect(p.source).toContain("order_confirmed_at");
+    expect(p.source).toContain(SOURCE.contract.table);
+    expect(p.source).toContain("prop_item_usid");
+    // 실제로 읽지 않는 컬럼을 표기해선 안 된다
+    expect(p.source).not.toContain("contract_date");
     expect(p.formula).toBe("산식 견적신청 924 → 주문확정 924 → 계약완료 112");
     expect(p.caveat).toContain("견적만 한 건 미포함");
   });
@@ -223,6 +248,8 @@ describe("SOURCE 치환 시 출력이 따라간다 (하드코딩 가드)", () =>
     expect(
       mod.pv.leadTime({ withQuote: 0, withoutQuote: 0, medianDays: null, p75Days: null, buckets: [] }).source,
     ).toContain("TBL_ORDER_SENTINEL");
-    expect(mod.pv.funnel("order", { stages: [] }).source).toContain("TBL_ORDER_SENTINEL");
+    const funnelSource = mod.pv.funnel({ stages: [] }).source;
+    expect(funnelSource).toContain("TBL_ORDER_SENTINEL");
+    expect(funnelSource).toContain("TBL_CONTRACT_SENTINEL");
   });
 });

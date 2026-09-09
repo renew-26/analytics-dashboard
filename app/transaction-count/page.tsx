@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { getPeriod, getDataAsOf, formatShortRange } from "@/lib/period";
 import {
-  METRICS, SOURCE, monthlyBaseline, buildKpi, buildTrend, buildWaterfall,
+  METRICS, monthlyBaseline, buildKpi, buildTrend, buildWaterfall,
   buildComposition, buildRank, buildFunnel, buildCohort, buildLeadTime,
   catSeries, type Basis, type ReviewRow,
 } from "@/lib/metric-review";
@@ -94,7 +94,7 @@ export default async function TransactionCountPage({
     <div className="px-7 py-[22px] space-y-[26px]">
       <div className="flex items-start justify-between gap-4">
         <p className="text-[11px] leading-4 text-[var(--color-gray-500)] font-[family-name:var(--font-mono)]">
-          {sourceLine(basis, rows.length, start, period.curr.end, lastSyncedAt)}
+          {sourceLine(basis, rows.length, start, period.curr.end, lastSyncedAt, bmKey)}
           <span className="ml-1.5 text-[var(--color-sev-warn)]">· ⚠ 취소 미반영</span>
         </p>
         <div className="flex items-center gap-3 shrink-0">
@@ -104,7 +104,7 @@ export default async function TransactionCountPage({
       </div>
 
       <KpiStrip metricKey={metric.key} kpi={kpi} prevLabel={prevLabel}
-                sourceColumn={`${SOURCE[basis].table}.${metric.column}`} />
+                valueProv={pv.value(metric, basis, kpi.excludedRows, prevLabel, kpi.curr, kpi.prev)} />
 
       <div className="grid grid-cols-3 gap-4">
         <TrendPanel metricKey={metric.key} trend={trend} baseline={baseline} currLabel={currLabel}
@@ -119,7 +119,7 @@ export default async function TransactionCountPage({
 
       <div className="grid grid-cols-3 gap-4">
         <LadderPanel mode="funnel" funnel={funnel} currLabel={currLabel}
-                     provenance={pv.funnel(basis, funnel)} />
+                     provenance={pv.funnel(funnel)} />
         <CohortPanel rows={cohort} leadTime={leadTime} provenance={pv.cohort(cohort)} />
         <RankPanel metricKey={metric.key} rank={rank} provenance={pv.rank(metric, basis, kpi.curr)} />
       </div>

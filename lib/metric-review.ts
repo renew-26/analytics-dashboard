@@ -222,6 +222,8 @@ export type KpiBlock = {
   count: number;
   prevCount: number;
   avgUnitPrice: number;
+  /** avgUnitPrice 의 실제 분모 — sales 가 NULL 이 아닌 이번달 행 수. count 와 다를 수 있다 */
+  unitPriceRows: number;
   cm: number;
   cmMom: number | null;
   pace: number | null;
@@ -265,6 +267,7 @@ export function buildKpi(
     avgUnitPrice: currRowsWithSales.length > 0
       ? currRowsWithSales.reduce((s, r) => s + (r.sales ?? 0), 0) / currRowsWithSales.length
       : 0,
+    unitPriceRows: currRowsWithSales.length,
     cm,
     cmMom: cmPrev === 0 ? null : ((cm - cmPrev) / cmPrev) * 100,
     pace: paceVsBaseline(curr, currDays, base.perDay),

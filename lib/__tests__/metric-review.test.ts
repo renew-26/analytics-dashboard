@@ -233,6 +233,9 @@ describe("buildKpi", () => {
     const k = buildKpi(METRICS.count, mixed, PERIOD, null);
     expect(k.count).toBe(3); // 건수는 NULL 도 포함해서 센다
     expect(k.avgUnitPrice).toBe(200); // 단가는 NULL 을 빼고 평균한다 — 0 으로 섞으면 안 된다
+    // unitPriceRows 는 avgUnitPrice 의 실제 분모다 — count(3) 와 달라야
+    // 화면 캡션이 count 를 잘못된 분모로 표기하는 걸 막는다.
+    expect(k.unitPriceRows).toBe(2);
   });
 });
 

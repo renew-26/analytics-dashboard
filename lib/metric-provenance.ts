@@ -26,19 +26,28 @@ export type Provenance = {
 
 const md = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
 
-/** 페이지 헤더 한 줄 — 본문이 실제로 읽은 창을 적는다 */
+/**
+ * 페이지 헤더 한 줄 — 본문이 실제로 읽은 창을 적는다.
+ *
+ * bmFilter 가 걸려 있으면(전체가 아니면) 여기서 밝힌다 — rows 는 이미 그 필터를
+ * 통과한 후의 건수라, 필터를 말하지 않으면 이 줄만 보고는 숫자를 재현할 수 없다.
+ * 분류가 어디서 오는지(getBM)까지 적어야 Redash 에서 같은 조건을 다시 걸 수 있다.
+ */
 export function sourceLine(
   basis: Basis,
   rows: number,
   start: string,
   end: string,
   syncedAt: string | null,
+  bmFilter: string = "ALL",
 ): string {
   const s = SOURCE[basis];
   const stamp = syncedAt
     ? new Date(syncedAt).toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" })
     : "확인 불가";
-  return `데이터 기준 ${stamp} · 출처 Redash #${s.redash} → Supabase ${s.table} · 기준 컬럼 ${s.dateCol} · ${fmt(rows)}행 (${md(start)}~${md(end)})`;
+  const filterPart =
+    bmFilter === "ALL" ? "" : ` · ${bmFilter} 필터 적용(partner_company → getBM, lib/company-map.ts)`;
+  return `데이터 기준 ${stamp} · 출처 Redash #${s.redash} → Supabase ${s.table} · 기준 컬럼 ${s.dateCol}${filterPart} · ${fmt(rows)}행 (${md(start)}~${md(end)})`;
 }
 
 const col = (basis: Basis, metric: Metric) => `${SOURCE[basis].table}.${metric.column}`;
@@ -154,9 +163,17 @@ export const pv = {
     };
   },
 
-  funnel(basis: Basis, f: FunnelBlock): Provenance {
+  /**
+   * basis 를 받지 않는다 — buildFunnel(lib/metric-review.ts)이 cohortOrders +
+   * cohortContracts 를 받아 basis 무관하게 계산한다. quote_date 는 주문 원장
+   * (order)에서만 select 되고(raw_contracts.quote_date 는 전량 NULL), 견적
+   * 코호트와 계약을 잇는 건 날짜가 아니라 두 테이블 공통 식별자 prop_item_usid
+   * 신원 조인이다(buildFunnel 참고). basis 를 인자로 두면 호출부가 "계약 테이블의
+   * quote_date·contract_date 를 읽었다"고 표기할 여지가 생긴다 — 사실이 아니다.
+   */
+  funnel(f: FunnelBlock): Provenance {
     return {
-      source: `출처 ${SOURCE[basis].table}.quote_date · order_confirmed_at · contract_date`,
+      source: `출처 ${SOURCE.order.table}.quote_date · order_confirmed_at → ${SOURCE.contract.table}.prop_item_usid (신원 조인)`,
       formula: `산식 ${f.stages.map((s) => `${s.label} ${fmt(s.count)}`).join(" → ")}`,
       caveat: "견적만 한 건 미포함 — 원천에 없음",
     };
