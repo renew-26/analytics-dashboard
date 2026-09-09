@@ -106,14 +106,15 @@ function chartYDomain(
 }
 
 /**
- * @param bm BasisFilter/BMFilter 와 같은 소문자 규약 ("all" | "bm1" | "bm2" | "bm3")
+ * BM 필터를 받지 않는다 — 이 표의 "BM별 매출액" 소절은 BM1/BM2/BM3 를 나란히
+ * 보여주는 게 목적이라, 상단 BMFilter 로 하나만 골라도 여기는 전체를 그대로
+ * 보여준다(리디자인 이전 page.tsx 도 yearRaw 는 byBm() 을 거치지 않았다 —
+ * rows/cohortOrders/cohortContracts 만 걸렀다).
  */
 export default async function LegacyRevenueDetails({
   basis,
-  bm,
 }: {
   basis: Basis;
-  bm: "all" | "bm1" | "bm2" | "bm3";
 }) {
   const yearStart = "2026-01-01";
 
@@ -122,9 +123,7 @@ export default async function LegacyRevenueDetails({
   yesterday.setDate(today.getDate() - 1);
   const endStr = toLocalDateStr(yesterday);
 
-  const allYearRaw = await fetchYearRows(basis, yearStart, endStr);
-  const bmKey = bm.toUpperCase();
-  const yearRaw = bm === "all" ? allYearRaw : allYearRaw.filter((r) => getBM(r.partner_company) === bmKey);
+  const yearRaw = await fetchYearRows(basis, yearStart, endStr);
 
   // ── 매출액 추이 (카테고리·BM·렌탈사별, 월별/주차별) ──
   const monthCatMap = new Map<string, Map<string, number>>();

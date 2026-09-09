@@ -3,7 +3,7 @@ import { getPeriod, getDataAsOf, formatShortRange } from "@/lib/period";
 import {
   METRICS, SOURCE, monthlyBaseline, buildKpi, buildTrend, buildWaterfall,
   buildComposition, buildRank, buildPnl, buildCohort, buildLeadTime,
-  catSeries, type Basis,
+  catSeries, type Basis, type ReviewRow,
 } from "@/lib/metric-review";
 import { fetchReviewRows, fetchCohortRows } from "@/lib/metric-review-fetch";
 import { sourceLine, pv } from "@/lib/metric-provenance";
@@ -53,13 +53,21 @@ export default async function RevenueAnalysisPage({
   const period = getPeriod(asOf);
   const start = windowStart(period.curr.end);
 
-  const [{ rows: allRows, lastSyncedAt }, cohortOrders, cohortContracts] = await Promise.all([
+  const [{ rows: allRows, lastSyncedAt }, allCohortOrders, allCohortContracts] = await Promise.all([
     fetchReviewRows(basis, start, period.curr.end),
     fetchCohortRows("order", cohortStart(period.curr.end), period.curr.end),
     fetchCohortRows("contract", cohortStart(period.curr.end), period.curr.end),
   ]);
 
-  const rows = bm === "all" ? allRows : allRows.filter((r) => getBM(r.partner_company) === bmKey);
+  // BM 필터는 여기 한 곳에서만 적용한다 — rows/cohortOrders/cohortContracts
+  // 모두 같은 필터를 거쳐야 코호트·리드타임 패널이 다른 패널과 같은 모집단을
+  // 보여준다(그렇지 않으면 ?bm=BM3 화면에서 코호트만 전체 BM 수치가 섞여 나온다).
+  const byBm = (list: ReviewRow[]): ReviewRow[] =>
+    bm === "all" ? list : list.filter((r) => getBM(r.partner_company) === bmKey);
+
+  const rows = byBm(allRows);
+  const cohortOrders = byBm(allCohortOrders);
+  const cohortContracts = byBm(allCohortContracts);
 
   const baseline = monthlyBaseline(
     rows.filter((r) => metric.includeRow(r)),
@@ -96,17 +104,17 @@ export default async function RevenueAnalysisPage({
         </div>
       </div>
 
-      <KpiStrip metric={metric} kpi={kpi} prevLabel={prevLabel}
+      <KpiStrip metricKey={metric.key} kpi={kpi} prevLabel={prevLabel}
                 sourceColumn={`${SOURCE[basis].table}.${metric.column}`} />
 
       <div className="grid grid-cols-3 gap-4">
-        <TrendPanel metric={metric} trend={trend} baseline={baseline} currLabel={currLabel}
+        <TrendPanel metricKey={metric.key} trend={trend} baseline={baseline} currLabel={currLabel}
                     provenance={pv.baseline(metric, baseline, basis)} />
         <Panel title="증감 원인" sub={`${prevLabel} → ${currLabel} · 억원`}
                provenance={pv.waterfall(metric, basis, prevLabel, currLabel, kpi.prev, kpi.curr)}>
           <Waterfall items={wfCategory} decimals={2} unit="억" />
         </Panel>
-        <CompositionPanel metric={metric} composition={composition} catSeries={catSeries()}
+        <CompositionPanel metricKey={metric.key} composition={composition} catSeries={catSeries()}
                           provenance={pv.composition(metric, basis, composition.total)} />
       </div>
 
@@ -114,7 +122,7 @@ export default async function RevenueAnalysisPage({
         <LadderPanel mode="pnl" pnl={pnl} currLabel={currLabel} prevLabel={prevLabel}
                      provenance={pv.pnl(basis, pnl.curr)} />
         <CohortPanel rows={cohort} leadTime={leadTime} provenance={pv.cohort(cohort)} />
-        <RankPanel metric={metric} rank={rank} provenance={pv.rank(metric, basis, kpi.curr)} />
+        <RankPanel metricKey={metric.key} rank={rank} provenance={pv.rank(metric, basis, kpi.curr)} />
       </div>
 
       <Panel title="렌탈사 기여" sub={`${prevLabel} → ${currLabel} · 억원`} fixedHeight={false}
@@ -123,7 +131,7 @@ export default async function RevenueAnalysisPage({
       </Panel>
 
       <Suspense fallback={<DetailsSkeleton />}>
-        <LegacyRevenueDetails basis={basis} bm={bm} />
+        <LegacyRevenueDetails basis={basis} />
       </Suspense>
 
       <MetricDefinitions basis={basis} />

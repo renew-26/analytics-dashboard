@@ -8,7 +8,7 @@ import {
 import { CHART_ANIM } from "@/lib/chart";
 import Panel from "./Panel";
 import type { Provenance } from "@/lib/metric-provenance";
-import type { Baseline, Metric, TrendBlock } from "@/lib/metric-review";
+import { METRICS, type Baseline, type Metric, type TrendBlock } from "@/lib/metric-review";
 
 function axisFmt(metric: Metric) {
   return (n: number) => {
@@ -54,14 +54,15 @@ type Axis = "cat" | "bm";
 type Span = "daily" | "weekly";
 
 export default function TrendPanel({
-  metric, trend, baseline, currLabel, provenance,
+  metricKey, trend, baseline, currLabel, provenance,
 }: {
-  metric: Metric;
+  metricKey: Metric["key"];
   trend: TrendBlock;
   baseline: Baseline;
   currLabel: string;
   provenance: Provenance;
 }) {
+  const metric = METRICS[metricKey];
   const [axis, setAxis] = useState<Axis>("cat");
   const [span, setSpan] = useState<Span>("daily");
 

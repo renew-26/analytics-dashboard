@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import Delta from "@/app/components/Delta";
 import { EOK, MAN } from "@/lib/format";
-import type { KpiBlock, Metric } from "@/lib/metric-review";
+import { METRICS, type KpiBlock, type Metric } from "@/lib/metric-review";
 
 function Tile({
   title, value, sub, badge, note,
@@ -38,10 +38,11 @@ function Tile({
  * 읽었는지 그대로 찍을 수 있다.
  */
 export default function KpiStrip({
-  metric, kpi, prevLabel, sourceColumn,
+  metricKey, kpi, prevLabel, sourceColumn,
 }: {
-  metric: Metric; kpi: KpiBlock; prevLabel: string; sourceColumn: string;
+  metricKey: Metric["key"]; kpi: KpiBlock; prevLabel: string; sourceColumn: string;
 }) {
+  const metric = METRICS[metricKey];
   const paceNote = kpi.baseline.months.length
     ? `Σ(${kpi.baseline.months[0]}~${kpi.baseline.months.at(-1)}) ÷ ${kpi.baseline.days}일`
     : "완결월 부족 — 기준선 없음";

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Panel from "./Panel";
 import type { Provenance } from "@/lib/metric-provenance";
-import type { Metric, RankBlock, RankItem } from "@/lib/metric-review";
+import { METRICS, type Metric, type RankBlock, type RankItem } from "@/lib/metric-review";
 
 const TABS = [
   { key: "categories", label: "카테고리" },
@@ -12,10 +12,11 @@ const TABS = [
 ] as const;
 
 export default function RankPanel({
-  metric, rank, provenance,
+  metricKey, rank, provenance,
 }: {
-  metric: Metric; rank: RankBlock; provenance: Provenance;
+  metricKey: Metric["key"]; rank: RankBlock; provenance: Provenance;
 }) {
+  const metric = METRICS[metricKey];
   const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("categories");
   const items: RankItem[] = rank[tab];
 

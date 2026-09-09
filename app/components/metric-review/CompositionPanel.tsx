@@ -5,7 +5,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { CHART_ANIM } from "@/lib/chart";
 import Panel from "./Panel";
 import type { Provenance } from "@/lib/metric-provenance";
-import { bmSeries } from "@/lib/metric-review";
+import { METRICS, bmSeries } from "@/lib/metric-review";
 import type { CompositionBlock, Metric, TrendSeries } from "@/lib/metric-review";
 
 // BM 은 순서에 의미가 없는 분류이므로 팔레트를 쓴다 — TrendPanel 과 같은 값을
@@ -13,13 +13,14 @@ import type { CompositionBlock, Metric, TrendSeries } from "@/lib/metric-review"
 const BM = bmSeries();
 
 export default function CompositionPanel({
-  metric, composition, catSeries, provenance,
+  metricKey, composition, catSeries, provenance,
 }: {
-  metric: Metric;
+  metricKey: Metric["key"];
   composition: CompositionBlock;
   catSeries: TrendSeries[];
   provenance: Provenance;
 }) {
+  const metric = METRICS[metricKey];
   const [axis, setAxis] = useState<"cat" | "bm">("cat");
   const items = axis === "cat" ? composition.byCategory : composition.byBm;
   const colorOf = (name: string) =>

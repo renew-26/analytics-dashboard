@@ -104,6 +104,7 @@ export async function fetchReviewRows(
 type CohortRawRow = {
   quote_date?: string | null;
   order_confirmed_at: string;
+  partner_company: string | null;
   sales: number | null;
 };
 
@@ -129,7 +130,9 @@ export async function fetchCohortRows(
 ): Promise<ReviewRow[]> {
   const table = SOURCE[basis].table;
   const dateCol = "order_confirmed_at";
-  const select = basis === "order" ? "quote_date, order_confirmed_at, sales" : "order_confirmed_at, sales";
+  const select = basis === "order"
+    ? "quote_date, order_confirmed_at, partner_company, sales"
+    : "order_confirmed_at, partner_company, sales";
 
   const rows: ReviewRow[] = [];
   for (let from = 0; ; from += COHORT_PAGE) {
@@ -154,7 +157,7 @@ export async function fetchCohortRows(
         order_confirmed_at: r.order_confirmed_at,
         category: null,
         brand: null,
-        partner_company: null,
+        partner_company: r.partner_company ?? null,
         rental_company: null,
         sales: r.sales ?? null,
         contribution_margin: null,
