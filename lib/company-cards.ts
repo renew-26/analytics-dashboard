@@ -3,7 +3,7 @@
  * 같은 정의를 쓴다. 카드 판정(평소 페이스·순위)이 두 화면에서 갈라지면
  * 같은 렌탈사가 화면마다 다른 상태로 보이므로 여기 하나만 둔다.
  */
-import { COMPANY_MAP, getBM } from "@/lib/company-map";
+import { COMPANY_MAP, dbNamesOf, getBM } from "@/lib/company-map";
 import type { CompanyCard } from "@/app/components/home/CompanyCards";
 
 export type CardContractRow = {
@@ -27,6 +27,7 @@ export const CARD_DEFS = COMPANY_MAP.map((c) => ({
   group: c.group,
   categoryIs: c.categoryIs,
   categoryNot: c.categoryNot,
+  aliases: c.aliases,
 }));
 export type CardDef = (typeof CARD_DEFS)[number];
 
@@ -34,12 +35,13 @@ const asArr = (v?: string | string[]) =>
   v === undefined ? null : Array.isArray(v) ? v : [v];
 
 // COMPANY_MAP의 카테고리 조건까지 반영한다 — dbName만으로 나누면
-// LG 하나가 'LG_가전'과 'LG_가전구독' 양쪽에 섞인다.
+// KT 하나가 'KT렌탈'과 'KT_I'(인터넷), BS렌탈이 'BS렌탈'과 '금호타이어'(타이어)
+// 양쪽에 섞인다.
 export function matchesCompany(
   def: CardDef,
   r: { rental_company: string | null; category: string | null },
 ) {
-  if (r.rental_company !== def.dbName) return false;
+  if (!dbNamesOf(def).includes(r.rental_company ?? "")) return false;
   const cat = r.category ?? "";
   const is = asArr(def.categoryIs);
   if (is && !is.includes(cat)) return false;

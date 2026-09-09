@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { COMPANY_MAP, matchesEntry } from "@/lib/company-map";
+import { COMPANY_MAP, dbNamesOf, matchesEntry } from "@/lib/company-map";
 import { getPeriod, getDataAsOf, formatShortRange } from "@/lib/period";
 import { deltaColor as dirColor } from "@/app/components/home/cardKit";
 
@@ -131,7 +131,7 @@ export default async function GroupPage({
 
   const mode = GROUP_MODE[group] ?? "share";
   const { curr, prev, month } = getPeriod(await getDataAsOf());
-  const dbNames = Array.from(new Set(entries.map((e) => e.dbName)));
+  const dbNames = Array.from(new Set(entries.flatMap(dbNamesOf)));
 
   const [currRows, prevRows, currOrders] = await Promise.all([
     fetchContracts(dbNames, curr.start, curr.end),
@@ -144,7 +144,7 @@ export default async function GroupPage({
   const labelOf = (dbName: string | null, category: string | null) => {
     if (!dbName) return null;
     for (const e of entries) {
-      if (e.dbName !== dbName) continue;
+      if (!dbNamesOf(e).includes(dbName)) continue;
       if (!matchesEntry(e, category)) continue;
       return e.label;
     }

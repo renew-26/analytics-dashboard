@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { getCompanyLabel, COMPANY_MAP } from "@/lib/company-map";
+import { getCompanyLabel, COMPANY_MAP, dbNamesOf } from "@/lib/company-map";
 import ConversionClient from "./ConversionClient";
 
 export const dynamic = "force-dynamic";
@@ -121,7 +121,8 @@ export default async function ConversionPage() {
   const data: MonthCompanyData[] = [];
   for (const key of allKeys) {
     const [month, company] = key.split("::");
-    const group = COMPANY_MAP.find((c) => c.dbName === company)?.group ?? "기타";
+    const group =
+      COMPANY_MAP.find((c) => dbNamesOf(c).includes(company))?.group ?? "기타";
     data.push({
       month,
       company,

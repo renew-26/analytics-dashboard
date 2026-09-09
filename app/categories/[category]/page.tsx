@@ -31,7 +31,6 @@ import BMMixBar from "@/app/components/home/BMMixBar";
 import CategoryCards from "@/app/components/home/CategoryCards";
 import Sparkline from "@/app/components/home/Sparkline";
 import { deltaColor as dirColor, manwon } from "@/app/components/home/cardKit";
-import Breadcrumb from "@/app/components/Breadcrumb";
 import Delta from "@/app/components/Delta";
 
 export const dynamic = "force-dynamic";
@@ -361,10 +360,6 @@ export default async function CategoryGroupPage({
 
   return (
     <div className="min-h-screen space-y-[24px] bg-[var(--color-page)] px-10 pt-8 pb-16">
-      <Breadcrumb
-        items={[{ label: "카테고리", href: "/categories" }, { label: key }]}
-      />
-
       {/* 카테고리 그룹 전환 탭 */}
       <nav className="flex flex-wrap gap-[6px]">
         {CATEGORY_GROUPS.map((g) => {
@@ -563,7 +558,7 @@ export default async function CategoryGroupPage({
                     const share = cnt > 0 ? (c.cnt / cnt) * 100 : 0;
                     const mapped = COMPANY_LABELS.has(c.label);
                     const tier = mapped
-                      ? resolveTier(c.label, install90.get(c.label) ?? 0).tier
+                      ? resolveTier(install90.get(c.label) ?? 0)
                       : null;
                     const href = coHref(c.label);
                     const name = href ? (

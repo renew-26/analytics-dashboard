@@ -4,7 +4,6 @@ import { recentYmsOf } from "@/lib/format";
 import {
   buildCompanyCards,
   countInstall90d,
-  CARD_GROUP_ORDER,
   type CardContractRow,
 } from "@/lib/company-cards";
 import { resolveTier, TIER_META, TIER_ORDER, type Tier } from "@/lib/tiers";
@@ -50,14 +49,11 @@ export default async function CompaniesPage() {
   const install90 = countInstall90d(rows, curr.end);
   const withTier = cards.map((c) => ({
     ...c,
-    tier: resolveTier(c.label, install90.get(c.label) ?? 0).tier,
+    tier: resolveTier(install90.get(c.label) ?? 0),
   }));
 
   // 이번 달·전월 모두 거래가 없는 렌탈사는 카드로 세우지 않는다
   const visibleCards = withTier.filter((c) => c.curr > 0 || c.prev > 0);
-  const cardGroups = CARD_GROUP_ORDER.filter((g) =>
-    visibleCards.some((c) => c.group === g),
-  );
 
   const tierCount = new Map<Tier, number>();
   for (const c of visibleCards)
@@ -93,13 +89,13 @@ export default async function CompaniesPage() {
         </div>
       </div>
 
-      <CompanyCards companies={visibleCards} groups={cardGroups} />
+      <CompanyCards companies={visibleCards} />
 
       <p className="text-[11px] leading-[1.7] text-[var(--color-gray-400)]">
-        티어 기준: 티어 산정 문서(2026-07-10 스냅샷)에 명시된 렌탈사는 문서
-        티어를 쓰고, 미명시 렌탈사는 직전 90일 계약완료(≒설치인증) 건수로
-        폴백 판정한다(15건 이상 T2, 미만 T3 — 정본 산식의 상담량이 이 DB에
-        없어 T1 승급은 폴백에서 판정하지 않는다).
+        티어 기준: 직전 90일 계약완료(≒설치인증) 건수 하나로 판정한다 —
+        1,500건 이상 T1, 100건 이상 T2, 미만 T3. 문서 정본 산식의 상담량이 이
+        DB에 없어 설치량만 쓰며, 컷은 설치량 분포에서 다시 잡았다(T1 4사 점유
+        76%로 문서 분포와 일치).
       </p>
     </div>
   );

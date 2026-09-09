@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
-import { COMPANY_MAP, getBM } from "@/lib/company-map";
+import { COMPANY_MAP, dbNamesOf, getBM } from "@/lib/company-map";
 import { CATEGORY_GROUPS, catGroupOf } from "@/lib/biz-category";
 import { getPeriod, getDataAsOf } from "@/lib/period";
 import { resolveTier, TIER_META } from "@/lib/tiers";
@@ -26,7 +27,6 @@ import {
   STATE_PILL,
   TAG,
 } from "@/app/components/home/cardKit";
-import Breadcrumb from "@/app/components/Breadcrumb";
 import Bridge from "@/app/components/Bridge";
 import Delta from "@/app/components/Delta";
 import CategoryTable from "@/app/components/CategoryTable";
@@ -496,10 +496,17 @@ export default async function CompanyPage({
   ) as "all" | "bm1" | "bm2" | "bm3";
   const label = decodeURIComponent(company);
 
-  const mapping = COMPANY_MAP.find((c) => c.label === label);
-  const dbName = mapping?.dbName;
+  // LG_가전 + LG_가전구독을 한 회사로 합치기 전에 걸어둔 링크를 살려둔다
+  if (label === "LG_가전") redirect("/company/LG_가전구독");
 
-  if (!dbName) {
+  const mapping = COMPANY_MAP.find((c) => c.label === label);
+  // 원천 이름이 여럿인 회사(SK_I 등)가 있어 이 회사 행을 긁는 필터는 목록으로 건다.
+  // 아래 dbName은 경쟁사 비교(정수기 전용 포지션·브랜드 차트)에서 쓰는 대표 이름 —
+  // 그쪽은 여러 회사를 한 축에 놓는 자리라 별칭을 타지 않는다.
+  const dbNames = mapping ? dbNamesOf(mapping) : [];
+  const dbName = mapping?.dbName ?? "";
+
+  if (!mapping) {
     return (
       <div className="p-8">
         <h1 className="text-2xl font-bold text-gray-800">{label}</h1>
@@ -516,6 +523,212 @@ export default async function CompanyPage({
   const PAGE = 50000;
   const FETCH_RANGE_START = "2025-01-01"; // 거래건수 조회 시작 시점
   const REVENUE_RANGE_START = "2025-01-01"; // 매출·공헌이익 등 현재 기준 시점
+
+  type IaRow = CardContractRow & {
+    product_name: string | null;
+    model_name: string | null;
+  };
+  interface ShareRow {
+    rental_company: string | null;
+    category: string | null;
+    total_rental_fee: number | null;
+    monthly_fee: number | null;
+    product_name: string | null;
+    model_name: string | null;
+  }
+
+  // ── 무거운 조회는 여기서 "시작"만 걸고, 쓰는 자리에서 await 한다 ──
+  // 이 페이지는 조회 6~7개가 전부 순차 await 라 시간이 그대로 더해지고 있었다
+  // (렌탈사 한 곳 그리는 데 8만 행·4.4초). 서로 의존하지 않는 것을 먼저 띄워 두면
+  // 임계 경로가 가장 느린 하나로 줄어든다 — docs/performance-plan.md 1단계.
+  const periodP = getDataAsOf().then(getPeriod);
+
+  // 새 IA 본문용 — 이 렌탈사의 계약완료 12개월
+  const iaAllP = periodP.then(async (period) => {
+    const out: IaRow[] = [];
+    const yms = recentYmsOf(period.curr.end);
+    let from = 0;
+    while (true) {
+      const { data, error } = await supabase
+        .from("raw_contracts")
+        .select(
+          "contract_date, rental_company, category, partner_company, total_rental_fee, contribution_margin, sales, product_name, model_name",
+        )
+        .in("rental_company", dbNames)
+        .gte("contract_date", `${yms[0]}-01`)
+        .lte("contract_date", period.curr.end)
+        .order("prop_item_usid", { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error || !data || data.length === 0) break;
+      out.push(...(data as unknown as IaRow[]));
+      if (data.length < PAGE) break;
+      from += PAGE;
+    }
+    return out;
+  });
+
+  // 카테고리 점유율용 — 이번 달 전 렌탈사 계약완료(렌탈사 필터 없음)
+  const now = new Date();
+  const curMonthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+  const nextMonth =
+    now.getMonth() + 2 > 12
+      ? `${now.getFullYear() + 1}-01-01`
+      : `${now.getFullYear()}-${String(now.getMonth() + 2).padStart(2, "0")}-01`;
+  const shareRowsP = (async () => {
+    const out: ShareRow[] = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await supabase
+        .from("raw_contracts")
+        .select(
+          "rental_company, category, total_rental_fee, monthly_fee, product_name, model_name",
+        )
+        .gte("contract_date", curMonthStart)
+        .lt("contract_date", nextMonth)
+        .range(from, from + PAGE - 1);
+      if (error || !data || data.length === 0) break;
+      out.push(...data);
+      if (data.length < PAGE) break;
+      from += PAGE;
+    }
+    return out;
+  })();
+
+  // 카테고리 포지션
+  const GROUP_CATEGORIES: Record<string, string[]> = {
+    "가전&상조": [
+      "TV",
+      "세탁기+건조기",
+      "에어컨",
+      "냉장고",
+      "로봇청소기",
+      "무선청소기",
+      "음식물처리기",
+      "안마의자",
+      "매트리스",
+      "타이어",
+    ],
+    정수기: ["정수기", "공기청정기", "비데"],
+  };
+
+  // 정수기 포지션 차트의 경쟁군 — rental_company(dbName) 기준.
+  // 여기 없는 회사는 자기 순위가 계산되지 않으므로, 정수기 계열 렌탈사를 새로
+  // 등록하면 이 목록에도 넣어야 한다.
+  const GROUP_COMPANIES: Record<string, string[]> = {
+    정수기: [
+      "SK인텔릭스",
+      "코웨이",
+      "쿠쿠",
+      "청호",
+      "LG",
+      "교원웰스",
+      "현대큐밍",
+      "루헨스",
+    ],
+  };
+
+  // 정수기형(TypeA) 판정 → 그 결과로 포지션 조회. 판정은 count 3번(0.3초)이고
+  // 포지션 조회는 4만 행(1.3초)이라, 이 사슬을 본문 조회와 겹쳐 두면
+  // 포지션이 임계 경로에서 빠진다.
+  const typeInfoP = (async () => {
+    const waterCats = GROUP_CATEGORIES.정수기;
+    const applianceCats = GROUP_CATEGORIES["가전&상조"];
+    const countContracts2026 = async (cats?: string[]) => {
+      let q = supabase
+        .from("raw_contracts")
+        .select("category", { count: "exact", head: true })
+        .in("rental_company", dbNames)
+        .gte("contract_date", "2026-01-01");
+      if (cats) q = q.in("category", cats);
+      const { count } = await q;
+      return count ?? 0;
+    };
+    const [typeTotal, typeWater, typeAppliance] = await Promise.all([
+      countContracts2026(),
+      countContracts2026(waterCats),
+      countContracts2026(applianceCats),
+    ]);
+    const isTypeA = typeTotal > 0 && typeWater / typeTotal >= 0.7;
+    return {
+      isTypeA,
+      // 인터넷만 파는 통신사는 어느 포지션 표에도 서지 않는다 (예전 group="통신"과 동일)
+      positionCategories: isTypeA
+        ? waterCats
+        : typeAppliance > 0
+          ? applianceCats
+          : [],
+      positionCompanies: isTypeA ? (GROUP_COMPANIES.정수기 ?? []) : [],
+    };
+  })();
+
+  // 브랜드 경쟁 분석용 자동견적 풀 — 판정만 끝나면 본문과 무관하게 받을 수 있다
+  const typeaPoolP = typeInfoP.then(async (t) => {
+    const out: {
+      category: string | null;
+      brand: string | null;
+      model_name: string | null;
+      management_type: string | null;
+      contract_months: number | null;
+      dc_monthly_fee: number | null;
+      dc_support: number | null;
+      dc_total_payment: number | null;
+    }[] = [];
+    if (!t.isTypeA || t.positionCategories.length === 0) return out;
+    let pf = 0;
+    while (true) {
+      const { data } = await supabaseAdmin
+        .from("auto_quote_typea")
+        .select(
+          "category, brand, model_name, management_type, contract_months, dc_monthly_fee, dc_support, dc_total_payment",
+        )
+        .in("category", t.positionCategories)
+        .not("dc_monthly_fee", "is", null)
+        .range(pf, pf + PAGE - 1);
+      if (!data || data.length === 0) break;
+      out.push(...data);
+      if (data.length < PAGE) break;
+      pf += PAGE;
+    }
+    return out;
+  });
+
+  type GrowthRow = {
+    rental_company: string;
+    category: string;
+    product_name: string | null;
+    model_name: string | null;
+    management_type: string | null;
+    contract_months: number | null;
+    partner_company: string | null;
+    sales_incentive: number | null;
+    total_rental_fee: number | null;
+  };
+  const growthRowsP = typeInfoP.then(async (t) => {
+    const out: GrowthRow[] = [];
+    if (t.positionCategories.length === 0) return out;
+    // 상단 토글(주문확정/계약완료)에 따라 소스 전환
+    const growthTable = view === "order" ? "raw_orders" : "raw_contracts";
+    const growthDateCol =
+      view === "order" ? "order_confirmed_at" : "contract_date";
+    let gFrom = 0;
+    while (true) {
+      let q = supabase
+        .from(growthTable)
+        .select(
+          "rental_company, category, product_name, model_name, management_type, contract_months, partner_company, sales_incentive, total_rental_fee",
+        )
+        .in("category", t.positionCategories)
+        .gte(growthDateCol, "2026-01-01");
+      if (t.positionCompanies.length > 0)
+        q = q.in("rental_company", t.positionCompanies);
+      const { data, error } = await q.range(gFrom, gFrom + PAGE - 1);
+      if (error || !data || data.length === 0) break;
+      out.push(...data);
+      if (data.length < PAGE) break;
+      gFrom += PAGE;
+    }
+    return out;
+  });
   const normalizedRows: DataRow[] = [];
   let fetchError = null;
 
@@ -527,7 +740,7 @@ export default async function CompanyPage({
         .select(
           "order_confirmed_at, total_rental_fee, contribution_margin, monthly_fee, sales_incentive, contract_months, category, product_name, model_name, partner_company",
         )
-        .eq("rental_company", dbName);
+        .in("rental_company", dbNames);
       if (mapping.categoryIs) {
         const cis = mapping.categoryIs;
         q = Array.isArray(cis) ? q.in("category", cis) : q.eq("category", cis);
@@ -570,7 +783,7 @@ export default async function CompanyPage({
         .select(
           "contract_date, total_rental_fee, contribution_margin, monthly_fee, sales_incentive, contract_months, category, product_name, model_name, partner_company",
         )
-        .eq("rental_company", dbName);
+        .in("rental_company", dbNames);
       if (mapping.categoryIs) {
         const cis = mapping.categoryIs;
         q = Array.isArray(cis) ? q.in("category", cis) : q.eq("category", cis);
@@ -642,22 +855,6 @@ export default async function CompanyPage({
     weekIndices,
   );
 
-  // 카테고리 포지션
-  const GROUP_CATEGORIES: Record<string, string[]> = {
-    "가전&상조": [
-      "TV",
-      "세탁기+건조기",
-      "에어컨",
-      "냉장고",
-      "로봇청소기",
-      "무선청소기",
-      "음식물처리기",
-      "안마의자",
-      "매트리스",
-      "타이어",
-    ],
-    정수기: ["정수기", "공기청정기", "비데"],
-  };
   // auto_quote_typeb 컬럼 prefix 매핑
   const DB_TO_PREFIX: Record<string, string> = {
     LG헬로비전: "lghv",
@@ -680,12 +877,16 @@ export default async function CompanyPage({
   ];
   const myPrefix = DB_TO_PREFIX[dbName] ?? null;
 
-  const GROUP_COMPANIES: Record<string, string[]> = {
-    정수기: ["SK인텔릭스", "코웨이", "쿠쿠", "청호", "LG"],
-  };
-  const positionCategories = GROUP_CATEGORIES[mapping.group] ?? [];
-  const positionCompanies = GROUP_COMPANIES[mapping.group] ?? [];
-  const isTypeA = mapping.group === "정수기";
+  // 정수기형(TypeA)인지는 맵에 박아둔 카테고리 축이 아니라 실제로 판 것에서 뽑는다 —
+  // 한 회사가 여러 카테고리를 팔기 시작하면 고정 축이 먼저 틀린다(LG가 그랬다).
+  //
+  // 단, 판정 기준은 상단 토글과 **무관하게 계약완료로 고정**한다. 회사의 성격이
+  // 탭을 바꿀 때마다 달라지면 안 되는데, 두 뷰의 구성이 꽤 갈린다 —
+  // 현대유버스는 주문확정 25% vs 계약완료 73%로 48%p 벌어진다.
+  //
+  // 컷 0.7 — 2026년 계약완료 기준 LG 93.6%·현대큐밍 76.2% ↔ 현대유버스 53.1%로
+  // 사이가 23%p 비어 있다. 행을 받지 않고 count만 세므로 세 번 물어도 가볍다.
+  const { isTypeA, positionCategories, positionCompanies } = await typeInfoP;
   let growthRanks: {
     category: string;
     count: number;
@@ -704,38 +905,7 @@ export default async function CompanyPage({
   let brandCompCategories: string[] = [];
 
   if (positionCategories.length > 0) {
-    const allGrowthRows: {
-      rental_company: string;
-      category: string;
-      product_name: string | null;
-      model_name: string | null;
-      management_type: string | null;
-      contract_months: number | null;
-      partner_company: string | null;
-      sales_incentive: number | null;
-      total_rental_fee: number | null;
-    }[] = [];
-    // 상단 토글(주문확정/계약완료)에 따라 소스 전환
-    const growthTable = view === "order" ? "raw_orders" : "raw_contracts";
-    const growthDateCol =
-      view === "order" ? "order_confirmed_at" : "contract_date";
-    let gFrom = 0;
-    while (true) {
-      let q = supabase
-        .from(growthTable)
-        .select(
-          "rental_company, category, product_name, model_name, management_type, contract_months, partner_company, sales_incentive, total_rental_fee",
-        )
-        .in("category", positionCategories)
-        .gte(growthDateCol, "2026-01-01");
-      if (positionCompanies.length > 0)
-        q = q.in("rental_company", positionCompanies);
-      const { data, error } = await q.range(gFrom, gFrom + PAGE - 1);
-      if (error || !data || data.length === 0) break;
-      allGrowthRows.push(...data);
-      if (data.length < PAGE) break;
-      gFrom += PAGE;
-    }
+    const allGrowthRows = await growthRowsP;
 
     if (allGrowthRows.length > 0) {
       const catMap = new Map<string, Map<string, number>>();
@@ -993,31 +1163,7 @@ export default async function CompanyPage({
       }
 
       // 2) typeA 가격 풀 (월렌탈료 있는 행만)
-      const poolRows: {
-        category: string | null;
-        brand: string | null;
-        model_name: string | null;
-        management_type: string | null;
-        contract_months: number | null;
-        dc_monthly_fee: number | null;
-        dc_support: number | null;
-        dc_total_payment: number | null;
-      }[] = [];
-      let pf = 0;
-      while (true) {
-        const { data } = await supabaseAdmin
-          .from("auto_quote_typea")
-          .select(
-            "category, brand, model_name, management_type, contract_months, dc_monthly_fee, dc_support, dc_total_payment",
-          )
-          .in("category", positionCategories)
-          .not("dc_monthly_fee", "is", null)
-          .range(pf, pf + PAGE - 1);
-        if (!data || data.length === 0) break;
-        poolRows.push(...data);
-        if (data.length < PAGE) break;
-        pf += PAGE;
-      }
+      const poolRows = await typeaPoolP;
 
       // 타사 포함 전 브랜드 주문건수 (category|brand|model|관리방식 → count)
       const orderCountMap = new Map<string, number>();
@@ -1151,37 +1297,7 @@ export default async function CompanyPage({
   }
 
   // ── Section A/B/C: 카테고리 점유율 · 성과 원인 · 크로스카테고리 패턴 ──
-  const now = new Date();
-  const curMonthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-  const nextMonth = now.getMonth() + 2 > 12
-    ? `${now.getFullYear() + 1}-01-01`
-    : `${now.getFullYear()}-${String(now.getMonth() + 2).padStart(2, "0")}-01`;
-
-  // Fetch all raw_contracts in current month (no rental_company filter) for share calculation
-  interface ShareRow {
-    rental_company: string | null;
-    category: string | null;
-    total_rental_fee: number | null;
-    monthly_fee: number | null;
-    product_name: string | null;
-    model_name: string | null;
-  }
-  const allContractRows: ShareRow[] = [];
-  {
-    let from = 0;
-    while (true) {
-      const { data, error } = await supabase
-        .from("raw_contracts")
-        .select("rental_company, category, total_rental_fee, monthly_fee, product_name, model_name")
-        .gte("contract_date", curMonthStart)
-        .lt("contract_date", nextMonth)
-        .range(from, from + PAGE - 1);
-      if (error || !data || data.length === 0) break;
-      allContractRows.push(...data);
-      if (data.length < PAGE) break;
-      from += PAGE;
-    }
-  }
+  const allContractRows = await shareRowsP;
 
   // Section A: 카테고리 × 렌탈사 점유율
   interface CategoryShare {
@@ -1307,33 +1423,9 @@ export default async function CompanyPage({
   // 위의 레거시 집계(뷰 토글·오늘 날짜 기준)와 달리, 여기는 데이터 기준일
   // (getDataAsOf)과 "전월 같은 일자" 비교를 쓴다 — 화면 간 숫자가 갈리지 않게.
   const def = CARD_DEFS.find((d) => d.label === label)!;
-  const { curr, prev, month, day: dayCut } = getPeriod(await getDataAsOf());
+  const { curr, prev, month, day: dayCut } = await periodP;
   const recentYms = recentYmsOf(curr.end);
-
-  type IaRow = CardContractRow & {
-    product_name: string | null;
-    model_name: string | null;
-  };
-  const iaAll: IaRow[] = [];
-  {
-    let from = 0;
-    while (true) {
-      const { data, error } = await supabase
-        .from("raw_contracts")
-        .select(
-          "contract_date, rental_company, category, partner_company, total_rental_fee, contribution_margin, sales, product_name, model_name",
-        )
-        .eq("rental_company", dbName)
-        .gte("contract_date", `${recentYms[0]}-01`)
-        .lte("contract_date", curr.end)
-        .order("prop_item_usid", { ascending: true })
-        .range(from, from + PAGE - 1);
-      if (error || !data || data.length === 0) break;
-      iaAll.push(...(data as unknown as IaRow[]));
-      if (data.length < PAGE) break;
-      from += PAGE;
-    }
-  }
+  const iaAll = await iaAllP;
   // dbName 하나가 여러 label로 나뉘는 경우(LG, KT, BS렌탈)를 카테고리 조건으로 가른다
   const iaRows = iaAll.filter((r) => matchesCompany(def, r));
   const iaCurr = iaRows.filter(
@@ -1364,10 +1456,7 @@ export default async function CompanyPage({
       paceMonths.length
     : 0;
   const state = judgeState(iaCurr.length, pace);
-  const tier = resolveTier(
-    label,
-    countInstall90d(iaRows, curr.end).get(label) ?? 0,
-  ).tier;
+  const tier = resolveTier(countInstall90d(iaRows, curr.end).get(label) ?? 0);
 
   // KPI 4종
   const iaSum = (rows: IaRow[], of: (r: IaRow) => number) =>
@@ -1501,9 +1590,6 @@ export default async function CompanyPage({
       {/* 현재 위치 + 상태·티어 + 카테고리 × 렌탈사 상세 진입 */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex flex-wrap items-center gap-[10px]">
-          <Breadcrumb
-            items={[{ label: "렌탈사", href: "/companies" }, { label }]}
-          />
           <span
             className={STATE_PILL}
             style={{ color: state.color, background: state.background }}
@@ -1518,7 +1604,6 @@ export default async function CompanyPage({
           >
             {tier}
           </span>
-          <span className={TAG}>{mapping.group}</span>
         </div>
         {bizAxes.length > 0 && (
           <div className="flex flex-wrap items-center gap-[6px]">
@@ -2238,9 +2323,7 @@ export default async function CompanyPage({
         <div className="mt-10">
           <div className="mb-4 flex items-center gap-2">
             <h2 className="text-base font-semibold text-gray-700">
-              {mapping.group === "정수기"
-                ? "정수기 & 공청기·비데 내 포지션"
-                : "가전&상조 내 포지션"}
+              {isTypeA ? "정수기 & 공청기·비데 내 포지션" : "가전&상조 내 포지션"}
             </h2>
             <span className="text-xs text-gray-400">
               {view === "order" ? "주문확정 기준" : "계약완료 기준"}
@@ -2250,9 +2333,7 @@ export default async function CompanyPage({
             ranks={growthRanks}
             categoryAllData={categoryAllData}
             title={
-              mapping.group === "정수기"
-                ? "정수기 & 공청기·비데 내 포지션"
-                : "가전&상조 내 포지션"
+              isTypeA ? "정수기 & 공청기·비데 내 포지션" : "가전&상조 내 포지션"
             }
             companyLabel={label}
             myDbName={dbName}

@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { COMPANY_MAP } from "@/lib/company-map";
+import { COMPANY_MAP, dbNamesOf } from "@/lib/company-map";
 import CompareClient from "./CompareClient";
 
 export const dynamic = "force-dynamic";
@@ -189,7 +189,7 @@ export default async function ComparePage({
     ...new Set([
       ...companyList.filter((label) => {
         const entry = COMPANY_MAP.find((c) => c.label === label);
-        return entry ? dbNames.has(entry.dbName) : false;
+        return entry ? dbNamesOf(entry).some((n) => dbNames.has(n)) : false;
       }),
     ]),
   ];
@@ -221,6 +221,7 @@ export default async function ComparePage({
           dbName: c.dbName,
           categoryIs: c.categoryIs,
           categoryNot: c.categoryNot,
+          aliases: c.aliases,
         }))}
       />
     </div>
