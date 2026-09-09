@@ -125,7 +125,7 @@ export default async function RevenueAnalysisPage({
         <RankPanel metricKey={metric.key} rank={rank} provenance={pv.rank(metric, basis, kpi.curr)} />
       </div>
 
-      <Panel title="렌탈사 기여" sub={`${prevLabel} → ${currLabel} · 억원`} fixedHeight={false}
+      <Panel title="렌탈사 기여" sub={`${prevLabel} → ${currLabel} · 억원`}
              provenance={pv.waterfall(metric, basis, prevLabel, currLabel, kpi.prev, kpi.curr)}>
         <Waterfall items={wfRental} decimals={2} unit="억" />
       </Panel>
