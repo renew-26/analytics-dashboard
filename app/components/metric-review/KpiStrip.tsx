@@ -56,12 +56,24 @@ export default function KpiStrip({
         badge={<Delta value={kpi.mom} />}
         note={`${sourceColumn} 합계`}
       />
-      <Tile
-        title="이번달 거래건수"
-        value={`${kpi.count.toLocaleString("ko-KR")}건`}
-        sub={<>건당 <span className="num">{Math.round(kpi.avgUnitPrice / MAN).toLocaleString("ko-KR")}</span>만원</>}
-        note="행 수 · sales ÷ 행 수"
-      />
+      {metricKey === "revenue" ? (
+        <Tile
+          title="이번달 거래건수"
+          value={`${kpi.count.toLocaleString("ko-KR")}건`}
+          sub={<>건당 <span className="num">{Math.round(kpi.avgUnitPrice / MAN).toLocaleString("ko-KR")}</span>만원</>}
+          note="행 수 · sales ÷ 행 수"
+        />
+      ) : (
+        // 이 화면(count)에서는 거래건수가 이미 첫 타일의 헤드라인이라, 여기서
+        // 또 찍으면 4칸 중 1칸이 중복이 된다. 대신 건당 단가를 헤드라인으로
+        // 올리고 건수는 그 분모로 서브라인에 남긴다.
+        <Tile
+          title="건당 수수료"
+          value={`${Math.round(kpi.avgUnitPrice / MAN).toLocaleString("ko-KR")}만원`}
+          sub={<>이번달 <span className="num">{kpi.count.toLocaleString("ko-KR")}</span>건 기준</>}
+          note="sales ÷ 행 수"
+        />
+      )}
       <Tile
         title="이번달 공헌이익"
         value={`${(kpi.cm / EOK).toFixed(2)}억`}
