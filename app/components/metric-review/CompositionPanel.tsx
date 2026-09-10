@@ -4,7 +4,6 @@ import { useState } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { CHART_ANIM } from "@/lib/chart";
 import Panel from "./Panel";
-import type { Provenance } from "@/lib/metric-provenance";
 import { METRICS, bmSeries } from "@/lib/metric-review";
 import type { CompositionBlock, Metric, TrendSeries } from "@/lib/metric-review";
 
@@ -13,12 +12,11 @@ import type { CompositionBlock, Metric, TrendSeries } from "@/lib/metric-review"
 const BM = bmSeries();
 
 export default function CompositionPanel({
-  metricKey, composition, catSeries, provenance,
+  metricKey, composition, catSeries,
 }: {
   metricKey: Metric["key"];
   composition: CompositionBlock;
   catSeries: TrendSeries[];
-  provenance: Provenance;
 }) {
   const metric = METRICS[metricKey];
   const [axis, setAxis] = useState<"cat" | "bm">("cat");
@@ -30,7 +28,6 @@ export default function CompositionPanel({
     <Panel
       title="구성비"
       sub={`이번달 ${metric.label} 비중`}
-      provenance={provenance}
       controls={
         <div className="flex gap-0.5 p-0.5 bg-[var(--color-gray-100)] rounded-md">
           {(["cat", "bm"] as const).map((v) => (

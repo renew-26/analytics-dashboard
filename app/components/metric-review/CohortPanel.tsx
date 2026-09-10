@@ -1,23 +1,15 @@
 import Panel from "./Panel";
-import { pv, type Provenance } from "@/lib/metric-provenance";
 import type { CohortMonthRow, LeadTime } from "@/lib/metric-review";
 
 export default function CohortPanel({
-  rows, leadTime, provenance,
+  rows, leadTime,
 }: {
-  rows: CohortMonthRow[]; leadTime: LeadTime; provenance: Provenance;
+  rows: CohortMonthRow[]; leadTime: LeadTime;
 }) {
-  // 리드타임은 코호트와 다른 산식(quote_date → order_confirmed_at, 주문 원장
-  // 고정)이다 — 패널 근거줄은 코호트를 설명하므로, 이 소절 전용 캡션을 따로
-  // 붙인다. pv.leadTime 은 basis 인자를 받지 않는다 — quote_date 를 select
-  // 하는 원장은 raw_orders 뿐이라 리드타임은 언제나 주문 원장 고정이다.
-  const ltProv = pv.leadTime(leadTime);
-
   return (
     <Panel
       title="주문 → 계약 전환"
       sub="주문월 코호트 · 집계 기준 무관"
-      provenance={provenance}
     >
       <table className="w-full text-[11px]">
         <thead>
@@ -55,17 +47,6 @@ export default function CohortPanel({
         <h3 className="text-[11px] font-semibold text-[var(--color-gray-500)] mb-1">
           견적신청 → 주문확정 리드타임
         </h3>
-        <p className="mb-2 text-[11px] leading-4 text-[var(--color-gray-400)]">
-          <span className="font-[family-name:var(--font-mono)]">{ltProv.source}</span>
-          <span className="mx-1.5 text-[var(--color-gray-250)]">·</span>
-          <span className="font-[family-name:var(--font-mono)]">{ltProv.formula}</span>
-          {ltProv.caveat && (
-            <>
-              <span className="mx-1.5 text-[var(--color-gray-250)]">·</span>
-              <span className="text-[var(--color-sev-warn)]">한계 {ltProv.caveat}</span>
-            </>
-          )}
-        </p>
         <div className="flex gap-4 mb-2">
           <div>
             <div className="text-[10px] text-[var(--color-gray-400)]">중앙값</div>

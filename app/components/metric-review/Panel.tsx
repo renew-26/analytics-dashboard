@@ -1,11 +1,8 @@
 import type { ReactNode } from "react";
-import type { Provenance } from "@/lib/metric-provenance";
-import ProvenanceLine from "./Provenance";
 
 /**
  * 패널 공통 껍데기.
  *
- * provenance 를 필수 prop 으로 둔다 — 패널을 만들면 근거 표기를 빠뜨릴 수 없다.
  * 높이는 내용에 맞춰 정해진다. 같은 행의 세 카드가 눈금을 맞추는 건 픽셀 고정이
  * 아니라 CSS 그리드 기본값(align-items: stretch)이 맡는다 — 그리드는 행 안에서
  * 가장 큰 카드의 자연 높이로 트랙을 잡고, 나머지 카드를 그 높이로 늘린다.
@@ -17,14 +14,12 @@ export default function Panel({
   title,
   sub,
   controls,
-  provenance,
   scroll = false,
   children,
 }: {
   title: ReactNode;
   sub?: ReactNode;
   controls?: ReactNode;
-  provenance: Provenance;
   scroll?: boolean;
   children: ReactNode;
 }) {
@@ -41,7 +36,6 @@ export default function Panel({
         {controls && <div className="shrink-0">{controls}</div>}
       </header>
       <div className={scroll ? "flex-1 min-h-0 overflow-y-auto" : "flex-1"}>{children}</div>
-      <ProvenanceLine p={provenance} />
     </section>
   );
 }

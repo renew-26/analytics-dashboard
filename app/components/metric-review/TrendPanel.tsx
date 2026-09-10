@@ -7,7 +7,6 @@ import {
 } from "recharts";
 import { CHART_ANIM } from "@/lib/chart";
 import Panel from "./Panel";
-import type { Provenance } from "@/lib/metric-provenance";
 import { METRICS, type Baseline, type Metric, type TrendBlock } from "@/lib/metric-review";
 
 function axisFmt(metric: Metric) {
@@ -54,13 +53,12 @@ type Axis = "cat" | "bm";
 type Span = "daily" | "weekly";
 
 export default function TrendPanel({
-  metricKey, trend, baseline, currLabel, provenance,
+  metricKey, trend, baseline, currLabel,
 }: {
   metricKey: Metric["key"];
   trend: TrendBlock;
   baseline: Baseline;
   currLabel: string;
-  provenance: Provenance;
 }) {
   const metric = METRICS[metricKey];
   const [axis, setAxis] = useState<Axis>("cat");
@@ -79,7 +77,6 @@ export default function TrendPanel({
     <Panel
       title={`${metric.label} 추이`}
       sub={span === "daily" ? `이번달 일별 (${currLabel})` : "최근 6주"}
-      provenance={provenance}
       controls={
         <div className="flex gap-1">
           <Seg value={span} onChange={setSpan} options={[

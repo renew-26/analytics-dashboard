@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Panel from "./Panel";
-import type { Provenance } from "@/lib/metric-provenance";
 import { METRICS, type Metric, type RankBlock, type RankItem } from "@/lib/metric-review";
 
 const TABS = [
@@ -12,9 +11,9 @@ const TABS = [
 ] as const;
 
 export default function RankPanel({
-  metricKey, rank, provenance,
+  metricKey, rank,
 }: {
-  metricKey: Metric["key"]; rank: RankBlock; provenance: Provenance;
+  metricKey: Metric["key"]; rank: RankBlock;
 }) {
   const metric = METRICS[metricKey];
   const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("categories");
@@ -24,7 +23,6 @@ export default function RankPanel({
     <Panel
       title="Top 5"
       sub={`이번달 ${metric.label}`}
-      provenance={provenance}
       controls={
         <div className="flex gap-0.5 p-0.5 bg-[var(--color-gray-100)] rounded-md">
           {TABS.map((t) => (

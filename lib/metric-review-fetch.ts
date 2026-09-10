@@ -113,14 +113,11 @@ type CohortRawRow = {
  * 코호트용 좁은 컬럼 페치 — 본문 창(4개월)보다 긴 6개월치를 최소 컬럼으로 당긴다.
  *
  * 테이블명은 SOURCE[basis].table 로만 정한다 — 리터럴로 박아넣지 않는다(원천
- * 이관 시 SOURCE 한 곳만 바꾸면 되게 하려는 lib/metric-provenance.ts pv.cohort
- * 와 같은 원칙).
+ * 이관 시 SOURCE 한 곳만 바꾸면 되게 하려는 원칙).
  *
  * 두 테이블 모두 "order_confirmed_at" 으로 필터·정렬한다. basis="contract" 여도
- * contract_date 가 아니다 — buildCohort(lib/metric-review.ts)의 주석과
- * pv.cohort(lib/metric-provenance.ts)의 source 문자열
- * (`${SOURCE.contract.table}.order_confirmed_at`, contract_date 가 아님)이
- * 이미 "계약완료를 계약일이 아니라 주문일로 묶는다"를 못박아 두었다. 계약 쪽을
+ * contract_date 가 아니다 — buildCohort(lib/metric-review.ts)의 주석이 이미
+ * "계약완료를 계약일이 아니라 주문일로 묶는다"를 못박아 두었다. 계약 쪽을
  * contract_date 로 걸면 호출부가 두 basis에 같은 6개월 창을 넘기는 전제가 깨져
  * 전환율이 아니라 달력이 된다.
  */

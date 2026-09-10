@@ -6,8 +6,7 @@ import {
   catSeries, type Basis, type ReviewRow,
 } from "@/lib/metric-review";
 import { fetchReviewRows, fetchCohortRows } from "@/lib/metric-review-fetch";
-import { sourceLine, pv } from "@/lib/metric-provenance";
-import { EOK } from "@/lib/format";
+import { dataAsOfLabel, EOK } from "@/lib/format";
 import BasisFilter from "@/app/components/BasisFilter";
 import BMFilter from "@/app/components/BMFilter";
 import { getBM } from "@/lib/company-map";
@@ -18,8 +17,7 @@ import RankPanel from "@/app/components/metric-review/RankPanel";
 import CohortPanel from "@/app/components/metric-review/CohortPanel";
 import LadderPanel from "@/app/components/metric-review/LadderPanel";
 import MetricDefinitions from "@/app/components/metric-review/MetricDefinitions";
-import Waterfall from "@/app/components/home/Waterfall";
-import Panel from "@/app/components/metric-review/Panel";
+import CauseWaterfallPanel from "@/app/components/metric-review/CauseWaterfallPanel";
 import LegacyRevenueDetails from "./LegacyRevenueDetails";
 
 export const dynamic = "force-dynamic";
@@ -95,7 +93,7 @@ export default async function RevenueAnalysisPage({
     <div className="px-7 py-[22px] space-y-[26px]">
       <div className="flex items-start justify-between gap-4">
         <p className="text-[11px] leading-4 text-[var(--color-gray-500)] font-[family-name:var(--font-mono)]">
-          {sourceLine(basis, rows.length, start, period.curr.end, lastSyncedAt, bmKey)}
+          {dataAsOfLabel(lastSyncedAt)}
           <span className="ml-1.5 text-[var(--color-sev-warn)]">· ⚠ 취소 미반영</span>
         </p>
         <div className="flex items-center gap-3 shrink-0">
@@ -104,37 +102,29 @@ export default async function RevenueAnalysisPage({
         </div>
       </div>
 
-      <KpiStrip metricKey={metric.key} kpi={kpi} prevLabel={prevLabel}
-                valueProv={pv.value(metric, basis, kpi.excludedRows, prevLabel, kpi.curr, kpi.prev)} />
+      <KpiStrip metricKey={metric.key} kpi={kpi} prevLabel={prevLabel} />
 
-      <div className="grid grid-cols-3 gap-4">
-        <TrendPanel metricKey={metric.key} trend={trend} baseline={baseline} currLabel={currLabel}
-                    provenance={pv.baseline(metric, baseline, basis)} />
-        <Panel title="증감 원인" sub={`${prevLabel} → ${currLabel} · 억원`}
-               provenance={pv.waterfall(metric, basis, prevLabel, currLabel, kpi.prev, kpi.curr)}>
-          <Waterfall items={wfCategory} decimals={2} unit="억" />
-        </Panel>
-        <CompositionPanel metricKey={metric.key} composition={composition} catSeries={catSeries()}
-                          provenance={pv.composition(metric, basis, composition.total)} />
+      <div className="grid grid-cols-[2fr_1fr] gap-4">
+        <TrendPanel metricKey={metric.key} trend={trend} baseline={baseline} currLabel={currLabel} />
+        <CompositionPanel metricKey={metric.key} composition={composition} catSeries={catSeries()} />
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <LadderPanel mode="pnl" pnl={pnl} currLabel={currLabel} prevLabel={prevLabel}
-                     provenance={pv.pnl(basis, pnl.curr)} />
-        <CohortPanel rows={cohort} leadTime={leadTime} provenance={pv.cohort(cohort)} />
-        <RankPanel metricKey={metric.key} rank={rank} provenance={pv.rank(metric, basis, kpi.curr)} />
-      </div>
+      <CauseWaterfallPanel
+        wfCategory={wfCategory} wfRental={wfRental}
+        prevLabel={prevLabel} currLabel={currLabel} decimals={2} unit="억"
+      />
 
-      <Panel title="렌탈사 기여" sub={`${prevLabel} → ${currLabel} · 억원`}
-             provenance={pv.waterfall(metric, basis, prevLabel, currLabel, kpi.prev, kpi.curr)}>
-        <Waterfall items={wfRental} decimals={2} unit="억" />
-      </Panel>
+      <div className="grid grid-cols-3 gap-4">
+        <LadderPanel mode="pnl" pnl={pnl} currLabel={currLabel} prevLabel={prevLabel} />
+        <CohortPanel rows={cohort} leadTime={leadTime} />
+        <RankPanel metricKey={metric.key} rank={rank} />
+      </div>
 
       <Suspense fallback={<DetailsSkeleton />}>
         <LegacyRevenueDetails basis={basis} />
       </Suspense>
 
-      <MetricDefinitions basis={basis} />
+      <MetricDefinitions basis={basis} metric={metric} />
     </div>
   );
 }

@@ -1,6 +1,5 @@
 import Panel from "./Panel";
 import { koreanWon } from "@/lib/format";
-import type { Provenance } from "@/lib/metric-provenance";
 import type { FunnelBlock, PnlLadder } from "@/lib/metric-review";
 
 const PNL_ROWS: { key: keyof PnlLadder; label: string; sign: "" | "(−)"; sub?: string }[] = [
@@ -86,12 +85,12 @@ function Funnel({ f }: { f: FunnelBlock }) {
 
 export default function LadderPanel(
   props:
-    | { mode: "pnl"; pnl: { curr: PnlLadder; prev: PnlLadder }; currLabel: string; prevLabel: string; provenance: Provenance }
-    | { mode: "funnel"; funnel: FunnelBlock; currLabel: string; provenance: Provenance },
+    | { mode: "pnl"; pnl: { curr: PnlLadder; prev: PnlLadder }; currLabel: string; prevLabel: string }
+    | { mode: "funnel"; funnel: FunnelBlock; currLabel: string },
 ) {
   if (props.mode === "pnl") {
     return (
-      <Panel title="손익 계층" sub="거래액 → 수수료 → 공헌이익" provenance={props.provenance}>
+      <Panel title="손익 계층" sub="거래액 → 수수료 → 공헌이익">
         <div className="grid grid-cols-2 gap-4">
           <PnlTable l={props.pnl.curr} title="이번달" sub={props.currLabel} />
           <PnlTable l={props.pnl.prev} title="전월 동기간" sub={props.prevLabel} />
@@ -100,8 +99,7 @@ export default function LadderPanel(
     );
   }
   return (
-    <Panel title="견적 → 주문 → 계약" sub={`이번달 견적 코호트 (${props.currLabel})`}
-           provenance={props.provenance}>
+    <Panel title="견적 → 주문 → 계약" sub={`이번달 견적 코호트 (${props.currLabel})`}>
       <Funnel f={props.funnel} />
     </Panel>
   );
