@@ -26,12 +26,13 @@ export default function Sidebar() {
   const rawPathname = usePathname();
   const pathname = decodeURIComponent(rawPathname);
 
-  // 1차 내비(홈·카테고리·렌탈사) 밖에 있으면 레거시 묶음을 펼친 채로 그린다
+  // 1차 내비(홈·카테고리·렌탈사·예외승인) 밖에 있으면 레거시 묶음을 펼친 채로 그린다
   const legacyActive = !(
     pathname === "/" ||
     pathname === "/companies" ||
     pathname === "/categories" ||
-    pathname.startsWith("/categories/")
+    pathname.startsWith("/categories/") ||
+    pathname === "/exception-approval"
   );
 
   const activeGroupIndex = NAV_SECTIONS.findIndex((s) =>
@@ -109,6 +110,14 @@ export default function Sidebar() {
           href="/companies"
           label="렌탈사"
           active={pathname === "/companies"}
+          variant="top"
+        />
+
+        {/* 마이그레이션 완료분은 1차 내비로 올린다 — 나머지는 아래 "기타 분석"에 남는다 */}
+        <NavItem
+          href="/exception-approval"
+          label="예외승인 분석"
+          active={pathname === "/exception-approval"}
           variant="top"
         />
 
@@ -229,14 +238,6 @@ export default function Sidebar() {
             active={pathname === "/brand-analysis"}
           />
 
-          {/* 수익성 분석 섹션 */}
-          <SectionHeader label="수익성 분석" />
-          <NavItem
-            href="/exception-approval"
-            label="예외승인 분석"
-            active={pathname === "/exception-approval"}
-          />
-
           {/* 렌탈사 분석 섹션 */}
           <SectionHeader label="렌탈사 분석" />
           <NavItem
@@ -313,7 +314,7 @@ function NavItem({
   return (
     <Link
       href={href}
-      className={`press w-full text-left px-3 rounded-lg mb-0.5 flex items-center gap-2 transition ${size} ${
+      className={`press w-full text-left px-3 rounded-lg mb-1 flex items-center gap-2 transition ${size} ${
         active ? "font-semibold" : rest
       }`}
       style={
