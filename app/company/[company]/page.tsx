@@ -563,7 +563,11 @@ type GrowthRow = {
 // ── 아래 6개는 이 페이지에서 가장 무거운 조회다 ──
 // 이 페이지는 searchParams(tab·bm)를 읽어 동적 렌더링이 강제되므로 라우트 세그먼트
 // 캐싱(Task 4)이 안 든다. 대신 조회만 unstable_cache 로 감싸 "dashboard-data" 태그를
-// 태워, 크론 동기화(revalidateTag)로 무효화되게 한다. unstable_cache 는 Next 16 에서
+// 태워, 크론 동기화로 무효화되게 한다. 실제 하드 퍼지는 크론의
+// revalidatePath("/", "layout") 가 담당한다 — revalidateTag("dashboard-data", "max")
+// 는 profile "max" 가 { expire: 31536000 } 로 해석돼 stale: now 만 세우고 expired 는
+// 365일 뒤라 소프트 신호일 뿐이다(자세한 이유는 app/api/sync/cron/route.ts 의 해당
+// 주석 참고). unstable_cache 는 Next 16 에서
 // 'use cache' 로 대체됐으나, 그 지시어는 cacheComponents: true 를 요구하고 그걸 켜면
 // dynamic·revalidate·fetchCache 를 export 하는 모든 라우트가 에러가 된다(21개 페이지
 // 동시 재편). 그래서 여기서는 deprecated 이지만 동작하는 이 API 를 쓴다.

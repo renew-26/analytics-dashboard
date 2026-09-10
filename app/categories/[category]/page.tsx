@@ -33,6 +33,12 @@ import Sparkline from "@/app/components/home/Sparkline";
 import { deltaColor as dirColor, manwon } from "@/app/components/home/cardKit";
 import Delta from "@/app/components/Delta";
 
+// 형제 페이지 4개(app/category/[category] 등)는 revalidate 를 받았는데 이 파일만
+// force-dynamic 그대로라 실수처럼 보일 수 있다 — 의도적이다. 이 페이지도 동적
+// 세그먼트(category)라 revalidate 를 달아도 generateStaticParams 없이는 무동작인
+// 건 형제들과 같지만, 이 페이지는 추가로 카테고리 전건을 훑는 무거운 조회가 있어
+// unstable_cache(트랙 2)로도 못 고친다(항목당 2MB 한도 — 스펙의 B안 절 참고).
+// force-dynamic 을 남겨 "캐싱이 안 된다"는 사실을 명시적으로 드러낸다.
 export const dynamic = "force-dynamic";
 
 const panel =

@@ -5,6 +5,15 @@
 **Goal:** 4678 통합 마이그레이션을 완주시킨 뒤, 하루 한 번 바뀌는 데이터를 요청마다 다시 받지 않게 만든다.
 
 **Architecture:** 순서가 설계의 본체다. 배포로 크론이 `raw_prop_items` 를 채우게 하고, 같은 날 `raw_orders`/`raw_contracts` 를 그 위의 뷰로 교체한다. 그 상태에서 기준선을 다시 재고, 캐싱을 2트랙으로 넣는다 — `searchParams` 를 읽지 않는 11개 페이지는 라우트 세그먼트 `revalidate`, 무거운 2개(`/`·`/company/[company]`)는 조회 함수를 `unstable_cache` 로 감싼다. 무효화는 타이머가 아니라 크론이 통보한다.
+>
+> **정정(구현 후 실측, 2026-09-11):** 11개 페이지에서 `revalidate` 를 시도했지만
+> 실제로 라우트 캐싱이 드는 것은 **7개뿐**이다(`.next/prerender-manifest.json` —
+> `initialRevalidateSeconds: 86400` + `dynamicRoutes` 빈 라우트가 7개). 나머지
+> 4개는 동적 세그먼트(`category/[category]`·`group/[group]`·
+> `categories/[category]/[company]`·`.../[product]`)라 `generateStaticParams` 없이는
+> `revalidate` 가 무동작이다 — 렌탈사 약 30곳의 무거운 조회를 빌드 시점에 프리렌더해야
+> 해서 일부러 붙이지 않았고, 그 줄은 의도를 명시하는 무동작 코드로 남겨 둔다. 자세한
+> 근거는 spec 의 "트랙 1" 절 참고.
 
 **Tech Stack:** Next.js 16.2.4 (App Router, standalone) · React 19.2.4 · `@supabase/supabase-js` · Redash 4678 · Postgres 뷰
 
@@ -407,8 +416,18 @@ import { revalidatePath, revalidateTag } from "next/cache";
   // 데이터는 하루 한 번 통째로 바뀌므로 페이지별로 골라 깰 이유가 없다.
   // revalidatePath("/", "layout") 는 하위 전체를, revalidateTag 는 unstable_cache 항목을 무효화한다.
   revalidatePath("/", "layout");
-  revalidateTag("dashboard-data");
+  revalidateTag("dashboard-data", "max");
 ```
+
+정정(구현 후 실측, 2026-09-11): 설치된 Next 16.2.4 의 타입 선언
+(`node_modules/next/dist/server/web/spec-extension/revalidate.d.ts`)은
+`revalidateTag(tag: string, profile: string | CacheLifeConfig)` 로 두 번째
+인자(profile)를 **필수**로 둔다 — 위 스니펫의 원래 1-인자 호출은 타입 에러가 난다.
+`"max"` 는 Next 자체 경고가 권하는 기본값이라 그대로 채택했다(`app/api/sync/cron/route.ts:73`).
+다만 이 profile 이 무효화를 "하드하게" 만들어 주는 것은 아니다 — `"max"` 는
+`{expire: 31536000}` 로 해석되어 `stale: now` 만 세우고 `expired` 는 365일 뒤다.
+실제 하드 퍼지는 바로 위 `revalidatePath("/", "layout")` 가 한다 — 자세한 이유는
+`app/api/sync/cron/route.ts` 의 해당 주석 참고.
 
 - [ ] **Step 3: 타입·린트·빌드를 통과시킨다**
 
@@ -536,7 +555,7 @@ git commit -m "perf(cache): 홈 조회 3개를 unstable_cache 로 감싼다"
 
 ## Task 6: 렌탈사 상세 조회 캐싱
 
-가장 무거운 페이지다 — `.from()` 28회, 프로덕션 중앙값 2.49s. `searchParams` 의 `tab`·`bm` 은 **조회에 안 들어간다**: `view` 는 735행 JS 분기, `bm` 은 831행 JS 필터다. 그래서 여기도 캐시 키에 `searchParams` 가 필요 없다.
+가장 무거운 페이지다 — `.from()` 28회, 프로덕션 중앙값 2.49s. `searchParams` 의 `bm` 은 831행 JS 필터라 조회에 안 들어가므로 캐시 키에서 뺀다. **`view`(`tab`)는 다르다** — 정정(구현 후 리뷰, 2026-09-11): 브리프 초안은 "735행 JS 분기라 조회에 안 들어간다"고 했으나 틀렸다. `fetchGrowthRows` 는 `view` 값에 따라 조회 테이블 자체가 `raw_orders`/`raw_contracts` 로, 날짜 컬럼도 `order_confirmed_at`/`contract_date` 로 갈린다(아래 Step 1의 `growthRowsP`). 그래서 `view` 는 그 조회에 한해 캐시 키에 반드시 넣는다 — 빼면 `?tab=contract` 가 `raw_orders` 캐시를 그대로 받아 주문확정 행을 계약완료로 보여주는 오염이 난다. 나머지 5개 조회는 `view` 에 따라 SQL 이 갈리지 않으므로 그대로 뺀다.
 
 **Files:**
 - Modify: `app/company/[company]/page.tsx` — `import` 추가, 544~740행의 조회 Promise 6개가 쓰는 조회 본문을 감쌈
@@ -568,8 +587,10 @@ async function fetchShareRowsUncached(
 
 /**
  * 이 페이지는 searchParams(tab·bm)를 읽어 동적 렌더링이 강제되므로 라우트 세그먼트
- * 캐싱이 안 든다. 대신 조회만 캐싱한다 — tab 은 735행 JS 분기, bm 은 831행 JS
- * 필터라 둘 다 조회에 들어가지 않으므로 캐시 키에 넣을 필요가 없다.
+ * 캐싱이 안 든다. 대신 조회만 캐싱한다 — bm 은 831행 JS 필터라 조회에 들어가지
+ * 않으므로 캐시 키에 넣지 않는다. (이 조회는 view 에도 안 갈리므로 view 도 인자로
+ * 받지 않는다 — view 를 키에 넣어야 하는 조회는 fetchGrowthRows 뿐이다. 이유는
+ * fetchGrowthRowsUncached 위 주석 참고.)
  * unstable_cache 를 쓰는 이유는 app/page.tsx 의 같은 주석 참고.
  */
 const fetchShareRows = unstable_cache(

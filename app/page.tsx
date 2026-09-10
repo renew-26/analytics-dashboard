@@ -149,7 +149,12 @@ async function fetchContractsUncached(
  * export 하는 모든 라우트가 에러가 된다(21개 페이지 동시 재편). 그래서 여기서는
  * deprecated 이지만 동작하는 이 API 를 쓴다.
  *
- * revalidate 86400 은 크론(revalidateTag)이 실패해도 영구히 얼지 않게 하는 안전망이다.
+ * revalidate 86400 은 크론이 실패해도 영구히 얼지 않게 하는 안전망이다. 실제 하드
+ * 무효화는 크론의 revalidatePath("/", "layout") 가 담당한다 — revalidateTag(
+ * "dashboard-data", "max") 는 profile "max" 가 { expire: 31536000 } 로 해석돼
+ * stale: now 만 세우고 expired 는 365일 뒤라 소프트 신호에 그친다(자세한 이유는
+ * app/api/sync/cron/route.ts 의 해당 주석 참고). revalidatePath 를 "중복"으로 보고
+ * 지우면 이 캐시들의 무효화가 깨진다.
  *
  * unstable_cache 는 항목당 약 2MB 제한이 있다 — 넘으면 Next 가 경고 로그만 남기고
  * 조용히 저장하지 않는다(정합성은 안 깨지고 그 조회만 캐시가 안 타는 상태로 남는다).
