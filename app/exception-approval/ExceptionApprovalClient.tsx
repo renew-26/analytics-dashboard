@@ -93,10 +93,16 @@ export default function ExceptionApprovalClient({
  * 날짜 기준 배지 — 월 단위로 쪼개는 섹션에만 붙는다. 상단 KPI·워터폴은 날짜 필터가
  * 없는 전체 집계라 기준과 무관하고, 그 섹션들은 "전체 기준" 라벨을 이미 달고 있다.
  * 배지가 없는 섹션은 토글과 무관하다는 뜻이 된다.
+ *
+ * 두 기준은 대안 날짜가 아니라 상태 진행이라(page.tsx DateBasis 주석) 무엇이 모집단인지
+ * 한 줄로 덧붙인다 — 주문확정은 취소·대기까지 포함한 전체, 계약완료는 계약까지 간 건.
  */
 function BasisBadge({ basis }: { basis: DateBasis }) {
   return (
-    <span className="text-xs text-[#a1a5ac]">{BASIS_LABEL[basis]} 기준</span>
+    <span className="text-xs text-[#a1a5ac]">
+      {BASIS_LABEL[basis]} 기준 ·{" "}
+      {basis === "order" ? "취소·대기 포함 전체" : "계약까지 간 건"}
+    </span>
   );
 }
 
@@ -632,7 +638,10 @@ function MonthlyDetailSection({
       </div>
       <p className="text-xs text-[#a1a5ac] mb-4">
         월을 클릭하면 해당 월 건별 상세를 확인할 수 있습니다 — 표의 날짜와 월 구분은{" "}
-        {BASIS_LABEL[basis]}일 기준입니다
+        {BASIS_LABEL[basis]}일 기준입니다.{" "}
+        {basis === "order"
+          ? "“전체 건수”에는 취소·주문확정 대기 건이 함께 들어 있습니다."
+          : "계약완료일이 없는 건(취소·주문확정 대기)은 빠집니다."}
       </p>
 
       <div className="bg-white border border-[#ebebe9] rounded-xl overflow-hidden">
