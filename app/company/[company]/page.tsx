@@ -96,6 +96,7 @@ interface DataRow {
   category: string | null;
   product_name: string | null;
   model_name: string | null;
+  brand: string | null;
   partner_company: string | null;
 }
 
@@ -525,7 +526,7 @@ export default async function CompanyPage({
       let q = supabase
         .from("raw_orders")
         .select(
-          "order_confirmed_at, total_rental_fee, contribution_margin, monthly_fee, sales_incentive, contract_months, category, product_name, model_name, partner_company",
+          "order_confirmed_at, total_rental_fee, contribution_margin, monthly_fee, sales_incentive, contract_months, category, product_name, model_name, brand, partner_company",
         )
         .eq("rental_company", dbName);
       if (mapping.categoryIs) {
@@ -556,6 +557,7 @@ export default async function CompanyPage({
           category: normalizeCategory(r.category),
           product_name: r.product_name,
           model_name: r.model_name,
+          brand: r.brand ?? null,
           partner_company: r.partner_company ?? null,
         });
       }
@@ -568,7 +570,7 @@ export default async function CompanyPage({
       let q = supabase
         .from("raw_contracts")
         .select(
-          "contract_date, total_rental_fee, contribution_margin, monthly_fee, sales_incentive, contract_months, category, product_name, model_name, partner_company",
+          "contract_date, total_rental_fee, contribution_margin, monthly_fee, sales_incentive, contract_months, category, product_name, model_name, brand, partner_company",
         )
         .eq("rental_company", dbName);
       if (mapping.categoryIs) {
@@ -599,6 +601,7 @@ export default async function CompanyPage({
           category: normalizeCategory(r.category),
           product_name: r.product_name,
           model_name: r.model_name,
+          brand: r.brand ?? null,
           partner_company: r.partner_company ?? null,
         });
       }
@@ -619,7 +622,7 @@ export default async function CompanyPage({
     bm === "all"
       ? normalizedRows
       : normalizedRows.filter(
-          (r) => getBM(r.partner_company) === bm.toUpperCase(),
+          (r) => getBM(r.brand, r.partner_company) === bm.toUpperCase(),
         );
 
   // 매출·공헌이익 등도 거래건수와 동일하게 2025년~ 전체 반영
@@ -1321,7 +1324,7 @@ export default async function CompanyPage({
       const { data, error } = await supabase
         .from("raw_contracts")
         .select(
-          "contract_date, rental_company, category, partner_company, total_rental_fee, contribution_margin, sales, product_name, model_name",
+          "contract_date, rental_company, category, brand, partner_company, total_rental_fee, contribution_margin, sales, product_name, model_name",
         )
         .eq("rental_company", dbName)
         .gte("contract_date", `${recentYms[0]}-01`)
@@ -1486,7 +1489,7 @@ export default async function CompanyPage({
 
   // BM 구성 (이번 달 계약완료)
   const bmCntIa = { BM1: 0, BM2: 0, BM3: 0 };
-  for (const r of iaCurr) bmCntIa[getBM(r.partner_company)] += 1;
+  for (const r of iaCurr) bmCntIa[getBM(r.brand, r.partner_company)] += 1;
 
   const iaPanel =
     "rounded-[12px] border border-[var(--color-gray-200)] bg-white shadow-[0_1px_2px_rgba(28,35,56,.04),0_2px_8px_rgba(28,35,56,.05)]";

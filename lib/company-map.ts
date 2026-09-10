@@ -75,11 +75,14 @@ export const RENTRE_PARTNER_NAMES = new Set([
   "렌트리 안심구독(TPS)",
 ]);
 
-// BM 분류 (partner_company 기준)
+// BM 분류 — partner_company 기준(BM3_COMPANIES/BM2_COMPANIES) + brand 기준(BM3_BRANDS).
+// brand 가 BM3_BRANDS 에 있으면 partner_company 와 무관하게 BM3 (brand 우선).
 export const BM3_COMPANIES = new Set([
   "렌트리 안심구독(렌탈)",
   "렌트리 안심구독(타이어)",
 ]);
+
+export const BM3_BRANDS = new Set(["아싸컴", "퓨리얼"]);
 
 export const BM2_COMPANIES = new Set([
   "렌타나",
@@ -140,7 +143,11 @@ export function getCompanyLabel(
   return COMPANY_MAP.find((e) => e.dbName === dbName)?.label ?? dbName;
 }
 
-export function getBM(partnerCompany: string | null): "BM1" | "BM2" | "BM3" {
+export function getBM(
+  brand: string | null,
+  partnerCompany: string | null,
+): "BM1" | "BM2" | "BM3" {
+  if (brand && BM3_BRANDS.has(brand)) return "BM3";
   if (!partnerCompany) return "BM1";
   if (BM3_COMPANIES.has(partnerCompany)) return "BM3";
   if (BM2_COMPANIES.has(partnerCompany)) return "BM2";

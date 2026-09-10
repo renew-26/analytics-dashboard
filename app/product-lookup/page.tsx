@@ -118,12 +118,13 @@ function buildModelOptions(rows: RawRow[]): ModelOption[] {
 function buildPartnerRowsForModel(rows: RawRow[], modelName: string): PartnerRow[] {
   const map = new Map<
     string,
-    { count: number; feeSum: number; incentiveSum: number; marginSum: number }
+    { brand: string | null; count: number; feeSum: number; incentiveSum: number; marginSum: number }
   >();
   for (const r of rows) {
     if (r.model_name !== modelName || !r.partner_company) continue;
     const cur =
-      map.get(r.partner_company) ?? { count: 0, feeSum: 0, incentiveSum: 0, marginSum: 0 };
+      map.get(r.partner_company) ??
+      { brand: r.brand, count: 0, feeSum: 0, incentiveSum: 0, marginSum: 0 };
     cur.count += 1;
     cur.feeSum += r.total_rental_fee ?? 0;
     cur.incentiveSum += r.sales_incentive ?? 0;
@@ -138,7 +139,7 @@ function buildPartnerRowsForModel(rows: RawRow[], modelName: string): PartnerRow
       return {
         partner,
         isRentre: RENTRE_PARTNER_NAMES.has(partner),
-        isBM1: getBM(partner) === "BM1",
+        isBM1: getBM(v.brand, partner) === "BM1",
         count: v.count,
         avgTotalRentalFee,
         avgIncentive,

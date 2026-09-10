@@ -22,13 +22,13 @@
 ### Working In This Directory
 - `supabase.ts`의 클라이언트는 anon key 사용 — RLS가 적용된 공개 데이터용. 관리자 작업(upsert, service role)은 각 Server Component/API 라우트에서 `createClient`를 직접 호출해 `SUPABASE_SERVICE_ROLE_KEY` 사용
 - `company-map.ts`의 `COMPANY_MAP`은 사이드바 네비게이션과 렌탈사 상세 페이지 라우팅의 단일 소스. 렌탈사 추가/변경 시 이 파일만 수정하면 됨
-- `getBM()` 함수: `partner_company` 기준으로 BM1/BM2/BM3 분류. BM3→BM2→BM1 우선순위
+- `getBM()` 함수: `brand`(BM3_BRANDS) 우선 → `partner_company`(BM3_COMPANIES→BM2_COMPANIES) → BM1. brand가 BM3_BRANDS에 있으면 partner_company와 무관하게 BM3
 
 ### Common Patterns
 ```typescript
-// BM 분류
+// BM 분류 — brand를 반드시 함께 넘긴다(빠뜨리면 브랜드 기반 BM3가 조용히 BM2/BM1로 잘못 분류된다)
 import { getBM } from "@/lib/company-map";
-const bm = getBM(row.partner_company); // "BM1" | "BM2" | "BM3"
+const bm = getBM(row.brand, row.partner_company); // "BM1" | "BM2" | "BM3"
 
 // 렌탈사 매핑 조회
 import { COMPANY_MAP } from "@/lib/company-map";

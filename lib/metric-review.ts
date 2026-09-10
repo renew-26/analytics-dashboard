@@ -338,11 +338,11 @@ export function buildTrend(metric: Metric, rows: ReviewRow[], period: Period): T
   return {
     daily: {
       byCat: stack(metric, currRows, dayOf, (r) => groupOf(r.category), dayBuckets, cats.map((s) => s.key)),
-      byBm: stack(metric, currRows, dayOf, (r) => bmOf(r.partner_company), dayBuckets, bms.map((s) => s.key)),
+      byBm: stack(metric, currRows, dayOf, (r) => bmOf(r.brand, r.partner_company), dayBuckets, bms.map((s) => s.key)),
     },
     weekly: {
       byCat: stack(metric, kept, weekOf, (r) => groupOf(r.category), weekBuckets, cats.map((s) => s.key)),
-      byBm: stack(metric, kept, weekOf, (r) => bmOf(r.partner_company), weekBuckets, bms.map((s) => s.key)),
+      byBm: stack(metric, kept, weekOf, (r) => bmOf(r.brand, r.partner_company), weekBuckets, bms.map((s) => s.key)),
     },
     catSeries: cats,
     bmSeries: bms,
@@ -416,7 +416,7 @@ export function buildComposition(
   if (total === 0) return { total: 0, byCategory: [], byBm: [], byRental: [] };
 
   const catMap = sumBy(currRows, (r) => groupOf(r.category), (r) => metric.valueOf(r));
-  const bmMap = sumBy(currRows, (r) => bmOf(r.partner_company), (r) => metric.valueOf(r));
+  const bmMap = sumBy(currRows, (r) => bmOf(r.brand, r.partner_company), (r) => metric.valueOf(r));
   const rcMap = sumBy(currRows, (r) => r.rental_company ?? "그 외", (r) => metric.valueOf(r));
 
   const rentalTop = topN(rcMap, TOP_N, total);

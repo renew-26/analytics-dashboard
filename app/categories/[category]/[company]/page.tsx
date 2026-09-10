@@ -76,7 +76,7 @@ export default async function CategoryCompanyPage({
       const { data, error } = await supabase
         .from("raw_contracts")
         .select(
-          "contract_date, rental_company, category, partner_company, total_rental_fee, contribution_margin, sales, product_name, model_name, monthly_fee",
+          "contract_date, rental_company, category, brand, partner_company, total_rental_fee, contribution_margin, sales, product_name, model_name, monthly_fee",
         )
         .eq("rental_company", def.dbName)
         .gte("contract_date", `${recentYms[0]}-01`)
@@ -229,7 +229,7 @@ export default async function CategoryCompanyPage({
 
   // BM 구성 (이번 달)
   const bmCnt = { BM1: 0, BM2: 0, BM3: 0 };
-  for (const r of currRows) bmCnt[getBM(r.partner_company)] += 1;
+  for (const r of currRows) bmCnt[getBM(r.brand, r.partner_company)] += 1;
 
   const multiCat = group.cats.length > 1;
 

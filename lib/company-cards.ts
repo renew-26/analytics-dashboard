@@ -10,6 +10,7 @@ export type CardContractRow = {
   contract_date: string;
   rental_company: string | null;
   category: string | null;
+  brand: string | null;
   partner_company: string | null;
   total_rental_fee: number | null;
   contribution_margin: number | null;
@@ -116,7 +117,7 @@ export function buildCompanyCards({
     for (const r of cRows) {
       const c = r.category ?? "기타";
       catCount.set(c, (catCount.get(c) ?? 0) + 1);
-      bmCount[getBM(r.partner_company)] += 1;
+      bmCount[getBM(r.brand, r.partner_company)] += 1;
       sales += r.sales ?? 0;
       margin += r.contribution_margin ?? 0;
       revenue += r.total_rental_fee ?? 0;

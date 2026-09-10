@@ -31,6 +31,7 @@ const BM_KEYS = ["BM1", "BM2", "BM3"] as const;
 type YearRow = {
   date: string;
   category: string | null;
+  brand: string | null;
   partner_company: string | null;
   rental_company: string | null;
   sales: number | null;
@@ -47,7 +48,7 @@ async function fetchYearRows(basis: Basis, start: string, end: string): Promise<
   while (true) {
     const { data, error } = await supabase
       .from(table)
-      .select(`${dateCol}, category, partner_company, rental_company, sales`)
+      .select(`${dateCol}, category, brand, partner_company, rental_company, sales`)
       .gte(dateCol, start)
       .lte(dateCol, end)
       .order("prop_item_usid", { ascending: true })
@@ -138,7 +139,7 @@ export default async function LegacyRevenueDetails({
     const m = r.date.slice(0, 7);
     const w = getWeekIndex(r.date);
     const cat = KNOWN_CATS.has(r.category ?? "") ? (r.category as string) : "그 외";
-    const b = getBM(r.partner_company);
+    const b = getBM(r.brand, r.partner_company);
     const rc = r.rental_company ?? "";
 
     if (!monthCatMap.has(m)) monthCatMap.set(m, new Map());

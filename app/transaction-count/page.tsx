@@ -72,7 +72,7 @@ export default async function TransactionCountPage({
   // 모두 같은 필터를 거쳐야 코호트·리드타임 패널이 다른 패널과 같은 모집단을
   // 보여준다(그렇지 않으면 ?bm=BM3 화면에서 코호트만 전체 BM 수치가 섞여 나온다).
   const byBm = (list: ReviewRow[]): ReviewRow[] =>
-    bm === "all" ? list : list.filter((r) => getBM(r.partner_company) === bmKey);
+    bm === "all" ? list : list.filter((r) => getBM(r.brand, r.partner_company) === bmKey);
 
   const rows = byBm(allRows);
   const cohortOrders = byBm(allCohortOrders);

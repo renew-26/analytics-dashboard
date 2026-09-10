@@ -77,7 +77,7 @@ export default async function CategoryGroupPage({
   // 티어는 렌탈사의 "전체 실적" 기준이라 그룹 필터 전에 전 카테고리로 받는다
   const rows12 = await fetchRows<Row>({
     select:
-      "contract_date, rental_company, category, partner_company, total_rental_fee, contribution_margin, sales, product_name",
+      "contract_date, rental_company, category, brand, partner_company, total_rental_fee, contribution_margin, sales, product_name",
     start: `${recentYms[0]}-01`,
     end: curr.end,
     orderBy: "prop_item_usid",
@@ -346,7 +346,7 @@ export default async function CategoryGroupPage({
       BM3: { cnt: 0, amt: 0 },
     };
     for (const r of rows) {
-      const b = m[getBM(r.partner_company)];
+      const b = m[getBM(r.brand, r.partner_company)];
       b.cnt += 1;
       b.amt += (r.total_rental_fee ?? 0) / EOK;
     }

@@ -78,6 +78,7 @@ type ContractRow = {
   contract_date: string;
   rental_company: string | null;
   category: string | null;
+  brand: string | null;
   partner_company: string | null;
   total_rental_fee: number | null;
   contribution_margin: number | null;
@@ -87,7 +88,7 @@ type ContractRow = {
 };
 
 const CONTRACT_COLS =
-  "contract_date, rental_company, category, partner_company, total_rental_fee, contribution_margin, bad_debt, sales_incentive, sales";
+  "contract_date, rental_company, category, brand, partner_company, total_rental_fee, contribution_margin, bad_debt, sales_incentive, sales";
 
 function aggregateByBM(rows: ContractRow[]) {
   const counts = { BM1: 0, BM2: 0, BM3: 0, total: 0 };
@@ -97,7 +98,7 @@ function aggregateByBM(rows: ContractRow[]) {
   const incentive = { BM1: 0, BM2: 0, BM3: 0, total: 0 };
   const salesTotal = { BM1: 0, BM2: 0, BM3: 0, total: 0 };
   for (const r of rows) {
-    const bm = getBM(r.partner_company);
+    const bm = getBM(r.brand, r.partner_company);
     counts[bm]++;
     counts.total++;
     revenue[bm] += r.total_rental_fee ?? 0;
@@ -140,6 +141,7 @@ async function fetchContracts(
 type YearContractRow = {
   contract_date: string;
   category: string | null;
+  brand: string | null;
   partner_company: string | null;
   rental_company: string | null;
   total_rental_fee: number | null;
@@ -160,7 +162,7 @@ async function fetchAllYearContracts(
     const { data, error } = await supabase
       .from("raw_contracts")
       .select(
-        "contract_date, category, partner_company, rental_company, total_rental_fee, sales, contribution_margin",
+        "contract_date, category, brand, partner_company, rental_company, total_rental_fee, sales, contribution_margin",
       )
       .gte("contract_date", yearStart)
       .lte("contract_date", end)
@@ -177,6 +179,7 @@ async function fetchAllYearContracts(
 /** 주문확정 — 월별 스파크라인과 BM별 집계에 함께 쓴다 */
 type OrderRow = {
   order_confirmed_at: string | null;
+  brand: string | null;
   partner_company: string | null;
 };
 
@@ -190,7 +193,7 @@ async function fetchAllYearOrders(
   while (true) {
     const { data, error } = await supabase
       .from("raw_orders")
-      .select("order_confirmed_at, partner_company")
+      .select("order_confirmed_at, brand, partner_company")
       .gte("order_confirmed_at", yearStart)
       .lte("order_confirmed_at", end)
       .order("prop_item_usid", { ascending: true })
@@ -564,7 +567,7 @@ export default async function Home({
           ? bmOrderPrev
           : null;
     if (bucket) {
-      bucket[getBM(r.partner_company)] += 1;
+      bucket[getBM(r.brand, r.partner_company)] += 1;
       bucket.total += 1;
     }
   }
