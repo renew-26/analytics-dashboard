@@ -17,7 +17,9 @@ import { deltaColor as dirColor, manwon, TAG } from "@/app/components/home/cardK
 import Bridge from "@/app/components/Bridge";
 import Delta from "@/app/components/Delta";
 
-export const dynamic = "force-dynamic";
+// 크론(revalidatePath)이 실제 무효화를 담당하고,
+// 이 값은 크론이 실패해도 캐시가 영구히 얼지 않게 하는 안전망이다.
+export const revalidate = 86400;
 
 const PAGE = 50000;
 /** 월렌탈료로 볼 수 없는 값(0·1원 등 견적 미입력 흔적)은 평균에서 뺀다 */

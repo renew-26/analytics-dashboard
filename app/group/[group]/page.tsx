@@ -5,7 +5,9 @@ import { COMPANY_MAP, dbNamesOf, matchesEntry } from "@/lib/company-map";
 import { getPeriod, getDataAsOf, formatShortRange } from "@/lib/period";
 import { deltaColor as dirColor } from "@/app/components/home/cardKit";
 
-export const dynamic = "force-dynamic";
+// 크론(revalidatePath)이 실제 무효화를 담당하고,
+// 이 값은 크론이 실패해도 캐시가 영구히 얼지 않게 하는 안전망이다.
+export const revalidate = 86400;
 
 // 사이드바 노출 순서와 같게 고정한다 (COMPANY_MAP 선언 순서는 가전&상조가 먼저다)
 const GROUP_ORDER = ["정수기", "가전&상조", "통신"];

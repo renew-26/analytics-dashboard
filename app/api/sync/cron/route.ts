@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath, revalidateTag } from "next/cache";
 
 export const maxDuration = 300;
 
@@ -62,6 +63,14 @@ export async function GET(req: Request) {
     });
     results[type] = await res.json();
   }
+
+  // 동기화가 캐시를 깬다 — 타이머(revalidate)는 데이터가 실제로 바뀐 시점을 모른다.
+  // 데이터는 하루 한 번 통째로 바뀌므로 페이지별로 골라 깰 이유가 없다.
+  // revalidatePath("/", "layout") 는 하위 전체를, revalidateTag 는 unstable_cache 항목을 무효화한다.
+  revalidatePath("/", "layout");
+  // Next 16 타입이 두 번째 인자(profile)를 요구한다 — "max" 는 Next 자체 경고가 권하는 기본값이고,
+  // unstable_cache 태그 매칭(Task 5·6)에는 영향이 없다("use cache"/cacheLife 전용 개념).
+  revalidateTag("dashboard-data", "max");
 
   return NextResponse.json(results);
 }
