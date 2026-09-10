@@ -22,8 +22,19 @@ import type {
   ExceptionDetail,
   WaterfallStage,
   WaterfallBridge,
+  DateBasis,
   ImpactCategory,
 } from "./page";
+
+/**
+ * 날짜 기준 라벨은 여기 둔다 — page.tsx에서 값으로 가져오면 그 모듈이 클라이언트
+ * 번들 그래프에 끌려온다(모듈 스코프에서 SUPABASE_SERVICE_ROLE_KEY로 admin 클라이언트를
+ * 만드는 파일이다). page.tsx에서 오는 건 컴파일 시 지워지는 타입만이어야 한다.
+ */
+const BASIS_LABEL: Record<DateBasis, string> = {
+  order: "주문확정",
+  contract: "계약완료",
+};
 
 type Props = {
   months: { month: string; label: string }[];
@@ -32,6 +43,7 @@ type Props = {
   exceptionDetails: ExceptionDetail[];
   waterfallData: WaterfallStage[];
   waterfallBridge: WaterfallBridge;
+  basis: DateBasis;
 };
 
 export default function ExceptionApprovalClient({
@@ -41,6 +53,7 @@ export default function ExceptionApprovalClient({
   exceptionDetails,
   waterfallData,
   waterfallBridge,
+  basis,
 }: Props) {
   return (
     <div className="space-y-6">
@@ -61,14 +74,29 @@ export default function ExceptionApprovalClient({
       />
 
       {/* ─── 4. 월별 트래킹 (추이) ─── */}
-      <MonthlyChart monthlySummary={monthlySummary} />
+      {/* 날짜 기준(?tab)이 실제로 갈리는 건 월 단위로 쪼개는 이 아래 둘뿐이다 —
+          위 KPI·워터폴·유형은 날짜 필터가 없는 전체 집계라 기준과 무관하다.
+          그래서 두 섹션에만 기준 배지를 붙여 무엇이 움직였는지 보이게 한다. */}
+      <MonthlyChart monthlySummary={monthlySummary} basis={basis} />
 
       {/* ─── 5. 예외승인 월별 상세 현황 (월 클릭 → 건별 상세) ─── */}
       <MonthlyDetailSection
         monthlySummary={monthlySummary}
         exceptionDetails={exceptionDetails}
+        basis={basis}
       />
     </div>
+  );
+}
+
+/**
+ * 날짜 기준 배지 — 월 단위로 쪼개는 섹션에만 붙는다. 상단 KPI·워터폴은 날짜 필터가
+ * 없는 전체 집계라 기준과 무관하고, 그 섹션들은 "전체 기준" 라벨을 이미 달고 있다.
+ * 배지가 없는 섹션은 토글과 무관하다는 뜻이 된다.
+ */
+function BasisBadge({ basis }: { basis: DateBasis }) {
+  return (
+    <span className="text-xs text-[#a1a5ac]">{BASIS_LABEL[basis]} 기준</span>
   );
 }
 
@@ -418,8 +446,10 @@ function ImpactBreakdownCard({
 
 function MonthlyChart({
   monthlySummary,
+  basis,
 }: {
   monthlySummary: MonthlySummary[];
+  basis: DateBasis;
 }) {
   const chartData = monthlySummary.map((m) => ({
     month: m.label.replace(/^\d{4}년\s*/, ""),
@@ -433,9 +463,10 @@ function MonthlyChart({
 
   return (
     <section>
-      <h2 className="text-lg font-bold text-[#222222] mb-1">
-        예외승인 월별 트래킹
-      </h2>
+      <div className="flex items-center justify-between mb-1">
+        <h2 className="text-lg font-bold text-[#222222]">예외승인 월별 트래킹</h2>
+        <BasisBadge basis={basis} />
+      </div>
       <p className="text-xs text-[#a1a5ac] mb-4">
         왼쪽은 얼마나 발생했는가, 오른쪽은 그것이 손익에 얼마를 남겼는가입니다
       </p>
@@ -571,9 +602,11 @@ function MonthlyChart({
 function MonthlyDetailSection({
   monthlySummary,
   exceptionDetails,
+  basis,
 }: {
   monthlySummary: MonthlySummary[];
   exceptionDetails: ExceptionDetail[];
+  basis: DateBasis;
 }) {
   const [expandedMonth, setExpandedMonth] = useState<string | null>(null);
 
@@ -588,14 +621,18 @@ function MonthlyDetailSection({
 
   return (
     <section>
-      <div className="flex items-center gap-2 mb-1">
-        <h2 className="text-lg font-bold text-[#222222]">
-          예외승인 월별 상세 현황
-        </h2>
-        <DetailFormulaTooltip />
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-bold text-[#222222]">
+            예외승인 월별 상세 현황
+          </h2>
+          <DetailFormulaTooltip />
+        </div>
+        <BasisBadge basis={basis} />
       </div>
       <p className="text-xs text-[#a1a5ac] mb-4">
-        월을 클릭하면 해당 월 건별 상세를 확인할 수 있습니다
+        월을 클릭하면 해당 월 건별 상세를 확인할 수 있습니다 — 표의 날짜와 월 구분은{" "}
+        {BASIS_LABEL[basis]}일 기준입니다
       </p>
 
       <div className="bg-white border border-[#ebebe9] rounded-xl overflow-hidden">

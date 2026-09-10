@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import ExceptionApprovalClient from "./ExceptionApprovalClient";
+import ViewToggle from "@/app/components/ViewToggle";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,23 @@ const supabaseAdmin = createClient(
 );
 
 const CATEGORY = "인터넷";
+
+/**
+ * 날짜 기준 — 주문확정(order_confirmed_at) / 계약완료(contract_date) 중 하나.
+ *
+ * 예전에는 `order_confirmed_at ?? contract_date`로 폴백을 뒀는데, 인터넷 카테고리는
+ * order_confirmed_at이 13,286건 전건 채워져 있어(2026-09-10 실측) 폴백이 발동한 적이
+ * 없다 — 사실상 주문확정 기준으로만 돌고 있었다. 이제 기준을 명시적으로 고른다.
+ *
+ * 폴백을 두지 않는다: 계약완료 기준에서 contract_date가 빈 행은 그 기준에 존재하지
+ * 않는 건이므로 월별 집계에서 빠지는 게 맞다(전체 13,286건 중 8,743건만 있음 —
+ * 예외승인 130건은 두 컬럼 모두 전건 채워져 있어 어느 기준에서도 130건이 보존된다).
+ */
+export type DateBasis = "order" | "contract";
+
+function rowDate(r: PropItemRow, basis: DateBasis): string | null {
+  return basis === "order" ? r.order_confirmed_at : r.contract_date;
+}
 const PAGE = 50000;
 const BRAND_COST = 20000; // 브랜드 부담 20,000원 — 요금면제 등 렌트리 외 비용 보전분
 
@@ -188,23 +206,25 @@ function computeRowImpact(r: PropItemRow) {
 // ─── Data Fetching ───────────────────────────────────────────────────────────
 
 /**
- * 데이터가 실제로 들어온 마지막 주문확정일 — raw_prop_items(4678 통합 원장) 기준.
+ * 데이터가 실제로 들어온 마지막 날짜 — 고른 기준 컬럼에서 잰다.
  *
  * raw_orders/raw_contracts와 달리 raw_prop_items는 계속 동기화되는 테이블이다.
  * 실제 "오늘"로 최근 6개월을 계산하면 동기화가 아직 안 들어온 이번 달이
  * 빈 채로 잡혀 그 달만 뚝 떨어진 것처럼 보인다 — lib/period.ts의 getDataAsOf와 같은 이유.
- * buildMonthlySummary의 월별 필터가 order_confirmed_at을 우선 쓰므로 여기도 맞춘다.
+ * buildMonthlySummary의 월별 필터와 같은 컬럼을 봐야 창이 어긋나지 않는다.
  */
-async function getPropItemsAsOf(): Promise<string | null> {
+async function getPropItemsAsOf(basis: DateBasis): Promise<string | null> {
+  const col = basis === "order" ? "order_confirmed_at" : "contract_date";
   try {
     const { data } = await supabaseAdmin
       .from("raw_prop_items")
-      .select("order_confirmed_at")
+      .select(col)
       .eq("category", CATEGORY)
-      .order("order_confirmed_at", { ascending: false })
+      .not(col, "is", null)
+      .order(col, { ascending: false })
       .limit(1)
       .single();
-    return data?.order_confirmed_at ?? null;
+    return (data as Record<string, string> | null)?.[col] ?? null;
   } catch {
     return null;
   }
@@ -249,11 +269,12 @@ async function fetchAllRows(): Promise<PropItemRow[]> {
 function buildMonthlySummary(
   rows: PropItemRow[],
   months: { month: string; label: string; start: string; end: string }[],
+  basis: DateBasis,
 ): MonthlySummary[] {
   return months.map((m) => {
-    // 해당 월의 계약완료 건 필터 (contract_date 기준)
+    // 해당 월의 건 필터 — 고른 기준 컬럼으로만 본다(폴백 없음, DateBasis 주석 참고)
     const monthRows = rows.filter((r) => {
-      const date = r.order_confirmed_at ?? r.contract_date;
+      const date = rowDate(r, basis);
       return date && date >= m.start && date < m.end;
     });
 
@@ -420,12 +441,15 @@ function buildOverallSummary(rows: PropItemRow[]): OverallSummary {
   };
 }
 
-function buildExceptionDetails(rows: PropItemRow[]): ExceptionDetail[] {
+function buildExceptionDetails(
+  rows: PropItemRow[],
+  basis: DateBasis,
+): ExceptionDetail[] {
   return rows
     .filter(isException)
     .map((r) => {
       const impact = computeRowImpact(r);
-      const date = (r.order_confirmed_at ?? r.contract_date ?? "-").slice(0, 10);
+      const date = (rowDate(r, basis) ?? "-").slice(0, 10);
       return {
         propItemUsid: r.prop_item_usid,
         month: date.slice(0, 7),
@@ -571,25 +595,35 @@ function buildContributionComparison(rows: PropItemRow[]): ContributionCompariso
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
-export default async function ExceptionApprovalPage() {
-  const asOfStr = await getPropItemsAsOf();
+export default async function ExceptionApprovalPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const { tab } = await searchParams;
+  // ViewToggle과 같은 파라미터(?tab=order|contract)를 쓴다 — 다른 화면과 기준 전환
+  // 방식이 갈리지 않게. 알 수 없는 값은 주문확정으로 떨어뜨린다.
+  const basis: DateBasis = tab === "contract" ? "contract" : "order";
+
+  const asOfStr = await getPropItemsAsOf(basis);
   const asOf = asOfStr ? new Date(`${asOfStr}T00:00:00`) : new Date();
   const months = getLast6Months(asOf);
   const rows = await fetchAllRows();
-  const monthlySummary = buildMonthlySummary(rows, months);
+  const monthlySummary = buildMonthlySummary(rows, months, basis);
   const overallSummary = buildOverallSummary(rows);
-  const exceptionDetails = buildExceptionDetails(rows);
+  const exceptionDetails = buildExceptionDetails(rows, basis);
   const waterfallData = buildWaterfallData(rows);
   const waterfallBridge = buildWaterfallBridge(rows);
 
   return (
     <div className="px-12 py-6 mx-auto">
       {/* 제목은 상단바(Header)가 진다 — 1차 내비 화면은 본문에서 h1을 다시 세우지 않는다 */}
-      <div className="mb-6">
+      <div className="mb-6 flex items-start justify-between gap-4">
         <p className="text-sm text-[#788093]">
           타사 지원금이 수수료 매출·타겟마진·대손비용에 미치는 영향과 역마진 여부를
           분석합니다
         </p>
+        <ViewToggle current={basis} />
       </div>
       <ExceptionApprovalClient
         months={months}
@@ -598,6 +632,7 @@ export default async function ExceptionApprovalPage() {
         exceptionDetails={exceptionDetails}
         waterfallData={waterfallData}
         waterfallBridge={waterfallBridge}
+        basis={basis}
       />
     </div>
   );
