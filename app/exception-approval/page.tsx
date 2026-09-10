@@ -451,36 +451,103 @@ function buildExceptionDetails(rows: PropItemRow[]): ExceptionDetail[] {
 }
 
 /**
- * 지원금 → 손익 영향 워터폴 — 예외승인 건 전체를 합산해 4단계로 쪼갠다.
- * 각 합계는 computeRowImpact가 이미 검증한 값(매출/공헌이익 등)의 단순 합이라
- * 워터폴과 KPI·상세표 숫자가 항상 맞아떨어진다.
+ * 예외승인 손익 워터폴 — 예외승인 건(isException)만 모집단으로 4단계.
  *
- * 타겟마진·대손비 영향은 순차 차감이 아니라 최종 공헌이익 대비 독립 판정이라
- * (computeRowImpact 주석 참고) 워터폴에 별도 단계로 이어붙일 수 없다 — 대손비는
- * 인터넷 카테고리에서 항상 0으로 나와 단계 자체를 뺐다(2026-09-10). 최종 공헌이익
- * 계산에는 여전히 반영된다.
+ *   수수료 매출 · 예외승인 안 했을 때 공헌이익 · 예외승인 지원금 · 예외승인 시 공헌이익
+ *
+ * 이 페이지가 답해야 하는 질문은 "예외승인이 손익을 얼마나 깎았나" 하나다. 그래서
+ * 유일한 델타 막대를 예외승인 지원금으로 두고, 그 앞뒤를 공헌이익 두 상태로 세운다 —
+ * 예외승인이 없었다면 남았을 값과 실제로 남은 값. 둘의 차이가 정확히 예외승인
+ * 지원금이다(실측 1,033만, 예상 공헌이익의 65.1%).
+ *
+ * "예외승인 지원금 포함 공헌이익"과 "최종 공헌이익"은 같은 값이라 단계를 나누지
+ * 않았다(2026-09-10 실측 둘 다 5,542,929) — 정의상 같은 것의 두 이름이다.
+ *
+ * 첫 단계 sales는 **수수료성 매출이고 GMV가 아니다** — 예외승인 130건 실측으로
+ * sales 6,975만 vs gmv 1억6,426만(42.5%)이다. 온톨로지 prop_item_pnl.sales 정의는
+ * "매출(BM1=수수료, BM2·3=자동견적연동값)"이고 인터넷은 BM2다(대손비가 BM2에서만
+ * 비영이라는 실측과 일치). 상세표 헤더·계산공식 팝오버가 "수수료"라 부르므로
+ * 라벨도 "수수료 매출"로 맞췄다(2026-09-10).
+ *
+ * 1→2단계 사이에는 렌트리 지원금·대손비·상품권이 들어간다 — 막대로 세우지 않는
+ * 대신 섹션 설명문에 금액을 적어 감춰진 차감이 없게 한다. 둘 다 0에서 시작하는
+ * 앵커라 계단이 아니라 "매출 대비 공헌이익" 대비로 읽히므로 설명 없는 워터폴
+ * 단계가 되지 않는다.
+ *
+ * 타겟마진·대손비 영향액(KPI 3종)은 이 워터폴에 이어붙일 수 없다 — 순차 차감이
+ * 아니라 최종 공헌이익 하나를 두 버퍼와 각각 견주는 독립 판정이다(computeRowImpact).
  */
 function buildWaterfallData(rows: PropItemRow[]): WaterfallStage[] {
   const exceptionRows = rows.filter(isException);
   let totalSales = 0;
-  let totalSubsidy = 0;
+  let totalOurSubsidy = 0;
+  let totalExceptionAmount = 0;
+  let totalBadDebt = 0;
+  let totalVoucher = 0;
   let totalContribution = 0;
 
   for (const r of exceptionRows) {
     const impact = computeRowImpact(r);
     totalSales += impact.sales;
-    totalSubsidy += impact.totalSubsidy;
+    totalOurSubsidy += impact.ourSubsidy;
+    totalExceptionAmount += impact.exceptionAmount;
+    totalBadDebt += impact.badDebt;
+    totalVoucher += impact.voucher;
     totalContribution += impact.contributionMargin;
   }
 
-  const afterSubsidy = totalSales - totalSubsidy;
+  // 예외승인이 없었다면 남았을 공헌이익 = 실제 공헌이익 + 예외승인 지원금.
+  // computeRowImpact의 공헌이익에서 예외승인분만 되돌린 값이라 정의가 갈리지 않는다.
+  const expectedContribution = totalContribution + totalExceptionAmount;
 
   return [
-    { label: "매출", value: Math.round(totalSales), delta: 0, isAnchor: true },
-    { label: "예외승인 지원금", value: Math.round(afterSubsidy), delta: Math.round(-totalSubsidy), isAnchor: false },
-    { label: "지원금 차감 후 매출", value: Math.round(afterSubsidy), delta: 0, isAnchor: true },
-    { label: "최종 공헌이익", value: Math.round(totalContribution), delta: 0, isAnchor: true },
+    { label: "수수료 매출", value: Math.round(totalSales), delta: 0, isAnchor: true },
+    {
+      label: "예외승인 안 했을 때 공헌이익",
+      value: Math.round(expectedContribution),
+      delta: 0,
+      isAnchor: true,
+    },
+    {
+      label: "예외승인 지원금",
+      value: Math.round(totalContribution),
+      delta: Math.round(-totalExceptionAmount),
+      isAnchor: false,
+    },
+    {
+      label: "예외승인 시 공헌이익",
+      value: Math.round(totalContribution),
+      delta: 0,
+      isAnchor: true,
+    },
   ];
+}
+
+/**
+ * 1→2단계 사이에 들어가는 항 — 섹션 설명문에 노출해 감춰진 차감이 없게 한다.
+ */
+export type WaterfallBridge = {
+  ourSubsidy: number;
+  badDebt: number;
+  voucher: number;
+};
+
+function buildWaterfallBridge(rows: PropItemRow[]): WaterfallBridge {
+  const exceptionRows = rows.filter(isException);
+  let ourSubsidy = 0;
+  let badDebt = 0;
+  let voucher = 0;
+  for (const r of exceptionRows) {
+    const impact = computeRowImpact(r);
+    ourSubsidy += impact.ourSubsidy;
+    badDebt += impact.badDebt;
+    voucher += impact.voucher;
+  }
+  return {
+    ourSubsidy: Math.round(ourSubsidy),
+    badDebt: Math.round(badDebt),
+    voucher: Math.round(voucher),
+  };
 }
 
 function buildContributionComparison(rows: PropItemRow[]): ContributionComparison {
@@ -513,13 +580,15 @@ export default async function ExceptionApprovalPage() {
   const overallSummary = buildOverallSummary(rows);
   const exceptionDetails = buildExceptionDetails(rows);
   const waterfallData = buildWaterfallData(rows);
+  const waterfallBridge = buildWaterfallBridge(rows);
 
   return (
     <div className="px-12 py-6 mx-auto">
+      {/* 제목은 상단바(Header)가 진다 — 1차 내비 화면은 본문에서 h1을 다시 세우지 않는다 */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[#222222]">예외승인 손익 분석</h1>
-        <p className="text-sm text-[#788093] mt-1">
-          타사 지원금이 매출·타겟마진·대손비용에 미치는 영향과 역마진 여부를 분석합니다
+        <p className="text-sm text-[#788093]">
+          타사 지원금이 수수료 매출·타겟마진·대손비용에 미치는 영향과 역마진 여부를
+          분석합니다
         </p>
       </div>
       <ExceptionApprovalClient
@@ -528,6 +597,7 @@ export default async function ExceptionApprovalPage() {
         overallSummary={overallSummary}
         exceptionDetails={exceptionDetails}
         waterfallData={waterfallData}
+        waterfallBridge={waterfallBridge}
       />
     </div>
   );
