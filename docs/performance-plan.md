@@ -105,3 +105,27 @@ aggregate functions is not allowed`). 켜면 `select=rental_company,category,cou
 
 - 경계선 아래(사이드바 `기타 분석`) 레거시 페이지의 성능은 측정만 하고 두었다.
 - `raw_orders` / `raw_contracts` 인덱스 상태는 확인하지 않았다. 3단계 전에 볼 것.
+
+## PHASE 2 전 기준선 (캐시 전)
+
+측정일 2026-09-11. base URL `http://localhost:4100`(프로덕션 빌드, `npm run build && PORT=4100 npm run start`).
+`~/.claude/scripts/measure-pages.mjs`로 페이지별 1차 요청과 2차 이후 5회 중앙값을 잰 결과:
+
+```
+base=http://localhost:4100  runs=5
+
+페이지                             1차      2차 중앙값  범위
+/                           1984ms      1712ms  1540~2105ms
+/companies                  1215ms      2265ms  1263~3111ms
+/categories                 1962ms      2386ms  1396~3078ms
+/categories/정수기             2106ms      3861ms  2460~4599ms
+/company/코웨이                6701ms      5452ms  3306~8331ms
+/exception-approval         8797ms       950ms  763~1045ms
+```
+
+6개 페이지 전부 HTTP 200. 캐시가 없는 상태이므로 조건이 성립한 페이지(`/`, `/companies`,
+`/categories`, `/categories/정수기`, `/company/코웨이`)는 1차와 2차가 비슷하게 느리다.
+`/exception-approval`만 1차(8797ms)가 2차 중앙값(950ms)보다 크게 높게 나왔는데, 재현
+여부는 확인하지 않았다 — PHASE 2 캐시 도입 후 전후 비교 시 이 페이지는 참고만 할 것.
+
+이 표가 **PHASE 2(캐시) 적용 전의 기준선**이다. 같은 스크립트로 이후 재측정해 비교한다.
