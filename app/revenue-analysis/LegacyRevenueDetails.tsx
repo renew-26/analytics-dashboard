@@ -224,35 +224,27 @@ export default async function LegacyRevenueDetails({
   const categoryChartYDomainWeekly = chartYDomain(weeklyChart, categoryGraphSeries);
 
   return (
-    <details className="group">
-      <summary className="text-sm font-semibold text-[var(--color-gray-700)] cursor-pointer list-none flex items-center gap-2 select-none">
-        <span className="text-[var(--color-gray-400)] group-open:rotate-90 transition-transform inline-block">▶</span>
-        상세 데이터 — 월별·주차별 매출액 표
-      </summary>
-      <div className="mt-3">
-        <RevenueAmountSection
-          monthly={{
-            columns: revenueMonthlyColumns,
-            catAmounts: catAmountsByMonth,
-            bmAmounts: bmAmountsByMonth,
-            rcAmounts: rcAmountsByMonth,
-            totals: totalsByMonth,
-            chart: categoryChartMonthly,
-          }}
-          weekly={{
-            columns: weeklyColumns,
-            catAmounts: catAmountsByWeek,
-            bmAmounts: bmAmountsByWeek,
-            rcAmounts: rcAmountsByWeek,
-            totals: totalsByWeek,
-            chart: weeklyChart,
-          }}
-          waterSeries={waterCategorySeries}
-          categorySeries={categoryGraphSeries}
-          categoryChartYDomainMonthly={categoryChartYDomainMonthly}
-          categoryChartYDomainWeekly={categoryChartYDomainWeekly}
-        />
-      </div>
-    </details>
+    <RevenueAmountSection
+      monthly={{
+        columns: revenueMonthlyColumns,
+        catAmounts: catAmountsByMonth,
+        bmAmounts: bmAmountsByMonth,
+        rcAmounts: rcAmountsByMonth,
+        totals: totalsByMonth,
+        chart: categoryChartMonthly,
+      }}
+      weekly={{
+        columns: weeklyColumns,
+        catAmounts: catAmountsByWeek,
+        bmAmounts: bmAmountsByWeek,
+        rcAmounts: rcAmountsByWeek,
+        totals: totalsByWeek,
+        chart: weeklyChart,
+      }}
+      waterSeries={waterCategorySeries}
+      categorySeries={categoryGraphSeries}
+      categoryChartYDomainMonthly={categoryChartYDomainMonthly}
+      categoryChartYDomainWeekly={categoryChartYDomainWeekly}
+    />
   );
 }

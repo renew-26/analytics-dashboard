@@ -9,6 +9,8 @@ import { fetchReviewRows, fetchCohortRows } from "@/lib/metric-review-fetch";
 import { dataAsOfLabel, EOK } from "@/lib/format";
 import BasisFilter from "@/app/components/BasisFilter";
 import BMFilter from "@/app/components/BMFilter";
+import { PendingNavProvider, PendingRegion } from "@/app/components/PendingNav";
+import LegacyDetailsShell from "@/app/components/LegacyDetailsShell";
 import { getBM } from "@/lib/company-map";
 import KpiStrip from "@/app/components/metric-review/KpiStrip";
 import TrendPanel from "@/app/components/metric-review/TrendPanel";
@@ -32,7 +34,7 @@ function windowStart(asOf: string): string {
 export default async function RevenueAnalysisPage({
   searchParams,
 }: {
-  searchParams: Promise<{ basis?: string; bm?: string }>;
+  searchParams: Promise<{ basis?: string; bm?: string; details?: string }>;
 }) {
   const sp = await searchParams;
   const basis: Basis = sp.basis === "contract" ? "contract" : "order";
@@ -44,6 +46,14 @@ export default async function RevenueAnalysisPage({
   ) as "all" | "bm1" | "bm2" | "bm3";
   const bmKey = bm.toUpperCase();
   const metric = METRICS.revenue;
+
+  // 상세 데이터 섹션은 열려 있을 때만 무거운 24개월 집계를 돈다(아래 참고).
+  const detailsOpen = sp.details === "1";
+  const detailsParams = new URLSearchParams();
+  if (basis !== "order") detailsParams.set("basis", basis);
+  if (bm !== "all") detailsParams.set("bm", bm);
+  detailsParams.set("details", "1");
+  const detailsHref = `/revenue-analysis?${detailsParams.toString()}`;
 
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
@@ -90,42 +100,54 @@ export default async function RevenueAnalysisPage({
   const prevLabel = formatShortRange(period.prev.start, period.prev.end);
 
   return (
-    <div className="px-7 py-[22px] space-y-[26px]">
-      <div className="flex items-start justify-between gap-4">
-        <p className="text-[11px] leading-4 text-[var(--color-gray-500)] font-[family-name:var(--font-mono)]">
-          {dataAsOfLabel(lastSyncedAt)}
-          <span className="ml-1.5 text-[var(--color-sev-warn)]">· ⚠ 취소 미반영</span>
-        </p>
-        <div className="flex items-center gap-3 shrink-0">
-          <BasisFilter current={basis} />
-          <BMFilter current={bm} />
+    <PendingNavProvider>
+      <div className="px-7 py-[22px] space-y-[26px]">
+        <div className="flex items-start justify-between gap-4">
+          <p className="text-[11px] leading-4 text-[var(--color-gray-500)] font-[family-name:var(--font-mono)]">
+            {dataAsOfLabel(lastSyncedAt)}
+            <span className="ml-1.5 text-[var(--color-sev-warn)]">· ⚠ 취소 미반영</span>
+          </p>
+          <div className="flex items-center gap-3 shrink-0">
+            <BasisFilter current={basis} />
+            <BMFilter current={bm} />
+          </div>
         </div>
+
+        <PendingRegion>
+          <div className="space-y-[26px]">
+            <KpiStrip metricKey={metric.key} kpi={kpi} prevLabel={prevLabel} />
+
+            <div className="grid grid-cols-[2fr_1fr] gap-4">
+              <TrendPanel metricKey={metric.key} trend={trend} baseline={baseline} currLabel={currLabel} />
+              <CompositionPanel metricKey={metric.key} composition={composition} catSeries={catSeries()} />
+            </div>
+
+            <CauseWaterfallPanel
+              wfCategory={wfCategory} wfRental={wfRental}
+              prevLabel={prevLabel} currLabel={currLabel} decimals={2} unit="억"
+            />
+
+            <div className="grid grid-cols-3 gap-4">
+              <LadderPanel mode="pnl" pnl={pnl} currLabel={currLabel} prevLabel={prevLabel} />
+              <CohortPanel rows={cohort} leadTime={leadTime} />
+              <RankPanel metricKey={metric.key} rank={rank} />
+            </div>
+
+            <LegacyDetailsShell
+              open={detailsOpen}
+              label="상세 데이터 — 월별·주차별 매출액 표"
+              openHref={detailsHref}
+            >
+              <Suspense fallback={<DetailsSkeleton />}>
+                <LegacyRevenueDetails basis={basis} />
+              </Suspense>
+            </LegacyDetailsShell>
+
+            <MetricDefinitions basis={basis} metric={metric} />
+          </div>
+        </PendingRegion>
       </div>
-
-      <KpiStrip metricKey={metric.key} kpi={kpi} prevLabel={prevLabel} />
-
-      <div className="grid grid-cols-[2fr_1fr] gap-4">
-        <TrendPanel metricKey={metric.key} trend={trend} baseline={baseline} currLabel={currLabel} />
-        <CompositionPanel metricKey={metric.key} composition={composition} catSeries={catSeries()} />
-      </div>
-
-      <CauseWaterfallPanel
-        wfCategory={wfCategory} wfRental={wfRental}
-        prevLabel={prevLabel} currLabel={currLabel} decimals={2} unit="억"
-      />
-
-      <div className="grid grid-cols-3 gap-4">
-        <LadderPanel mode="pnl" pnl={pnl} currLabel={currLabel} prevLabel={prevLabel} />
-        <CohortPanel rows={cohort} leadTime={leadTime} />
-        <RankPanel metricKey={metric.key} rank={rank} />
-      </div>
-
-      <Suspense fallback={<DetailsSkeleton />}>
-        <LegacyRevenueDetails basis={basis} />
-      </Suspense>
-
-      <MetricDefinitions basis={basis} metric={metric} />
-    </div>
+    </PendingNavProvider>
   );
 }
 

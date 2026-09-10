@@ -666,12 +666,7 @@ export default async function LegacyDetails({
   const categoryChartYDomainWeekly = chartYDomain(weeklyChart);
 
   return (
-    <details className="group">
-      <summary className="text-sm font-semibold text-[var(--color-gray-700)] cursor-pointer list-none flex items-center gap-2 select-none">
-        <span className="text-[var(--color-gray-400)] group-open:rotate-90 transition-transform inline-block">▶</span>
-        상세 데이터 — 카테고리 목표 · 동기간 비교 · 거래건수 표 · BM 수익성
-      </summary>
-      <div className="mt-3 space-y-8">
+    <div className="space-y-8">
       {/* ── Section 0 ── */}
       <div>
         <h2 className="text-base font-semibold text-gray-700 mb-3">
@@ -1022,6 +1017,5 @@ export default async function LegacyDetails({
         </div>
       </details>
       </div>
-    </details>
   );
 }
