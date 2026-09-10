@@ -21,6 +21,7 @@ import type {
   OverallSummary,
   ExceptionDetail,
   WaterfallStage,
+  WaterfallBridge,
   ImpactCategory,
 } from "./page";
 
@@ -30,6 +31,7 @@ type Props = {
   overallSummary: OverallSummary;
   exceptionDetails: ExceptionDetail[];
   waterfallData: WaterfallStage[];
+  waterfallBridge: WaterfallBridge;
 };
 
 export default function ExceptionApprovalClient({
@@ -38,19 +40,27 @@ export default function ExceptionApprovalClient({
   overallSummary,
   exceptionDetails,
   waterfallData,
+  waterfallBridge,
 }: Props) {
   return (
     <div className="space-y-6">
-      {/* ─── 1. 예외승인 손익 현황 (KPI) ─── */}
-      <SummaryCards summary={overallSummary} />
+      {/* 화면 순서는 결과 → 원인/구성 → 추이다. 이 화면을 여는 이유가
+          "예외승인을 해준 결과 손익에 얼마나 영향을 줬나"라서 그 답(최종 손익
+          영향액)이 첫 화면 왼쪽 위에 온다. */}
 
-      {/* ─── 2. 지원금 → 손익 영향 워터폴 ─── */}
-      <WaterfallSection stages={waterfallData} />
+      {/* ─── 1. 핵심 KPI (결과) ─── */}
+      <KpiSection summary={overallSummary} />
 
-      {/* ─── 3. 손익 영향 현황 (5단계 분류) ─── */}
-      <ImpactBreakdownCard exceptionDetails={exceptionDetails} />
+      {/* ─── 2. 예외승인으로 인한 손익 영향 (구성 — 워터폴) ─── */}
+      <PnlImpactSection stages={waterfallData} bridge={waterfallBridge} />
 
-      {/* ─── 4. 월별 트래킹 차트 ─── */}
+      {/* ─── 3. 손익 영향 유형 (구성 — 어느 유형에서 나왔나) ─── */}
+      <ImpactBreakdownCard
+        exceptionDetails={exceptionDetails}
+        totalImpact={overallSummary.totalImpactAmount}
+      />
+
+      {/* ─── 4. 월별 트래킹 (추이) ─── */}
       <MonthlyChart monthlySummary={monthlySummary} />
 
       {/* ─── 5. 예외승인 월별 상세 현황 (월 클릭 → 건별 상세) ─── */}
@@ -62,100 +72,179 @@ export default function ExceptionApprovalClient({
   );
 }
 
-// ─── 1. Summary Cards ────────────────────────────────────────────────────────
+// ─── 1. 핵심 KPI (결과) ──────────────────────────────────────────────────────
 
-function SummaryCards({ summary }: { summary: OverallSummary }) {
-  const cards: {
-    label: string;
-    value: string;
-    sub: string;
-    accent?: "warning" | "critical";
-  }[] = [
-    {
-      label: "예외승인 건수",
-      value: `${summary.exceptionCount.toLocaleString("ko-KR")}건`,
-      sub: `전체 ${summary.totalCount.toLocaleString("ko-KR")}건`,
-    },
-    {
-      label: "예외승인 비율",
-      value: `${summary.exceptionRate}%`,
-      sub: "전체 대비",
-      accent: summary.exceptionRate > 15 ? "warning" : undefined,
-    },
-    {
-      label: "타사 지원금 총액",
-      value: formatKRW(summary.exceptionAmount, true),
-      sub: "예외승인으로 지급된 타사 지원금",
-    },
-    {
-      label: "타겟마진 영향액",
-      value: formatKRW(summary.totalTargetMarginHit, true),
-      sub: `${summary.marginHitRate}% 건에서 발생`,
-      accent: summary.totalTargetMarginHit > 0 ? "warning" : undefined,
-    },
-    {
-      label: "대손비용 영향액",
-      value: formatKRW(summary.totalBadDebtHit, true),
-      sub: `${summary.badDebtHitRate}% 건에서 발생`,
-      accent: summary.totalBadDebtHit > 0 ? "warning" : undefined,
-    },
-    {
-      label: "최종 손익 영향액",
-      value: formatKRW(summary.totalImpactAmount, true),
-      sub: "타겟마진+대손비+역마진 합",
-      accent: summary.totalImpactAmount > 0 ? "warning" : undefined,
-    },
-    {
-      label: "역마진 건수",
-      value: `${summary.reverseMarginCount.toLocaleString("ko-KR")}건`,
-      sub: "공헌이익 자체가 마이너스인 건",
-      accent: summary.reverseMarginCount > 0 ? "critical" : undefined,
-    },
-    {
-      label: "역마진 비율",
-      value: `${summary.reverseMarginRate}%`,
-      sub: "예외승인 건 대비",
-      accent: summary.reverseMarginRate > 0 ? "critical" : undefined,
-    },
-  ];
-
+/**
+ * 이 화면의 히어로는 최종 손익 영향액이다 — 예외승인을 해준 결과 회사 손익이 얼마나
+ * 깎였는지가 이 화면을 여는 이유고, 건수·비율은 그 규모를 재는 보조 지표다.
+ *
+ * 히어로 바로 옆에 타겟마진·대손비 영향을 두는 건 그 둘의 합이 곧 히어로 값이기
+ * 때문이다(568만 + 92만 = 660만) — 붙여 놓으면 합이 눈으로 검산된다.
+ */
+function KpiSection({ summary }: { summary: OverallSummary }) {
   return (
     <section>
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-lg font-bold text-[#222222]">예외승인 손익 현황</h2>
+      <div className="flex items-center justify-between mb-1">
+        <h2 className="text-lg font-bold text-[#222222]">예외승인 핵심 지표</h2>
         <span className="text-xs text-[#a1a5ac]">전체 기준</span>
       </div>
+      <p className="text-xs text-[#a1a5ac] mb-4">
+        예외승인 {summary.exceptionCount.toLocaleString("ko-KR")}건이 회사 손익에 남긴
+        영향과 그 규모입니다
+      </p>
+
+      {/* 히어로(2칸) + 그 구성 2칸 */}
       <div className="grid grid-cols-4 gap-3">
-        {cards.map((card) => (
-          <div
-            key={card.label}
-            className="bg-white border border-[#ebebe9] rounded-xl p-5 flex flex-col"
-          >
-            <span className="text-xs font-medium text-[#788093] mb-2">
-              {card.label}
-            </span>
-            <span
-              className={`text-xl font-bold ${
-                card.accent === "critical"
-                  ? "text-[#F90000]"
-                  : card.accent === "warning"
-                    ? "text-[#FF7700]"
-                    : "text-[#222222]"
-              }`}
-            >
-              {card.value}
-            </span>
-            <span className="text-[11px] text-[#a1a5ac] mt-1">{card.sub}</span>
-          </div>
-        ))}
+        <HeroKpi summary={summary} />
+        <KpiCard
+          label="타겟마진 영향액"
+          value={formatKRW(summary.totalTargetMarginHit, true)}
+          sub={`${summary.marginHitRate}% 건에서 발생`}
+          accent="warning"
+        />
+        <KpiCard
+          label="대손비용 영향액"
+          value={formatKRW(summary.totalBadDebtHit, true)}
+          sub={`${summary.badDebtHitRate}% 건에서 발생`}
+          accent="warning"
+        />
+      </div>
+
+      {/* 규모 지표 — 영향액을 읽은 다음에 보는 값이라 아래 줄 */}
+      <div className="grid grid-cols-4 gap-3 mt-3">
+        <KpiCard
+          label="예외승인 건수"
+          value={`${summary.exceptionCount.toLocaleString("ko-KR")}건`}
+          sub={`전체 ${summary.totalCount.toLocaleString("ko-KR")}건`}
+        />
+        <KpiCard
+          label="예외승인 비율"
+          value={`${summary.exceptionRate}%`}
+          sub="전체 대비"
+          accent={summary.exceptionRate > 15 ? "warning" : undefined}
+        />
+        <KpiCard
+          label="역마진 건수"
+          value={`${summary.reverseMarginCount.toLocaleString("ko-KR")}건`}
+          sub="공헌이익 자체가 마이너스인 건"
+          accent={summary.reverseMarginCount > 0 ? "critical" : undefined}
+        />
+        <KpiCard
+          label="역마진 비율"
+          value={`${summary.reverseMarginRate}%`}
+          sub="예외승인 건 대비"
+          accent={summary.reverseMarginRate > 0 ? "critical" : undefined}
+        />
       </div>
     </section>
   );
 }
 
-// ─── 2. Waterfall ────────────────────────────────────────────────────────────
+/**
+ * 히어로 타일 — 2칸을 쓰고 값은 KPI 스케일 24/28(DESIGN.md 히어로 타일).
+ * 심각도색에는 항상 텍스트 라벨을 붙인다(DESIGN.md) — 값 아래 구성 문구가 그 역할.
+ */
+function HeroKpi({ summary }: { summary: OverallSummary }) {
+  return (
+    <div className="col-span-2 bg-white border border-[#ebebe9] rounded-xl p-5 flex flex-col justify-center">
+      <span className="text-xs font-medium text-[#788093] mb-2">
+        최종 손익 영향액
+      </span>
+      <span className="num text-2xl font-bold text-[var(--color-sev-crit)] tracking-[-0.4px]">
+        {formatKRW(summary.totalImpactAmount, true)}
+      </span>
+      <span className="text-[11px] text-[#586177] mt-2">
+        타겟마진 영향 {formatKRW(summary.totalTargetMarginHit, true)} + 대손비 영향{" "}
+        {formatKRW(summary.totalBadDebtHit, true)}
+      </span>
+      <span className="text-[11px] text-[#a1a5ac] mt-0.5">
+        예외승인 {summary.exceptionCount.toLocaleString("ko-KR")}건 합산 · 역마진{" "}
+        {summary.reverseMarginCount}건 포함
+      </span>
+    </div>
+  );
+}
 
-function WaterfallSection({ stages }: { stages: WaterfallStage[] }) {
+function KpiCard({
+  label,
+  value,
+  sub,
+  accent,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+  accent?: "warning" | "critical";
+}) {
+  return (
+    <div className="bg-white border border-[#ebebe9] rounded-xl p-5 flex flex-col">
+      <span className="text-xs font-medium text-[#788093] mb-2">{label}</span>
+      <span
+        className={`num text-xl font-bold ${
+          accent === "critical"
+            ? "text-[#F90000]"
+            : accent === "warning"
+              ? "text-[#FF7700]"
+              : "text-[#222222]"
+        }`}
+      >
+        {value}
+      </span>
+      <span className="text-[11px] text-[#a1a5ac] mt-1">{sub}</span>
+    </div>
+  );
+}
+
+// ─── 2. 예외승인으로 인한 손익 영향 (워터폴) ─────────────────────────────────
+
+function PnlImpactSection({
+  stages,
+  bridge,
+}: {
+  stages: WaterfallStage[];
+  bridge: WaterfallBridge;
+}) {
+  return (
+    <section>
+      <h2 className="text-lg font-bold text-[#222222] mb-1">
+        예외승인으로 인한 손익 영향
+      </h2>
+      <p className="text-xs text-[#a1a5ac] mb-4">
+        예외승인이 없었다면 남았을 공헌이익과, 예외승인 지원금이 그중 얼마를 깎아 실제
+        공헌이익이 됐는지 보여줍니다. 수수료 매출과 공헌이익 사이에는 렌트리 지원금{" "}
+        {formatKRW(bridge.ourSubsidy, true)}·대손비 {formatKRW(bridge.badDebt, true)}이
+        차감되고 상품권 {formatKRW(bridge.voucher, true)}이 더해집니다.
+      </p>
+      <WaterfallChart stages={stages} />
+    </section>
+  );
+}
+
+// ─── Waterfall chart ────────────────────────────────────────────────────────────
+
+/**
+ * 이 차트의 주인공은 손익에 영향을 주는 항목이다 — 예외승인 지원금(차감)이 sev-crit,
+ * 공헌이익 두 상태가 primary, 수수료 매출은 뒤로 물려 gray-250이다. 매출은 규모를
+ * 가늠하는 기준면일 뿐이고 여기서 판단할 대상이 아니라, 가장 큰 막대가 시선을
+ * 가져가지 않게 채도를 뺐다.
+ *
+ * 방향색(up/down)을 쓰지 않는다 — 이 막대는 기간 대비 증감이 아니라 매출을 공헌이익까지
+ * 쪼갠 구성 항목이고, 감소=파랑(--color-down)을 쓰면 앵커의 primary(둘 다 파랑 계열)와
+ * 구분이 죽는다. 색이 단독으로 뜻을 지지 않도록 각 막대에 축 라벨과 툴팁 "차감/가산"
+ * 표기가 함께 붙는다(DESIGN.md).
+ */
+function waterfallBarColor(d: {
+  isAnchor: boolean;
+  displayValue: number;
+  isBaseline?: boolean;
+}): string {
+  if (d.isBaseline) return "var(--color-gray-250)";
+  if (d.isAnchor) return "var(--color-primary)";
+  return d.displayValue < 0 ? "var(--color-sev-crit)" : "var(--color-success)";
+}
+
+
+function WaterfallChart({ stages }: { stages: WaterfallStage[] }) {
   // stages[i].value는 이미 "이 단계까지의 누적 합계"라서(page.tsx buildWaterfallData),
   // 델타 막대의 시작점은 그냥 바로 앞 단계의 value다 — 변수를 따로 누적할 필요가 없다.
   const chartData = useMemo(() => {
@@ -167,6 +256,8 @@ function WaterfallSection({ stages }: { stages: WaterfallStage[] }) {
           bar: s.value,
           isAnchor: true,
           displayValue: s.value,
+          // 첫 단계는 수수료 매출 — 판단 대상이 아니라 기준면이라 색을 물린다
+          isBaseline: i === 0,
         };
       }
       const before = i > 0 ? stages[i - 1].value : 0;
@@ -179,18 +270,13 @@ function WaterfallSection({ stages }: { stages: WaterfallStage[] }) {
         bar,
         isAnchor: false,
         displayValue: s.delta,
+        isBaseline: false,
       };
     });
   }, [stages]);
 
   return (
-    <section>
-      <h2 className="text-lg font-bold text-[#222222] mb-1">지원금 → 손익 영향</h2>
-      <p className="text-xs text-[#a1a5ac] mb-4">
-        예외승인 건 전체 합산 — 매출에서 예외승인 지원금이 얼마나 깎여 최종
-        공헌이익에 이르는지 보여줍니다
-      </p>
-      <div className="bg-white border border-[#ebebe9] rounded-xl p-5">
+    <div className="bg-white border border-[#ebebe9] rounded-xl p-5">
         <ResponsiveContainer width="100%" height={320}>
           <BarChart data={chartData} margin={{ top: 24, right: 12, left: 12, bottom: 8 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f3f5f9" vertical={false} />
@@ -211,19 +297,19 @@ function WaterfallSection({ stages }: { stages: WaterfallStage[] }) {
               contentStyle={{ borderRadius: 8, border: "1px solid #e2e6ec", fontSize: 12 }}
               formatter={(_value, _name, entry) => {
                 const d = entry.payload as (typeof chartData)[number];
-                return [formatKRW(d.displayValue, true), d.isAnchor ? "누적" : "변동"];
+                if (d.isAnchor) return [formatKRW(d.displayValue, true), "합계"];
+                return [formatKRW(d.displayValue, true), d.displayValue < 0 ? "차감" : "가산"];
               }}
             />
             <Bar dataKey="base" stackId="wf" fill="transparent" isAnimationActive={false} />
             <Bar {...CHART_ANIM} dataKey="bar" stackId="wf" radius={[4, 4, 0, 0]}>
               {chartData.map((d, i) => (
-                <Cell key={i} fill={d.isAnchor ? "var(--color-primary)" : "#F90000"} />
+                <Cell key={i} fill={waterfallBarColor(d)} />
               ))}
             </Bar>
           </BarChart>
-        </ResponsiveContainer>
-      </div>
-    </section>
+      </ResponsiveContainer>
+    </div>
   );
 }
 
@@ -238,10 +324,17 @@ const IMPACT_ORDER: ImpactCategory[] = [
   "reverse",
 ];
 
+/**
+ * 히어로 KPI의 최종 손익 영향액이 "어느 유형에서 나왔는지"를 받는 섹션이라,
+ * 건수보다 유형별 금액이 앞선다 — 660만이 51건·31건·22건 어디서 만들어졌는지가
+ * 이 섹션이 답할 것이고, 건수는 그 금액이 몇 건에 걸쳐 있는지를 말한다.
+ */
 function ImpactBreakdownCard({
   exceptionDetails,
+  totalImpact,
 }: {
   exceptionDetails: ExceptionDetail[];
+  totalImpact: number;
 }) {
   const stats = useMemo(() => {
     const acc: Record<ImpactCategory, { count: number; amount: number }> = {
@@ -259,13 +352,14 @@ function ImpactBreakdownCard({
   }, [exceptionDetails]);
 
   const total = exceptionDetails.length;
-  const maxCount = Math.max(...IMPACT_ORDER.map((k) => stats[k].count), 1);
+  const maxAmount = Math.max(...IMPACT_ORDER.map((k) => stats[k].amount), 0);
 
   return (
     <section>
-      <h2 className="text-lg font-bold text-[#222222] mb-1">손익 영향 현황</h2>
+      <h2 className="text-lg font-bold text-[#222222] mb-1">손익 영향 유형</h2>
       <p className="text-xs text-[#a1a5ac] mb-4">
-        예외승인 {total.toLocaleString("ko-KR")}건을 영향 범위별로 분류합니다
+        최종 손익 영향액 {formatKRW(totalImpact, true)}이 예외승인{" "}
+        {total.toLocaleString("ko-KR")}건 중 어느 유형에서 만들어졌는지 보여줍니다
       </p>
       <div className="bg-white border border-[#ebebe9] rounded-xl p-6">
         <div className="grid grid-cols-4 gap-4">
@@ -281,22 +375,34 @@ function ImpactBreakdownCard({
                 >
                   {label.text}
                 </span>
-                <span className="text-xl font-bold text-[#222222]">
-                  {s.count.toLocaleString("ko-KR")}건
+                {/* 손익 영향액이 이 섹션의 값이다 — "영향 없음"은 0원이라 대시로 둔다 */}
+                <span
+                  className="num text-xl font-bold"
+                  // label.color는 배지 위 글씨용이라 reverse에서 흰색이다 — 흰 카드
+                  // 위 금액에는 흰 면 대비가 검증된 barColor를 쓴다(위 IMPACT_LABEL 주석)
+                  style={{
+                    color: s.amount > 0 ? label.barColor : "var(--color-gray-400)",
+                  }}
+                >
+                  {s.amount > 0 ? formatKRW(s.amount, true) : "—"}
                 </span>
-                <span className="text-[11px] text-[#a1a5ac] mt-0.5">{rate}%</span>
+                <span className="num text-[11px] text-[#586177] mt-1">
+                  {s.count.toLocaleString("ko-KR")}건 · {rate}%
+                </span>
+                {/* 막대는 금액 비중 — 위 숫자와 같은 것을 재야 눈과 값이 어긋나지 않는다.
+                    "영향 없음"은 0원이라 막대가 없고, 건수는 아래 캡션이 맡는다. */}
                 <div className="w-full h-1.5 bg-[#f3f5f9] rounded-full overflow-hidden mt-3">
                   <div
                     className="h-full rounded-full"
                     style={{
-                      width: `${Math.max(2, (s.count / maxCount) * 100)}%`,
+                      width: `${maxAmount > 0 ? (s.amount / maxAmount) * 100 : 0}%`,
                       backgroundColor: label.barColor,
                     }}
                   />
                 </div>
                 {s.amount > 0 && (
-                  <span className="text-[11px] text-[#586177] mt-2">
-                    {formatKRW(s.amount, true)}
+                  <span className="text-[11px] text-[#a1a5ac] mt-2">
+                    전체 영향의 {Math.round((s.amount / totalImpact) * 100)}%
                   </span>
                 )}
               </div>
@@ -331,12 +437,17 @@ function MonthlyChart({
         예외승인 월별 트래킹
       </h2>
       <p className="text-xs text-[#a1a5ac] mb-4">
-        월별 예외승인 건수·지원금·손익 영향 추이
+        왼쪽은 얼마나 발생했는가, 오른쪽은 그것이 손익에 얼마를 남겼는가입니다
       </p>
 
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-white border border-[#ebebe9] rounded-xl p-5">
-          <h3 className="text-xs font-bold text-[#586177] mb-3">건수·비율·역마진</h3>
+          <div className="mb-3">
+            <h3 className="text-xs font-bold text-[#586177]">
+              예외승인 건수·비율·역마진 추이
+            </h3>
+            <p className="text-[11px] text-[#a1a5ac]">얼마나 발생했는가</p>
+          </div>
           <ResponsiveContainer width="100%" height={240}>
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f3f5f9" />
@@ -397,7 +508,12 @@ function MonthlyChart({
         </div>
 
         <div className="bg-white border border-[#ebebe9] rounded-xl p-5">
-          <h3 className="text-xs font-bold text-[#586177] mb-3">지원금·마진영향·대손영향</h3>
+          <div className="mb-3">
+            <h3 className="text-xs font-bold text-[#586177]">
+              지원금·타겟마진·대손비용 영향 추이
+            </h3>
+            <p className="text-[11px] text-[#a1a5ac]">얼마나 손익에 영향을 줬는가</p>
+          </div>
           <ResponsiveContainer width="100%" height={240}>
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f3f5f9" />
