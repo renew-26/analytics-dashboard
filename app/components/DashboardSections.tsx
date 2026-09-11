@@ -13,6 +13,7 @@ import {
 import BmMarginSection, {
   type MarginPeriodData,
 } from "@/app/components/BmMarginSection";
+import type { PostgrestFilterBuilder } from "@supabase/postgrest-js";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -201,6 +202,32 @@ async function fetchAllYearContracts(
 // ── 섹션 0: 카테고리 목표 ────────────────────────────
 const EXCLUDED_CATS = ["정수기", "비데", "공기청정기", "인터넷", "타이어"];
 
+// count 전용 쿼리 빌더 타입. `.not(col, "is", null)` 은 postgrest-js 에서 Row/Result
+// 제네릭을 널-내로잉하는 오버로드(`& this` 교차 타입)를 반환한다 — 이걸 GOAL_ROWS.flatMap
+// 안에서 인라인으로 만들고 분기별 추가 필터(or/not/in)까지 체이닝한 뒤 flatMap 의 유니언
+// 반환 타입과 합치면 TS2589(Type instantiation is excessively deep)가 난다. 아래처럼
+// 리턴 타입을 명시해 그 교차·내로잉 타입을 함수 경계에서 한 번에 넓혀두면, 호출부의
+// 체이닝은 이 단순한 타입 위에서만 일어나 깊이가 줄어든다 — 쿼리 자체(런타임 동작)는 그대로.
+type CountQuery = PostgrestFilterBuilder<any, any, any, any, any, any, any>;
+
+function orderCountQuery(start: string, end: string): CountQuery {
+  return supabase
+    .from("raw_prop_items")
+    .select("*", { count: "exact", head: true })
+    .not("order_confirmed_at", "is", null)
+    .gte("order_confirmed_at", start)
+    .lte("order_confirmed_at", end);
+}
+
+function contractCountQuery(start: string, end: string): CountQuery {
+  return supabase
+    .from("raw_prop_items")
+    .select("*", { count: "exact", head: true })
+    .not("contract_date", "is", null)
+    .gte("contract_date", start)
+    .lte("contract_date", end);
+}
+
 const GOAL_ROWS: {
   label: string;
   orderGoal: number;
@@ -254,18 +281,8 @@ export default async function DashboardSections({
   ] = await Promise.all([
     Promise.all(
       GOAL_ROWS.flatMap((row) => {
-        const oQ: any = supabase
-          .from("raw_prop_items")
-          .select("*", { count: "exact", head: true })
-          .not("order_confirmed_at", "is", null)
-          .gte("order_confirmed_at", start)
-          .lte("order_confirmed_at", end);
-        const cQ: any = supabase
-          .from("raw_prop_items")
-          .select("*", { count: "exact", head: true })
-          .not("contract_date", "is", null)
-          .gte("contract_date", start)
-          .lte("contract_date", end);
+        const oQ = orderCountQuery(start, end);
+        const cQ = contractCountQuery(start, end);
         if (row.excludeOthers)
           return [
             oQ.or(
