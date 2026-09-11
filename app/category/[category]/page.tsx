@@ -105,10 +105,11 @@ async function fetchContracts(
   let from = 0;
   while (true) {
     const { data, error } = await supabase
-      .from("raw_contracts")
+      .from("raw_prop_items")
       .select(
         "contract_date, rental_company, product_name, model_name, monthly_fee, total_rental_fee, contribution_margin, contract_months, partner_company",
       )
+      .not("contract_date", "is", null)
       .eq("category", category)
       .gte("contract_date", start)
       .lte("contract_date", end)
@@ -592,7 +593,7 @@ export default async function CategoryDetailPage({
         {!known && allRows.length === 0 ? (
           <EmptyState>
             <b>{category}</b> 카테고리의 계약완료 데이터가 {fetchStart} 이후
-            구간에 없습니다. 카테고리명이 <code>raw_contracts.category</code> 값과
+            구간에 없습니다. 카테고리명이 <code>raw_prop_items.category</code> 값과
             일치하는지 확인하세요.
           </EmptyState>
         ) : null}
@@ -764,7 +765,7 @@ export default async function CategoryDetailPage({
         </Panel>
 
         <p className="text-[11px] leading-[1.7] text-[var(--color-gray-400)]">
-          출처: <code>raw_contracts</code>(계약완료) ·{" "}
+          출처: <code>raw_prop_items</code>(계약완료) ·{" "}
           <code>auto_quote_typeb</code>(가전·상조 자동견적). 기준 구간은 홈·헤더와
           동일한 <code>getPeriod()</code>를 쓴다. 모델 단위 지표는 기준 구간
           표본이 얇아 최근 3개월 창을 별도로 쓰며, 각 패널에 구간을 표기했다.
