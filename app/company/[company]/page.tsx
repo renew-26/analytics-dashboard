@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { COMPANY_MAP, dbNamesOf, getBM } from "@/lib/company-map";
 import { CATEGORY_GROUPS, catGroupOf } from "@/lib/biz-category";
 import { getPeriod, getDataAsOf, type Period } from "@/lib/period";
+import { DATE_COL } from "@/lib/date-basis";
 import { resolveTier, TIER_META } from "@/lib/tiers";
 import {
   CARD_DEFS,
@@ -605,10 +606,11 @@ async function fetchIaAllUncached(
   let from = 0;
   while (true) {
     const { data, error } = await supabase
-      .from("raw_contracts")
+      .from("raw_prop_items")
       .select(
         "contract_date, rental_company, category, partner_company, total_rental_fee, contribution_margin, sales, product_name, model_name",
       )
+      .not("contract_date", "is", null)
       .in("rental_company", dbNames)
       .gte("contract_date", `${yms[0]}-01`)
       .lte("contract_date", periodEnd)
@@ -636,10 +638,11 @@ async function fetchShareRowsUncached(
   let from = 0;
   while (true) {
     const { data, error } = await supabase
-      .from("raw_contracts")
+      .from("raw_prop_items")
       .select(
         "rental_company, category, total_rental_fee, monthly_fee, product_name, model_name",
       )
+      .not("contract_date", "is", null)
       .gte("contract_date", start)
       .lt("contract_date", end)
       .range(from, from + PAGE - 1);
@@ -664,8 +667,9 @@ async function fetchTypeInfoUncached(dbNames: string[]): Promise<TypeInfo> {
   const applianceCats = GROUP_CATEGORIES["가전&상조"];
   const countContracts2026 = async (cats?: string[]) => {
     let q = supabase
-      .from("raw_contracts")
+      .from("raw_prop_items")
       .select("category", { count: "exact", head: true })
+      .not("contract_date", "is", null)
       .in("rental_company", dbNames)
       .gte("contract_date", "2026-01-01");
     if (cats) q = q.in("category", cats);
@@ -740,16 +744,16 @@ async function fetchGrowthRowsUncached(
 ): Promise<GrowthRow[]> {
   const out: GrowthRow[] = [];
   if (positionCategories.length === 0) return out;
-  const growthTable = view === "order" ? "raw_orders" : "raw_contracts";
-  const growthDateCol =
-    view === "order" ? "order_confirmed_at" : "contract_date";
+  // 기준이 곧 테이블이던 시절의 분기가 사라졌다 — 이제 컬럼만 고른다.
+  const growthDateCol = DATE_COL[view];
   let gFrom = 0;
   while (true) {
     let q = supabase
-      .from(growthTable)
+      .from("raw_prop_items")
       .select(
         "rental_company, category, product_name, model_name, management_type, contract_months, partner_company, sales_incentive, total_rental_fee",
       )
+      .not(growthDateCol, "is", null)
       .in("category", positionCategories)
       .gte(growthDateCol, "2026-01-01");
     if (positionCompanies.length > 0)
@@ -849,10 +853,11 @@ export default async function CompanyPage({
     let from = 0;
     while (true) {
       let q = supabase
-        .from("raw_orders")
+        .from("raw_prop_items")
         .select(
           "order_confirmed_at, total_rental_fee, contribution_margin, monthly_fee, sales_incentive, contract_months, category, product_name, model_name, partner_company",
         )
+        .not("order_confirmed_at", "is", null)
         .in("rental_company", dbNames);
       if (mapping.categoryIs) {
         const cis = mapping.categoryIs;
@@ -892,10 +897,11 @@ export default async function CompanyPage({
     let from = 0;
     while (true) {
       let q = supabase
-        .from("raw_contracts")
+        .from("raw_prop_items")
         .select(
           "contract_date, total_rental_fee, contribution_margin, monthly_fee, sales_incentive, contract_months, category, product_name, model_name, partner_company",
         )
+        .not("contract_date", "is", null)
         .in("rental_company", dbNames);
       if (mapping.categoryIs) {
         const cis = mapping.categoryIs;
@@ -1821,7 +1827,7 @@ export default async function CompanyPage({
             ))}
           </dl>
           <div className="flex flex-wrap items-center gap-x-[18px] gap-y-1 border-t border-[var(--color-gray-200)] bg-[var(--color-gray-25)] p-[9px_17px] text-[11px] text-[var(--color-gray-400)]">
-            <span>계약완료(raw_contracts) 기준 · 전월 같은 일자(1–{dayCut}일) 대비</span>
+            <span>계약완료(raw_prop_items) 기준 · 전월 같은 일자(1–{dayCut}일) 대비</span>
             <span>
               BM 구성:{" "}
               {(["BM1", "BM2", "BM3"] as const)
