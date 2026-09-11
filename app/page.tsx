@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { unstable_cache } from "next/cache";
 import { createClient } from "@supabase/supabase-js";
 import { getBM } from "@/lib/company-map";
 import {
@@ -114,7 +115,8 @@ function aggregateByBM(rows: ContractRow[]) {
   return { counts, revenue, margin, badDebt, incentive, salesTotal };
 }
 
-async function fetchContracts(
+// 기존 함수는 이름만 바꿔 그대로 둔다
+async function fetchContractsUncached(
   start: string,
   end: string,
 ): Promise<ContractRow[]> {
@@ -137,6 +139,38 @@ async function fetchContracts(
   return all;
 }
 
+/**
+ * 이 페이지는 searchParams(hide2025)를 읽어 동적 렌더링이 강제되므로 라우트 세그먼트
+ * 캐싱이 안 든다. 대신 조회만 캐싱한다 — hide2025 는 표시용이라(421행) 캐시 키에
+ * 넣을 필요가 없다.
+ *
+ * unstable_cache 는 Next 16 에서 'use cache' 로 대체됐으나, 그 지시어는
+ * cacheComponents: true 를 요구하고 그걸 켜면 dynamic·revalidate·fetchCache 를
+ * export 하는 모든 라우트가 에러가 된다(21개 페이지 동시 재편). 그래서 여기서는
+ * deprecated 이지만 동작하는 이 API 를 쓴다.
+ *
+ * revalidate 86400 은 크론이 실패해도 영구히 얼지 않게 하는 안전망이다. 실제 하드
+ * 무효화는 크론의 revalidatePath("/", "layout") 가 담당한다 — revalidateTag(
+ * "dashboard-data", "max") 는 profile "max" 가 { expire: 31536000 } 로 해석돼
+ * stale: now 만 세우고 expired 는 365일 뒤라 소프트 신호에 그친다(자세한 이유는
+ * app/api/sync/cron/route.ts 의 해당 주석 참고). revalidatePath 를 "중복"으로 보고
+ * 지우면 이 캐시들의 무효화가 깨진다.
+ *
+ * unstable_cache 는 항목당 약 2MB 제한이 있다 — 넘으면 Next 가 경고 로그만 남기고
+ * 조용히 저장하지 않는다(정합성은 안 깨지고 그 조회만 캐시가 안 타는 상태로 남는다).
+ * 아래 fetchAllYearOrders(연초~, 68,455행, 6.71MB)와 fetchAllYearContracts(연초~,
+ * 45,315행, 4.19MB)는 이 한도를 넘어 실제로는 캐시되지 않는다(2026-09-11 측정).
+ * 반면 이 바로 아래 fetchContracts처럼 단일 월 구간 조회는 한도 안에 들어와 정상
+ * 캐시된다. 근본 원인은 두 조회 모두 수만 행을 통째로 내려받아 카드 수십 개 분량의
+ * 집계값을 계산하는 구조라는 점이다 — 캐싱으로는 못 고치고, 집계를 Postgres 로
+ * 미는 것(B안 / 집계 SQL)이 다음 단계다.
+ */
+const fetchContracts = unstable_cache(
+  fetchContractsUncached,
+  ["home-contracts"],
+  { tags: ["dashboard-data"], revalidate: 86400 },
+);
+
 type YearContractRow = {
   contract_date: string;
   category: string | null;
@@ -149,7 +183,8 @@ type YearContractRow = {
   contribution_margin: number | null;
 };
 
-async function fetchAllYearContracts(
+// 기존 함수는 이름만 바꿔 그대로 둔다
+async function fetchAllYearContractsUncached(
   yearStart: string,
   end: string,
 ): Promise<YearContractRow[]> {
@@ -174,13 +209,20 @@ async function fetchAllYearContracts(
   return all;
 }
 
+const fetchAllYearContracts = unstable_cache(
+  fetchAllYearContractsUncached,
+  ["home-year-contracts"],
+  { tags: ["dashboard-data"], revalidate: 86400 },
+);
+
 /** 주문확정 — 월별 스파크라인과 BM별 집계에 함께 쓴다 */
 type OrderRow = {
   order_confirmed_at: string | null;
   partner_company: string | null;
 };
 
-async function fetchAllYearOrders(
+// 기존 함수는 이름만 바꿔 그대로 둔다
+async function fetchAllYearOrdersUncached(
   yearStart: string,
   end: string,
 ): Promise<OrderRow[]> {
@@ -202,6 +244,12 @@ async function fetchAllYearOrders(
   }
   return all;
 }
+
+const fetchAllYearOrders = unstable_cache(
+  fetchAllYearOrdersUncached,
+  ["home-year-orders"],
+  { tags: ["dashboard-data"], revalidate: 86400 },
+);
 
 // ── 섹션 2: 거래건수 ─────────────────────────────────
 const KNOWN_CATS = new Set([

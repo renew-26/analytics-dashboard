@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { unstable_cache } from "next/cache";
 import { createClient } from "@supabase/supabase-js";
 import { COMPANY_MAP, dbNamesOf, getBM } from "@/lib/company-map";
 import { CATEGORY_GROUPS, catGroupOf } from "@/lib/biz-category";
-import { getPeriod, getDataAsOf } from "@/lib/period";
+import { getPeriod, getDataAsOf, type Period } from "@/lib/period";
 import { resolveTier, TIER_META } from "@/lib/tiers";
 import {
   CARD_DEFS,
@@ -481,6 +482,292 @@ function calcSummaryStats(rows: DataRow[]) {
   };
 }
 
+// lib/fetch-rows.ts와 동일. 작게 잡으면 데이터 양은 그대로인 채 왕복 횟수만 늘어난다.
+// 50000은 PostgREST max-rows 상한값 — 이보다 크게 잡으면 응답이 상한에서 잘리는데
+// 아래 루프들의 `data.length < PAGE` 종료 조건이 이를 마지막 페이지로 오인해 조용히
+// 누락된다. unstable_cache 키에 넣을 이유가 없는 상수라 모듈 스코프에 둔다.
+const PAGE = 50000;
+
+// 카테고리 포지션 — 정수기/가전 그룹 정의. 회사와 무관한 고정값이라 모듈 스코프.
+const GROUP_CATEGORIES: Record<string, string[]> = {
+  "가전&상조": [
+    "TV",
+    "세탁기+건조기",
+    "에어컨",
+    "냉장고",
+    "로봇청소기",
+    "무선청소기",
+    "음식물처리기",
+    "안마의자",
+    "매트리스",
+    "타이어",
+  ],
+  정수기: ["정수기", "공기청정기", "비데"],
+};
+
+// 정수기 포지션 차트의 경쟁군 — rental_company(dbName) 기준.
+// 여기 없는 회사는 자기 순위가 계산되지 않으므로, 정수기 계열 렌탈사를 새로
+// 등록하면 이 목록에도 넣어야 한다.
+const GROUP_COMPANIES: Record<string, string[]> = {
+  정수기: [
+    "SK인텔릭스",
+    "코웨이",
+    "쿠쿠",
+    "청호",
+    "LG",
+    "교원웰스",
+    "현대큐밍",
+    "루헨스",
+  ],
+};
+
+type IaRow = CardContractRow & {
+  product_name: string | null;
+  model_name: string | null;
+};
+interface ShareRow {
+  rental_company: string | null;
+  category: string | null;
+  total_rental_fee: number | null;
+  monthly_fee: number | null;
+  product_name: string | null;
+  model_name: string | null;
+}
+type TypeInfo = {
+  isTypeA: boolean;
+  positionCategories: string[];
+  positionCompanies: string[];
+};
+type TypeaPoolRow = {
+  category: string | null;
+  brand: string | null;
+  model_name: string | null;
+  management_type: string | null;
+  contract_months: number | null;
+  dc_monthly_fee: number | null;
+  dc_support: number | null;
+  dc_total_payment: number | null;
+};
+type GrowthRow = {
+  rental_company: string;
+  category: string;
+  product_name: string | null;
+  model_name: string | null;
+  management_type: string | null;
+  contract_months: number | null;
+  partner_company: string | null;
+  sales_incentive: number | null;
+  total_rental_fee: number | null;
+};
+
+// ── 아래 6개는 이 페이지에서 가장 무거운 조회다 ──
+// 이 페이지는 searchParams(tab·bm)를 읽어 동적 렌더링이 강제되므로 라우트 세그먼트
+// 캐싱(Task 4)이 안 든다. 대신 조회만 unstable_cache 로 감싸 "dashboard-data" 태그를
+// 태워, 크론 동기화로 무효화되게 한다. 실제 하드 퍼지는 크론의
+// revalidatePath("/", "layout") 가 담당한다 — revalidateTag("dashboard-data", "max")
+// 는 profile "max" 가 { expire: 31536000 } 로 해석돼 stale: now 만 세우고 expired 는
+// 365일 뒤라 소프트 신호일 뿐이다(자세한 이유는 app/api/sync/cron/route.ts 의 해당
+// 주석 참고). unstable_cache 는 Next 16 에서
+// 'use cache' 로 대체됐으나, 그 지시어는 cacheComponents: true 를 요구하고 그걸 켜면
+// dynamic·revalidate·fetchCache 를 export 하는 모든 라우트가 에러가 된다(21개 페이지
+// 동시 재편). 그래서 여기서는 deprecated 이지만 동작하는 이 API 를 쓴다.
+// unstable_cache 는 인자를 직렬화해 키에 넣으므로, 클로저로 쓰던 값은 전부 인자로
+// 받는다 — 그래야 회사별·기간별로 캐시 항목이 갈린다. dbNamesOf 는 COMPANY_MAP 의
+// 고정 배열 순서를 그대로 반환해(정렬 없이도) 같은 회사에 대해 항상 같은 순서를
+// 주므로 그대로 인자로 넘겨도 키가 안정적이다.
+//
+// unstable_cache 는 항목당 약 2MB 제한이 있다 — 넘으면 Next 가 경고 로그만 남기고
+// 조용히 저장하지 않는다(정합성은 안 깨지고 그 조회만 캐시가 안 타는 상태로 남는다).
+// 아래 6개 중 fetchIaAll(이 렌탈사 계약완료 12개월, 21,232행, 3.51MB)이 이 한도를
+// 넘어 실제로는 캐시되지 않는다(2026-09-11 측정). 참고로 본문 거래 표에 쓰는 원본
+// 조회(FETCH_RANGE_START="2025-01-01", 18,657행, 1.83MB, 797행 부근)는 아직
+// unstable_cache 로 감싸지 않았지만 한도 바로 아래라 — 조회 범위나 select 컬럼을
+// 조금만 늘려도 넘어갈 수 있는 위치다. 근본 원인은 둘 다 수만 행을 통째로 내려받아
+// 카드 수십 개 분량의 집계값을 계산하는 구조라는 점이다 — 캐싱으로는 못 고치고,
+// 집계를 Postgres 로 미는 것(B안 / 집계 SQL)이 다음 단계다.
+
+async function fetchPeriodUncached(): Promise<Period> {
+  return getDataAsOf().then(getPeriod);
+}
+// 전역 기준일이라 회사와 무관하다 — 인자 없이 캐싱해 모든 회사 페이지가 같이 쓴다.
+const fetchPeriod = unstable_cache(fetchPeriodUncached, ["company-period"], {
+  tags: ["dashboard-data"],
+  revalidate: 86400,
+});
+
+// 새 IA 본문용 — 이 렌탈사의 계약완료 12개월
+async function fetchIaAllUncached(
+  dbNames: string[],
+  periodEnd: string,
+): Promise<IaRow[]> {
+  const out: IaRow[] = [];
+  const yms = recentYmsOf(periodEnd);
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from("raw_contracts")
+      .select(
+        "contract_date, rental_company, category, partner_company, total_rental_fee, contribution_margin, sales, product_name, model_name",
+      )
+      .in("rental_company", dbNames)
+      .gte("contract_date", `${yms[0]}-01`)
+      .lte("contract_date", periodEnd)
+      .order("prop_item_usid", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error || !data || data.length === 0) break;
+    out.push(...(data as unknown as IaRow[]));
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  return out;
+}
+const fetchIaAll = unstable_cache(fetchIaAllUncached, ["company-ia-all"], {
+  tags: ["dashboard-data"],
+  revalidate: 86400,
+});
+
+// 카테고리 점유율용 — 이번 달 전 렌탈사 계약완료(렌탈사 필터 없음)이라 회사와
+// 무관하다. 기간(start·end)만 키에 넣는다.
+async function fetchShareRowsUncached(
+  start: string,
+  end: string,
+): Promise<ShareRow[]> {
+  const out: ShareRow[] = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from("raw_contracts")
+      .select(
+        "rental_company, category, total_rental_fee, monthly_fee, product_name, model_name",
+      )
+      .gte("contract_date", start)
+      .lt("contract_date", end)
+      .range(from, from + PAGE - 1);
+    if (error || !data || data.length === 0) break;
+    out.push(...data);
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  return out;
+}
+const fetchShareRows = unstable_cache(
+  fetchShareRowsUncached,
+  ["company-share-rows"],
+  { tags: ["dashboard-data"], revalidate: 86400 },
+);
+
+// 정수기형(TypeA) 판정 → 그 결과로 포지션 조회. 판정은 count 3번(0.3초)이고
+// 포지션 조회는 4만 행(1.3초)이라, 이 사슬을 본문 조회와 겹쳐 두면
+// 포지션이 임계 경로에서 빠진다.
+async function fetchTypeInfoUncached(dbNames: string[]): Promise<TypeInfo> {
+  const waterCats = GROUP_CATEGORIES.정수기;
+  const applianceCats = GROUP_CATEGORIES["가전&상조"];
+  const countContracts2026 = async (cats?: string[]) => {
+    let q = supabase
+      .from("raw_contracts")
+      .select("category", { count: "exact", head: true })
+      .in("rental_company", dbNames)
+      .gte("contract_date", "2026-01-01");
+    if (cats) q = q.in("category", cats);
+    const { count } = await q;
+    return count ?? 0;
+  };
+  const [typeTotal, typeWater, typeAppliance] = await Promise.all([
+    countContracts2026(),
+    countContracts2026(waterCats),
+    countContracts2026(applianceCats),
+  ]);
+  const isTypeA = typeTotal > 0 && typeWater / typeTotal >= 0.7;
+  return {
+    isTypeA,
+    // 인터넷만 파는 통신사는 어느 포지션 표에도 서지 않는다 (예전 group="통신"과 동일)
+    positionCategories: isTypeA
+      ? waterCats
+      : typeAppliance > 0
+        ? applianceCats
+        : [],
+    positionCompanies: isTypeA ? (GROUP_COMPANIES.정수기 ?? []) : [],
+  };
+}
+const fetchTypeInfo = unstable_cache(
+  fetchTypeInfoUncached,
+  ["company-type-info"],
+  { tags: ["dashboard-data"], revalidate: 86400 },
+);
+
+// 브랜드 경쟁 분석용 자동견적 풀 — category 필터만 쓰고 회사 필터는 없어서
+// (isTypeA, positionCategories) 조합으로만 갈리면 된다.
+async function fetchTypeaPoolUncached(
+  isTypeA: boolean,
+  positionCategories: string[],
+): Promise<TypeaPoolRow[]> {
+  const out: TypeaPoolRow[] = [];
+  if (!isTypeA || positionCategories.length === 0) return out;
+  let pf = 0;
+  while (true) {
+    const { data } = await supabaseAdmin
+      .from("auto_quote_typea")
+      .select(
+        "category, brand, model_name, management_type, contract_months, dc_monthly_fee, dc_support, dc_total_payment",
+      )
+      .in("category", positionCategories)
+      .not("dc_monthly_fee", "is", null)
+      .range(pf, pf + PAGE - 1);
+    if (!data || data.length === 0) break;
+    out.push(...data);
+    if (data.length < PAGE) break;
+    pf += PAGE;
+  }
+  return out;
+}
+const fetchTypeaPool = unstable_cache(
+  fetchTypeaPoolUncached,
+  ["company-typea-pool"],
+  { tags: ["dashboard-data"], revalidate: 86400 },
+);
+
+/**
+ * growthTable·growthDateCol 이 view 로 갈린다(주문확정 vs 계약완료 — 다른 테이블,
+ * 다른 날짜 컬럼). 상단 안내의 "tab 은 JS 분기라 캐시 키에 안 들어간다"는 얘기는
+ * 메인 거래 조회(735행 부근) 얘기이고, 이 조회는 SQL 자체가 view 로 갈리는 예외라
+ * view 를 반드시 인자로 받아 키에 넣는다 — 빼면 탭을 바꿔도 이전 탭의 테이블에서
+ * 가져온 데이터가 그대로 캐시로 섞여 들어온다.
+ */
+async function fetchGrowthRowsUncached(
+  positionCategories: string[],
+  positionCompanies: string[],
+  view: "order" | "contract",
+): Promise<GrowthRow[]> {
+  const out: GrowthRow[] = [];
+  if (positionCategories.length === 0) return out;
+  const growthTable = view === "order" ? "raw_orders" : "raw_contracts";
+  const growthDateCol =
+    view === "order" ? "order_confirmed_at" : "contract_date";
+  let gFrom = 0;
+  while (true) {
+    let q = supabase
+      .from(growthTable)
+      .select(
+        "rental_company, category, product_name, model_name, management_type, contract_months, partner_company, sales_incentive, total_rental_fee",
+      )
+      .in("category", positionCategories)
+      .gte(growthDateCol, "2026-01-01");
+    if (positionCompanies.length > 0)
+      q = q.in("rental_company", positionCompanies);
+    const { data, error } = await q.range(gFrom, gFrom + PAGE - 1);
+    if (error || !data || data.length === 0) break;
+    out.push(...data);
+    if (data.length < PAGE) break;
+    gFrom += PAGE;
+  }
+  return out;
+}
+const fetchGrowthRows = unstable_cache(
+  fetchGrowthRowsUncached,
+  ["company-growth-rows"],
+  { tags: ["dashboard-data"], revalidate: 86400 },
+);
+
 export default async function CompanyPage({
   params,
   searchParams,
@@ -517,55 +804,19 @@ export default async function CompanyPage({
     );
   }
 
-  // lib/fetch-rows.ts와 동일. 작게 잡으면 데이터 양은 그대로인 채 왕복 횟수만 늘어난다.
-  // 50000은 PostgREST max-rows 상한값 — 이보다 크게 잡으면 응답이 상한에서 잘리는데
-  // 아래 루프의 `data.length < PAGE` 종료 조건이 이를 마지막 페이지로 오인해 조용히 누락된다.
-  const PAGE = 50000;
   const FETCH_RANGE_START = "2025-01-01"; // 거래건수 조회 시작 시점
   const REVENUE_RANGE_START = "2025-01-01"; // 매출·공헌이익 등 현재 기준 시점
-
-  type IaRow = CardContractRow & {
-    product_name: string | null;
-    model_name: string | null;
-  };
-  interface ShareRow {
-    rental_company: string | null;
-    category: string | null;
-    total_rental_fee: number | null;
-    monthly_fee: number | null;
-    product_name: string | null;
-    model_name: string | null;
-  }
 
   // ── 무거운 조회는 여기서 "시작"만 걸고, 쓰는 자리에서 await 한다 ──
   // 이 페이지는 조회 6~7개가 전부 순차 await 라 시간이 그대로 더해지고 있었다
   // (렌탈사 한 곳 그리는 데 8만 행·4.4초). 서로 의존하지 않는 것을 먼저 띄워 두면
   // 임계 경로가 가장 느린 하나로 줄어든다 — docs/performance-plan.md 1단계.
-  const periodP = getDataAsOf().then(getPeriod);
+  // 조회 본문은 unstable_cache 로 감싸야 해서 모듈 스코프 함수(fetchPeriod 등)로
+  // 옮겨 뒀다 — 여기서는 그 함수를 부르기만 하고 await 은 쓰는 자리에서 한다.
+  const periodP = fetchPeriod();
 
   // 새 IA 본문용 — 이 렌탈사의 계약완료 12개월
-  const iaAllP = periodP.then(async (period) => {
-    const out: IaRow[] = [];
-    const yms = recentYmsOf(period.curr.end);
-    let from = 0;
-    while (true) {
-      const { data, error } = await supabase
-        .from("raw_contracts")
-        .select(
-          "contract_date, rental_company, category, partner_company, total_rental_fee, contribution_margin, sales, product_name, model_name",
-        )
-        .in("rental_company", dbNames)
-        .gte("contract_date", `${yms[0]}-01`)
-        .lte("contract_date", period.curr.end)
-        .order("prop_item_usid", { ascending: true })
-        .range(from, from + PAGE - 1);
-      if (error || !data || data.length === 0) break;
-      out.push(...(data as unknown as IaRow[]));
-      if (data.length < PAGE) break;
-      from += PAGE;
-    }
-    return out;
-  });
+  const iaAllP = periodP.then((period) => fetchIaAll(dbNames, period.curr.end));
 
   // 카테고리 점유율용 — 이번 달 전 렌탈사 계약완료(렌탈사 필터 없음)
   const now = new Date();
@@ -574,161 +825,23 @@ export default async function CompanyPage({
     now.getMonth() + 2 > 12
       ? `${now.getFullYear() + 1}-01-01`
       : `${now.getFullYear()}-${String(now.getMonth() + 2).padStart(2, "0")}-01`;
-  const shareRowsP = (async () => {
-    const out: ShareRow[] = [];
-    let from = 0;
-    while (true) {
-      const { data, error } = await supabase
-        .from("raw_contracts")
-        .select(
-          "rental_company, category, total_rental_fee, monthly_fee, product_name, model_name",
-        )
-        .gte("contract_date", curMonthStart)
-        .lt("contract_date", nextMonth)
-        .range(from, from + PAGE - 1);
-      if (error || !data || data.length === 0) break;
-      out.push(...data);
-      if (data.length < PAGE) break;
-      from += PAGE;
-    }
-    return out;
-  })();
-
-  // 카테고리 포지션
-  const GROUP_CATEGORIES: Record<string, string[]> = {
-    "가전&상조": [
-      "TV",
-      "세탁기+건조기",
-      "에어컨",
-      "냉장고",
-      "로봇청소기",
-      "무선청소기",
-      "음식물처리기",
-      "안마의자",
-      "매트리스",
-      "타이어",
-    ],
-    정수기: ["정수기", "공기청정기", "비데"],
-  };
-
-  // 정수기 포지션 차트의 경쟁군 — rental_company(dbName) 기준.
-  // 여기 없는 회사는 자기 순위가 계산되지 않으므로, 정수기 계열 렌탈사를 새로
-  // 등록하면 이 목록에도 넣어야 한다.
-  const GROUP_COMPANIES: Record<string, string[]> = {
-    정수기: [
-      "SK인텔릭스",
-      "코웨이",
-      "쿠쿠",
-      "청호",
-      "LG",
-      "교원웰스",
-      "현대큐밍",
-      "루헨스",
-    ],
-  };
+  const shareRowsP = fetchShareRows(curMonthStart, nextMonth);
 
   // 정수기형(TypeA) 판정 → 그 결과로 포지션 조회. 판정은 count 3번(0.3초)이고
   // 포지션 조회는 4만 행(1.3초)이라, 이 사슬을 본문 조회와 겹쳐 두면
   // 포지션이 임계 경로에서 빠진다.
-  const typeInfoP = (async () => {
-    const waterCats = GROUP_CATEGORIES.정수기;
-    const applianceCats = GROUP_CATEGORIES["가전&상조"];
-    const countContracts2026 = async (cats?: string[]) => {
-      let q = supabase
-        .from("raw_contracts")
-        .select("category", { count: "exact", head: true })
-        .in("rental_company", dbNames)
-        .gte("contract_date", "2026-01-01");
-      if (cats) q = q.in("category", cats);
-      const { count } = await q;
-      return count ?? 0;
-    };
-    const [typeTotal, typeWater, typeAppliance] = await Promise.all([
-      countContracts2026(),
-      countContracts2026(waterCats),
-      countContracts2026(applianceCats),
-    ]);
-    const isTypeA = typeTotal > 0 && typeWater / typeTotal >= 0.7;
-    return {
-      isTypeA,
-      // 인터넷만 파는 통신사는 어느 포지션 표에도 서지 않는다 (예전 group="통신"과 동일)
-      positionCategories: isTypeA
-        ? waterCats
-        : typeAppliance > 0
-          ? applianceCats
-          : [],
-      positionCompanies: isTypeA ? (GROUP_COMPANIES.정수기 ?? []) : [],
-    };
-  })();
+  const typeInfoP = fetchTypeInfo(dbNames);
 
   // 브랜드 경쟁 분석용 자동견적 풀 — 판정만 끝나면 본문과 무관하게 받을 수 있다
-  const typeaPoolP = typeInfoP.then(async (t) => {
-    const out: {
-      category: string | null;
-      brand: string | null;
-      model_name: string | null;
-      management_type: string | null;
-      contract_months: number | null;
-      dc_monthly_fee: number | null;
-      dc_support: number | null;
-      dc_total_payment: number | null;
-    }[] = [];
-    if (!t.isTypeA || t.positionCategories.length === 0) return out;
-    let pf = 0;
-    while (true) {
-      const { data } = await supabaseAdmin
-        .from("auto_quote_typea")
-        .select(
-          "category, brand, model_name, management_type, contract_months, dc_monthly_fee, dc_support, dc_total_payment",
-        )
-        .in("category", t.positionCategories)
-        .not("dc_monthly_fee", "is", null)
-        .range(pf, pf + PAGE - 1);
-      if (!data || data.length === 0) break;
-      out.push(...data);
-      if (data.length < PAGE) break;
-      pf += PAGE;
-    }
-    return out;
-  });
+  const typeaPoolP = typeInfoP.then((t) =>
+    fetchTypeaPool(t.isTypeA, t.positionCategories),
+  );
 
-  type GrowthRow = {
-    rental_company: string;
-    category: string;
-    product_name: string | null;
-    model_name: string | null;
-    management_type: string | null;
-    contract_months: number | null;
-    partner_company: string | null;
-    sales_incentive: number | null;
-    total_rental_fee: number | null;
-  };
-  const growthRowsP = typeInfoP.then(async (t) => {
-    const out: GrowthRow[] = [];
-    if (t.positionCategories.length === 0) return out;
-    // 상단 토글(주문확정/계약완료)에 따라 소스 전환
-    const growthTable = view === "order" ? "raw_orders" : "raw_contracts";
-    const growthDateCol =
-      view === "order" ? "order_confirmed_at" : "contract_date";
-    let gFrom = 0;
-    while (true) {
-      let q = supabase
-        .from(growthTable)
-        .select(
-          "rental_company, category, product_name, model_name, management_type, contract_months, partner_company, sales_incentive, total_rental_fee",
-        )
-        .in("category", t.positionCategories)
-        .gte(growthDateCol, "2026-01-01");
-      if (t.positionCompanies.length > 0)
-        q = q.in("rental_company", t.positionCompanies);
-      const { data, error } = await q.range(gFrom, gFrom + PAGE - 1);
-      if (error || !data || data.length === 0) break;
-      out.push(...data);
-      if (data.length < PAGE) break;
-      gFrom += PAGE;
-    }
-    return out;
-  });
+  const growthRowsP = typeInfoP.then((t) =>
+    // 상단 토글(주문확정/계약완료)에 따라 소스 전환 — view 를 인자로 넘겨 캐시 키에
+    // 넣는다(fetchGrowthRowsUncached 위 주석 참고).
+    fetchGrowthRows(t.positionCategories, t.positionCompanies, view),
+  );
   const normalizedRows: DataRow[] = [];
   let fetchError = null;
 

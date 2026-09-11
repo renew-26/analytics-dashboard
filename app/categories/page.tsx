@@ -10,7 +10,9 @@ import { deltaColor as dirColor, manwon } from "@/app/components/home/cardKit";
 import GroupTable, { type GroupRow } from "@/app/components/category/GroupTable";
 import Delta from "@/app/components/Delta";
 
-export const dynamic = "force-dynamic";
+// 크론(revalidatePath)이 실제 무효화를 담당하고,
+// 이 값은 크론이 실패해도 캐시가 영구히 얼지 않게 하는 안전망이다.
+export const revalidate = 86400;
 
 const panel =
   "rounded-[12px] border border-[var(--color-gray-200)] bg-white shadow-[0_1px_2px_rgba(28,35,56,.04),0_2px_8px_rgba(28,35,56,.05)]";

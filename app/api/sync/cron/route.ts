@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath, revalidateTag } from "next/cache";
 
 export const maxDuration = 300;
 
@@ -62,6 +63,23 @@ export async function GET(req: Request) {
     });
     results[type] = await res.json();
   }
+
+  // 동기화가 캐시를 깬다 — 타이머(revalidate)는 데이터가 실제로 바뀐 시점을 모른다.
+  // 데이터는 하루 한 번 통째로 바뀌므로 페이지별로 골라 깰 이유가 없다.
+  //
+  // 하드 퍼지는 아래 revalidatePath 가 한다 — revalidateTag 가 아니다(정정, 2026-09-11
+  // 실측). unstable_cache 는 라우트의 암묵 태그를 softTags 로 등록하는데, 모든 라우트의
+  // 암묵 집합에 `_N_T_/layout` 이 포함돼 있어서 profile 없이 호출되는 revalidatePath 가
+  // 그 태그를 expired: now 로 무효화한다. 그래서 이 줄이 실제 무효화를 담당한다 —
+  // "중복"으로 보고 지우면 무효화가 깨진다. 절대 지우지 말 것.
+  revalidatePath("/", "layout");
+  // 반면 revalidateTag("dashboard-data", "max") 는 벨트앤브레이스 소프트 신호일 뿐이다.
+  // Next 16 타입이 두 번째 인자(profile)를 요구해서 "max" 를 채택했는데(Next 자체 경고가
+  // 권하는 기본값), "max" 는 { expire: 31536000 } 로 해석된다 — stale: now 는 즉시
+  // 세우지만 expired 는 365일 뒤라, unstable_cache 는 이 태그만으로는 하드 무효화 없이
+  // 스테일-서빙 후 백그라운드 재검증에 그친다. 위 revalidatePath 가 없으면 각 항목은
+  // 최대 revalidate(86400s) 안전망이 돌 때까지 스테일 상태로 계속 서빙된다.
+  revalidateTag("dashboard-data", "max");
 
   return NextResponse.json(results);
 }
