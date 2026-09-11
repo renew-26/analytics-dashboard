@@ -48,8 +48,9 @@ export async function getDataAsOf(): Promise<string | null> {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     );
     const { data } = await supabase
-      .from("raw_contracts")
+      .from("raw_prop_items")
       .select("contract_date")
+      .not("contract_date", "is", null)
       .order("contract_date", { ascending: false })
       .limit(1)
       .single();
