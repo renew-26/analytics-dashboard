@@ -391,7 +391,7 @@ export default function WaterfallPanel({
                                     <span>{s.label}</span>
                                     <span
                                       className="num font-semibold"
-                                      style={{ color: deltaColor(s.value) }}
+                                      style={{ color: deltaColor(s.value, 0) }}
                                     >
                                       {signed(s.value, m.decimals)}
                                     </span>
