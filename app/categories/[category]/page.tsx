@@ -16,19 +16,19 @@ import { buildCategoryCards } from "@/lib/category-cards";
 import {
   CARD_DEFS,
   companyLabelOf,
-  countInstall90d,
   perDeal,
   type CardContractRow,
 } from "@/lib/company-cards";
 import { getBM } from "@/lib/company-map";
-import { resolveTier, TIER_META } from "@/lib/tiers";
-import { conversionStats } from "@/lib/conversion";
+import { aggregateAxis, type AxisAgg } from "@/lib/category-aggregate";
+import { conversionStats, type ConvStats } from "@/lib/conversion";
 import { cpuContribution, diffMap, sumBy, trimLeadingGap } from "@/lib/decompose";
-import { EOK, MAN, fmt, pct, pctAbs, recentYmsOf, signedInt } from "@/lib/format";
-import { topic } from "@/lib/korean";
-import WaterfallPanel, {
+import { EOK, MAN, fmt, pct, pctAbs, recentYmsOf } from "@/lib/format";
+import {
+  type Mover,
   type WaterfallMetric,
 } from "@/app/components/home/WaterfallPanel";
+import CategoryDrilldown, { type ProductDelta } from "./CategoryDrilldown";
 import BMMixBar from "@/app/components/home/BMMixBar";
 import CategoryCards from "@/app/components/home/CategoryCards";
 import Sparkline from "@/app/components/home/Sparkline";
@@ -56,7 +56,10 @@ const BM_COLORS: Record<string, string> = {
 /** 상품·모델 표에 세울 증가·감소 상품 수 */
 const PRODUCT_LIMIT = 10;
 
-type Row = CardContractRow & { product_name: string | null };
+type Row = CardContractRow & {
+  product_name: string | null;
+  brand: string | null;
+};
 
 /**
  * 개별 카테고리 — 카테고리 그룹(6그룹) 하나만 분석하는 상세 대시보드.
@@ -64,10 +67,13 @@ type Row = CardContractRow & { product_name: string | null };
  */
 export default async function CategoryGroupPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ category: string }>;
+  searchParams: Promise<{ company?: string }>;
 }) {
   const key = decodeURIComponent((await params).category);
+  const initialCompany = (await searchParams).company;
   // 이 라우트는 3축(가전&상조 등)이었다가 6그룹으로 바뀌었다. 그룹 판정을
   // 먼저 한다 — "정수기"·"인터넷"은 축 이름이자 그룹 이름이라, 축을 먼저
   // 물으면 멀쩡한 그룹 페이지가 인덱스로 튕긴다.
@@ -81,15 +87,14 @@ export default async function CategoryGroupPage({
   const { curr, prev, month, day: dayCut } = getPeriod(await getDataAsOf());
   const recentYms = recentYmsOf(curr.end);
 
-  // 티어는 렌탈사의 "전체 실적" 기준이라 그룹 필터 전에 전 카테고리로 받는다
+  // 그룹 탭의 건수가 전 그룹을 세야 하므로 그룹 필터 전에 전 카테고리로 받는다
   const rows12 = await fetchRows<Row>({
     select:
-      "contract_date, rental_company, category, partner_company, total_rental_fee, contribution_margin, sales, product_name",
+      "contract_date, rental_company, category, partner_company, total_rental_fee, contribution_margin, sales, product_name, brand",
     start: `${recentYms[0]}-01`,
     end: curr.end,
     orderBy: "prop_item_usid",
   });
-  const install90 = countInstall90d(rows12, curr.end);
 
   // 주문확정 레인 — 계약완료(rows12)와 별도로 주문확정 기준을 최소 컬럼만 받는다
   type OrderRow = {
@@ -182,7 +187,7 @@ export default async function CategoryGroupPage({
   }
   const ordSpark = trimLeadingGap(recentYms.map((ym) => ordByYm.get(ym) ?? 0));
 
-  // ── 왜 변했나 — 세부 카테고리(막대) × 렌탈사(기여) 분해 ──
+  // ── 왜 변했나 — 렌탈사(막대) × 렌탈사별 브랜드(기여) 분해 ──
   const catKeyOf = (r: Row) => detailCatOf(group, r.category);
   const COMPANY_LABELS = new Set(CARD_DEFS.map((d) => d.label));
   const coHref = (label: string) =>
@@ -191,6 +196,40 @@ export default async function CategoryGroupPage({
       : undefined;
   const catHref = (label: string) =>
     label === "그 외" ? undefined : `/category/${encodeURIComponent(label)}`;
+
+  // ── 축 집계 — 렌탈사(1차) · 렌탈사별 브랜드(2차) ────────
+  // 렌탈사별 행 버킷을 한 번만 만들어 돌려 쓴다. 지표 4개 × 렌탈사 N곳마다
+  // currRows/prevRows 를 다시 훑으면 큰 그룹(수천 행)에서 곱으로 늘어난다.
+  const brandOf = (r: Row) => r.brand?.trim() || "(브랜드 없음)";
+  const bucketBy = <T,>(rows: T[], keyOf: (r: T) => string) => {
+    const m = new Map<string, T[]>();
+    for (const r of rows) {
+      const k = keyOf(r);
+      const a = m.get(k);
+      if (a) a.push(r);
+      else m.set(k, [r]);
+    }
+    return m;
+  };
+  const NO_ROWS: Row[] = [];
+  const currByCo = bucketBy(currRows, companyLabelOf);
+  const prevByCo = bucketBy(prevRows, companyLabelOf);
+  const orderCurrByCo = bucketBy(orderCurr, companyLabelOf);
+
+  const companies = aggregateAxis(currRows, prevRows, companyLabelOf);
+
+  const brandByCompany: Record<string, AxisAgg[]> = {};
+  const convByCompany: Record<string, ConvStats> = {};
+  for (const co of companies) {
+    brandByCompany[co.label] = aggregateAxis(
+      currByCo.get(co.label) ?? NO_ROWS,
+      prevByCo.get(co.label) ?? NO_ROWS,
+      brandOf,
+    );
+    convByCompany[co.label] = conversionStats(
+      orderCurrByCo.get(co.label) ?? [],
+    );
+  }
 
   const METRIC_DEFS: {
     key: string;
@@ -217,10 +256,18 @@ export default async function CategoryGroupPage({
   ];
 
   const waterfallMetrics: WaterfallMetric[] = METRIC_DEFS.map((def) => {
-    const c = sumBy(currRows, catKeyOf, def.of);
-    const p = sumBy(prevRows, catKeyOf, def.of);
+    const c = sumBy(currRows, companyLabelOf, def.of);
+    const p = sumBy(prevRows, companyLabelOf, def.of);
     const currTotal = sum(currRows, def.of);
     const prevTotal = sum(prevRows, def.of);
+    const gaps = diffMap(c, p);
+    const subMovers: Record<string, Mover[]> = {};
+    for (const co of companies) {
+      subMovers[co.label] = diffMap(
+        sumBy(currByCo.get(co.label) ?? NO_ROWS, brandOf, def.of),
+        sumBy(prevByCo.get(co.label) ?? NO_ROWS, brandOf, def.of),
+      ).map((x) => ({ label: x.key, value: x.value }));
+    }
     return {
       key: def.key,
       label: def.label,
@@ -229,20 +276,36 @@ export default async function CategoryGroupPage({
       changePct: pctAbs(currTotal, prevTotal),
       items: [
         { label: "전월 동기간", type: "total" as const, value: prevTotal },
-        ...diffMap(c, p).map((g) => ({
+        ...gaps.map((g) => ({
           label: g.key,
           type: "delta" as const,
           value: g.value,
-          href: catHref(g.key),
+          href: coHref(g.key),
         })),
         { label: "이번 달", type: "total" as const, value: currTotal },
       ],
-      movers: diffMap(
-        sumBy(currRows, companyLabelOf, def.of),
-        sumBy(prevRows, companyLabelOf, def.of),
-      ).map((x) => ({ label: x.key, value: x.value, href: coHref(x.key) })),
+      movers: gaps.map((x) => ({
+        label: x.key,
+        value: x.value,
+        href: coHref(x.key),
+      })),
+      subMovers,
     };
   });
+
+  // 건당 공헌이익만 diffMap 이 아니라 cpuContribution 을 쓴다 — 건당은 비율이라
+  // 축별 값을 그냥 더해도 전체 건당이 안 나온다. 가법 분해라야 워터폴이 닫힌다.
+  const marginOf = (r: Row) => r.contribution_margin ?? 0;
+  const cpuGaps = cpuContribution(currRows, prevRows, companyLabelOf, marginOf);
+  const cpuSubMovers: Record<string, Mover[]> = {};
+  for (const co of companies) {
+    cpuSubMovers[co.label] = cpuContribution(
+      currByCo.get(co.label) ?? NO_ROWS,
+      prevByCo.get(co.label) ?? NO_ROWS,
+      brandOf,
+      marginOf,
+    ).map((x) => ({ label: x.key, value: x.value }));
+  }
   waterfallMetrics.push({
     key: "cpu",
     label: "건당 공헌이익",
@@ -251,67 +314,30 @@ export default async function CategoryGroupPage({
     changePct: pctAbs(cpu, cpuPrev),
     items: [
       { label: "전월 동기간", type: "total" as const, value: cpuPrev },
-      ...cpuContribution(
-        currRows,
-        prevRows,
-        catKeyOf,
-        (r) => r.contribution_margin ?? 0,
-      ).map((g) => ({
+      ...cpuGaps.map((g) => ({
         label: g.key,
         type: "delta" as const,
         value: g.value,
-        href: catHref(g.key),
+        href: coHref(g.key),
       })),
       { label: "이번 달", type: "total" as const, value: cpu },
     ],
-    movers: cpuContribution(
-      currRows,
-      prevRows,
-      companyLabelOf,
-      (r) => r.contribution_margin ?? 0,
-    ).map((x) => ({ label: x.key, value: x.value, href: coHref(x.key) })),
+    movers: cpuGaps.map((x) => ({
+      label: x.key,
+      value: x.value,
+      href: coHref(x.key),
+    })),
+    subMovers: cpuSubMovers,
   });
 
-  // ── 렌탈사별 성과 ──────────────────────────────────────
-  type CoAgg = {
-    label: string;
-    cnt: number;
-    cntPrev: number;
-    amount: number;
-    sales: number;
-    margin: number;
-  };
-  const coMap = new Map<string, CoAgg>();
-  const coOf = (label: string) => {
-    let a = coMap.get(label);
-    if (!a) {
-      a = { label, cnt: 0, cntPrev: 0, amount: 0, sales: 0, margin: 0 };
-      coMap.set(label, a);
-    }
-    return a;
-  };
-  for (const r of currRows) {
-    const a = coOf(companyLabelOf(r));
-    a.cnt += 1;
-    a.amount += r.total_rental_fee ?? 0;
-    a.sales += r.sales ?? 0;
-    a.margin += r.contribution_margin ?? 0;
-  }
-  for (const r of prevRows) coOf(companyLabelOf(r)).cntPrev += 1;
-  const companies = Array.from(coMap.values())
-    .filter((a) => a.cnt > 0 || a.cntPrev > 0)
-    .sort((a, b) => b.cnt - a.cnt || b.cntPrev - a.cntPrev);
-
-  // ── 상품·모델별 성과 ───────────────────────────────────
+  // ── 상품 증감 ──────────────────────────────────────────
   // "이 카테고리가 움직였는데 정확히 어떤 상품이 움직였나"에 답한다.
   type ProdAgg = {
     product: string;
     company: string;
+    brand: string;
     cnt: number;
     cntPrev: number;
-    amount: number;
-    sales: number;
-    margin: number;
   };
   const prodMap = new Map<string, ProdAgg>();
   const prodOf = (r: Row) => {
@@ -322,40 +348,32 @@ export default async function CategoryGroupPage({
     const k = `${company} ${product}`;
     let a = prodMap.get(k);
     if (!a) {
-      a = {
-        product,
-        company,
-        cnt: 0,
-        cntPrev: 0,
-        amount: 0,
-        sales: 0,
-        margin: 0,
-      };
+      a = { product, company, brand: brandOf(r), cnt: 0, cntPrev: 0 };
       prodMap.set(k, a);
     }
     return a;
   };
-  for (const r of currRows) {
-    const a = prodOf(r);
-    a.cnt += 1;
-    a.amount += r.total_rental_fee ?? 0;
-    a.sales += r.sales ?? 0;
-    a.margin += r.contribution_margin ?? 0;
-  }
+  for (const r of currRows) prodOf(r).cnt += 1;
   for (const r of prevRows) prodOf(r).cntPrev += 1;
   const prodAll = Array.from(prodMap.values());
-  const prodUp = prodAll
-    .filter((p) => p.cnt - p.cntPrev > 0)
-    .sort((a, b) => b.cnt - b.cntPrev - (a.cnt - a.cntPrev))
-    .slice(0, PRODUCT_LIMIT);
-  const prodDown = prodAll
-    .filter((p) => p.cnt - p.cntPrev < 0)
-    .sort((a, b) => a.cnt - a.cntPrev - (b.cnt - b.cntPrev))
-    .slice(0, PRODUCT_LIMIT);
   const prodHref = (p: ProdAgg) =>
     COMPANY_LABELS.has(p.company) && p.product !== "(상품명 없음)"
       ? `/categories/${encodeURIComponent(key)}/${encodeURIComponent(p.company)}/${encodeURIComponent(p.product)}`
       : undefined;
+  const withHref = (list: ProdAgg[]): ProductDelta[] =>
+    list.map((p) => ({ ...p, href: prodHref(p) }));
+  const prodUp = withHref(
+    prodAll
+      .filter((p) => p.cnt - p.cntPrev > 0)
+      .sort((a, b) => b.cnt - b.cntPrev - (a.cnt - a.cntPrev))
+      .slice(0, PRODUCT_LIMIT),
+  );
+  const prodDown = withHref(
+    prodAll
+      .filter((p) => p.cnt - p.cntPrev < 0)
+      .sort((a, b) => a.cnt - a.cntPrev - (b.cnt - b.cntPrev))
+      .slice(0, PRODUCT_LIMIT),
+  );
 
   // ── 세부 카테고리 카드 ─────────────────────────────────
   // 그룹 안에 세부가 하나뿐이면(정수기·타이어·인터넷) 카드가 KPI의 복사본이라 세우지 않는다
@@ -397,10 +415,6 @@ export default async function CategoryGroupPage({
   };
   const bmCurr = bmAgg(currRows);
   const bmPrev = bmAgg(prevRows);
-
-  const th =
-    "bg-[var(--color-gray-25)] p-[9px_12px] text-right text-[11px] font-bold whitespace-nowrap text-[var(--color-gray-400)]";
-  const td = "p-[9px_12px] text-right whitespace-nowrap";
 
   return (
     <div className="min-h-screen space-y-[24px] bg-[var(--color-page)] px-10 pt-8 pb-16">
@@ -600,17 +614,19 @@ export default async function CategoryGroupPage({
         </div>
       </section>
 
-      {/* ── (구) 왜 변했나 — Task 6 에서 CategoryDrilldown 으로 대체된다 ── */}
-      <section>
-        <div className="mb-[11px] flex flex-wrap items-baseline gap-2.5">
-          <h2 className={sectionHead}>이번 달 {topic(key)} 왜 변했나</h2>
-          <span className="text-[12px] text-[var(--color-gray-500)]">
-            전체 변화 → 세부 카테고리 → 렌탈사 순으로 내려간다 · 렌탈사 클릭 시{" "}
-            {key} × 렌탈사 상세
-          </span>
-        </div>
-        <WaterfallPanel metrics={waterfallMetrics} panelClass={panel} />
-      </section>
+      {/* ── ③④⑤ 왜 변했나 · 렌탈사별 · 브랜드별 (렌탈사 선택 공유) ── */}
+      <CategoryDrilldown
+        groupKey={key}
+        metrics={waterfallMetrics}
+        companies={companies}
+        brandByCompany={brandByCompany}
+        convByCompany={convByCompany}
+        prodUp={prodUp}
+        prodDown={prodDown}
+        initialCompany={initialCompany}
+        panelClass={panel}
+        sectionHead={sectionHead}
+      />
 
       {/* ── ③ 세부 카테고리 ─────────────────────────── */}
       {visibleCatCards.length > 1 && (
@@ -654,216 +670,6 @@ export default async function CategoryGroupPage({
           <CategoryCards categories={visibleCatCards} groups={[]} />
         </section>
       )}
-
-      {/* ── ④ 렌탈사별 성과 ─────────────────────────── */}
-      <section>
-        <div className="mb-[11px] flex flex-wrap items-baseline gap-2.5">
-          <h2 className={sectionHead}>렌탈사별 성과</h2>
-          <span className="text-[12px] text-[var(--color-gray-500)]">
-            {key} 안에서의 실적만 집계 · 행 클릭 시 {key} × 렌탈사 상세
-          </span>
-        </div>
-        <div className={panel}>
-          <div className="px-[17px] pt-[16px] pb-[16px]">
-            <div className="overflow-x-auto rounded-[8px] border border-[var(--color-gray-200)]">
-              <table className="w-full min-w-[860px] bg-white text-[12px]">
-                <thead>
-                  <tr className="border-b border-[var(--color-gray-200)]">
-                    <th className={`${th} text-left`}>렌탈사</th>
-                    <th className={`${th} text-left`}>티어</th>
-                    <th className={th}>계약건수</th>
-                    <th className={th}>전월 동기간</th>
-                    <th className={th}>증감</th>
-                    <th className={th}>점유율</th>
-                    <th className={th}>거래액</th>
-                    <th className={th}>매출</th>
-                    <th className={th}>건당 공헌이익</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {companies.map((c) => {
-                    const diff = c.cnt - c.cntPrev;
-                    const share = cnt > 0 ? (c.cnt / cnt) * 100 : 0;
-                    const mapped = COMPANY_LABELS.has(c.label);
-                    const tier = mapped
-                      ? resolveTier(install90.get(c.label) ?? 0)
-                      : null;
-                    const href = coHref(c.label);
-                    const name = href ? (
-                      <Link
-                        href={href}
-                        className="font-bold text-[var(--color-gray-600)] group-hover:text-[var(--color-primary)]"
-                      >
-                        {c.label}
-                      </Link>
-                    ) : (
-                      <span className="font-bold text-[var(--color-gray-600)]">
-                        {c.label}
-                      </span>
-                    );
-                    return (
-                      <tr
-                        key={c.label}
-                        className="group border-t border-[var(--color-line-2)] hover:bg-[var(--color-primary-50)]"
-                      >
-                        <td className={`${td} text-left`}>{name}</td>
-                        <td className={`${td} text-left`}>
-                          {tier ? (
-                            <span
-                              className="rounded-[4px] px-[5px] py-0.5 text-[10px] font-bold"
-                              style={TIER_META[tier].chip}
-                              title={TIER_META[tier].desc}
-                            >
-                              {tier}
-                            </span>
-                          ) : (
-                            <span className="text-[var(--color-gray-400)]">
-                              —
-                            </span>
-                          )}
-                        </td>
-                        <td className={`${td} num font-bold`}>{fmt(c.cnt)}</td>
-                        <td className={`${td} num text-[var(--color-gray-500)]`}>
-                          {fmt(c.cntPrev)}
-                        </td>
-                        <td
-                          className={`${td} num font-bold`}
-                          style={{ color: dirColor(diff, 0) }}
-                        >
-                          {signedInt(diff)}
-                        </td>
-                        <td className={`${td} num`}>{share.toFixed(1)}%</td>
-                        <td className={`${td} num`}>
-                          {(c.amount / EOK).toFixed(1)}억
-                        </td>
-                        <td className={`${td} num`}>
-                          {(c.sales / EOK).toFixed(2)}억
-                        </td>
-                        <td className={`${td} num`}>
-                          {manwon(perDeal(c.margin, c.cnt))}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <p className="mt-[10px] text-[11px] text-[var(--color-gray-500)]">
-              티어는 렌탈사의 전체 실적 기준(문서 스냅샷 우선, 미명시는 직전
-              90일 설치량 폴백) · 점유율은 {key} 계약건수 기준입니다.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* ── ⑤ 상품·모델별 성과 ──────────────────────── */}
-      <section>
-        <div className="mb-[11px] flex flex-wrap items-baseline gap-2.5">
-          <h2 className={sectionHead}>상품·모델별 성과</h2>
-          <span className="text-[12px] text-[var(--color-gray-500)]">
-            {key}가 움직인 이유를 상품 단위까지 좁힌다 · 행 클릭 시 상품 상세
-          </span>
-        </div>
-        <div className="grid grid-cols-1 gap-[18px] xl:grid-cols-2">
-          {[
-            { title: `증가 TOP ${PRODUCT_LIMIT}`, rows: prodUp, up: true },
-            { title: `감소 TOP ${PRODUCT_LIMIT}`, rows: prodDown, up: false },
-          ].map((blk) => (
-            <div key={blk.title} className={panel}>
-              <div className="border-b border-[var(--color-gray-200)] p-[14px_17px_11px]">
-                <h3 className="text-[14px] font-semibold tracking-[-.2px]">
-                  {blk.title}
-                </h3>
-              </div>
-              <div className="px-[17px] pt-[13px] pb-[15px]">
-                {blk.rows.length === 0 ? (
-                  <p className="py-6 text-center text-[12px] text-[var(--color-gray-400)]">
-                    해당하는 상품이 없습니다
-                  </p>
-                ) : (
-                  <div className="overflow-x-auto rounded-[8px] border border-[var(--color-gray-200)]">
-                    <table className="w-full min-w-[600px] bg-white text-[12px]">
-                      <thead>
-                        <tr className="border-b border-[var(--color-gray-200)]">
-                          <th className={`${th} text-left`}>상품</th>
-                          <th className={`${th} text-left`}>렌탈사</th>
-                          <th className={th}>건수</th>
-                          <th className={th}>전월</th>
-                          <th className={th}>증감</th>
-                          <th className={th}>거래액</th>
-                          <th className={th}>매출</th>
-                          <th className={th}>건당 공헌이익</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {blk.rows.map((p) => {
-                          const diff = p.cnt - p.cntPrev;
-                          const href = prodHref(p);
-                          return (
-                            <tr
-                              key={`${p.company}-${p.product}`}
-                              className="group border-t border-[var(--color-line-2)] hover:bg-[var(--color-primary-50)]"
-                            >
-                              <td
-                                className={`${td} max-w-[220px] truncate text-left`}
-                              >
-                                {href ? (
-                                  <Link
-                                    href={href}
-                                    className="font-bold text-[var(--color-gray-600)] group-hover:text-[var(--color-primary)]"
-                                    title={p.product}
-                                  >
-                                    {p.product}
-                                  </Link>
-                                ) : (
-                                  <span
-                                    className="font-bold text-[var(--color-gray-600)]"
-                                    title={p.product}
-                                  >
-                                    {p.product}
-                                  </span>
-                                )}
-                              </td>
-                              <td
-                                className={`${td} text-left text-[var(--color-gray-500)]`}
-                              >
-                                {p.company}
-                              </td>
-                              <td className={`${td} num font-bold`}>
-                                {fmt(p.cnt)}
-                              </td>
-                              <td
-                                className={`${td} num text-[var(--color-gray-500)]`}
-                              >
-                                {fmt(p.cntPrev)}
-                              </td>
-                              <td
-                                className={`${td} num font-bold`}
-                                style={{ color: dirColor(diff, 0) }}
-                              >
-                                {signedInt(diff)}
-                              </td>
-                              <td className={`${td} num`}>
-                                {(p.amount / MAN).toFixed(0)}만
-                              </td>
-                              <td className={`${td} num`}>
-                                {(p.sales / MAN).toFixed(0)}만
-                              </td>
-                              <td className={`${td} num`}>
-                                {manwon(perDeal(p.margin, p.cnt))}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
 
       {/* ── ⑥ BM 구성 ───────────────────────────────── */}
       <section>
