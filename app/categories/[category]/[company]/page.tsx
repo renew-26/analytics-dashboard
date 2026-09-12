@@ -75,10 +75,11 @@ export default async function CategoryCompanyPage({
     let from = 0;
     while (true) {
       const { data, error } = await supabase
-        .from("raw_contracts")
+        .from("raw_prop_items")
         .select(
           "contract_date, rental_company, category, partner_company, total_rental_fee, contribution_margin, sales, product_name, model_name, monthly_fee",
         )
+        .not("contract_date", "is", null)
         .in("rental_company", dbNamesOf(def))
         .gte("contract_date", `${recentYms[0]}-01`)
         .lte("contract_date", curr.end)

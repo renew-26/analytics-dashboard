@@ -27,8 +27,9 @@ async function getLastSyncedAt(): Promise<string | null> {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     );
     const { data } = await supabase
-      .from("raw_contracts")
+      .from("raw_prop_items")
       .select("synced_at")
+      .not("contract_date", "is", null)
       .order("synced_at", { ascending: false })
       .limit(1)
       .single();

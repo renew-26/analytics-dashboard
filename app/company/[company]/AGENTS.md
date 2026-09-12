@@ -10,14 +10,14 @@
 
 | File | Description |
 |------|-------------|
-| `page.tsx` | Server Component — COMPANY_MAP 조회, raw_orders/raw_contracts fetch, 집계 함수군, 가격 데이터(auto_quote_typea/b) 조회, 경쟁 분석 데이터 빌드 |
+| `page.tsx` | Server Component — COMPANY_MAP 조회, `raw_prop_items` fetch(주문확정=`order_confirmed_at`/계약완료=`contract_date` 컬럼으로 기준 분기), 집계 함수군, 가격 데이터(auto_quote_typea/b) 조회, 경쟁 분석 데이터 빌드 |
 
 ## For AI Agents
 
 ### Working In This Directory
 - `params.company`는 URL 인코딩된 렌탈사 라벨 → `decodeURIComponent()` 후 `COMPANY_MAP` 조회
 - 탭 전환: `?tab=contract` searchParam으로 `order`(기본) / `contract` 분기
-- 두 개의 Supabase 클라이언트: `supabase`(anon key, raw_orders/raw_contracts), `supabaseAdmin`(service role, auto_quote 테이블)
+- 두 개의 Supabase 클라이언트: `supabase`(anon key, `raw_prop_items`), `supabaseAdmin`(service role, auto_quote 테이블)
 - 포지션 분석 대상 카테고리: `GROUP_CATEGORIES` 상수로 그룹별 정의
   - 가전&상조: TV, 세탁기+건조기, 에어컨, 냉장고, 로봇청소기, 무선청소기, 음식물처리기, 안마의자, 매트리스, 타이어
   - 정수기: 정수기, 공기청정기, 비데

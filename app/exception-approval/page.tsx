@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import type { DateBasis } from "@/lib/date-basis";
 import ExceptionApprovalClient from "./ExceptionApprovalClient";
 import ViewToggle from "@/app/components/ViewToggle";
 
@@ -37,8 +38,11 @@ const CATEGORY = "인터넷";
  * 들어 있고, 예외승인 130건 중 1건도 계약 후 취소된 건이다.
  *
  * 예외승인 130건은 두 컬럼 모두 전건 채워져 있어 어느 기준에서도 130건이 보존된다.
+ *
+ * 타입 자체는 `lib/date-basis.ts` 것을 쓴다 — 이 파일이 그 패턴의 원조였고, 이번
+ * 마이그레이션에서 그 패턴을 승격한 것이 `lib/date-basis.ts` 다. 여기서 다시
+ * 선언하면 승격의 의미가 없어진다.
  */
-export type DateBasis = "order" | "contract";
 
 function rowDate(r: PropItemRow, basis: DateBasis): string | null {
   return basis === "order" ? r.order_confirmed_at : r.contract_date;

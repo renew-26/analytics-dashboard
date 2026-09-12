@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { getCompanyLabel } from "@/lib/company-map";
 import { CATEGORY_GROUPS, catGroupOf } from "@/lib/biz-category";
-import { getWeekIndex, getWeekLabel } from "@/lib/week";
+import { getWeekIndex, getWeekLabel, WEEK_REF } from "@/lib/week";
 import CategoryTrendsClient from "./CategoryTrendsClient";
 
 export const dynamic = "force-dynamic";
@@ -114,8 +114,9 @@ async function fetchContracts(start: string, end: string): Promise<ContractRow[]
   let from = 0;
   while (true) {
     const { data, error } = await supabase
-      .from("raw_contracts")
+      .from("raw_prop_items")
       .select("contract_date, category, rental_company")
+      .not("contract_date", "is", null)
       .gte("contract_date", start)
       .lte("contract_date", end)
       .order("contract_date", { ascending: true })
@@ -133,8 +134,9 @@ async function fetchOrders(startDate: string): Promise<OrderRow[]> {
   let from = 0;
   while (true) {
     const { data, error } = await supabase
-      .from("raw_orders")
+      .from("raw_prop_items")
       .select("order_confirmed_at, category, product_name, model_name, rental_company")
+      .not("order_confirmed_at", "is", null)
       .gte("order_confirmed_at", startDate)
       .range(from, from + PAGE_ORDERS - 1);
     if (error || !data || data.length === 0) break;
@@ -240,9 +242,13 @@ export default async function CategoryTrendsPage({
   const { group } = await searchParams;
   const months24 = getLast24Months();
 
+  // 주간 뷰(orderRows)는 WEEK_REF 이전 날짜를 전부 0번 버킷으로 뭉개버리는
+  // getWeekIndex 클램핑 때문에, 그 이전 데이터를 가져와봐야 유령 첫 주차만
+  // 부풀릴 뿐이다. WEEK_REF부터만 가져와 애초에 버킷 0에 섞이지 않게 한다.
+  const weekFetchStart = WEEK_REF.toISOString().slice(0, 10);
   const [contractRows, orderRows] = await Promise.all([
     fetchContracts(months24[0].start, months24[months24.length - 1].end),
-    fetchOrders(months24[0].start),
+    fetchOrders(weekFetchStart),
   ]);
 
   // Monthly aggregation — display only the latest 12 months

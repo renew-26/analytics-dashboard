@@ -1,12 +1,13 @@
 import { supabase } from "@/lib/supabase";
+import { DATE_COL, type DateBasis } from "@/lib/date-basis";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const DEFAULT_PAGE_SIZE = 50000;
 
 interface FetchRowsOptions {
-  table?: string;
+  /** 기준. 기본 "contract" — 기존 호출부가 계약완료였다. */
+  basis?: DateBasis;
   select: string;
-  dateColumn?: string;
   start: string;
   end?: string;
   orderBy?: string;
@@ -16,9 +17,8 @@ interface FetchRowsOptions {
 
 export async function fetchRows<T>(options: FetchRowsOptions): Promise<T[]> {
   const {
-    table = "raw_contracts",
+    basis = "contract",
     select,
-    dateColumn = "contract_date",
     start,
     end,
     orderBy,
@@ -26,13 +26,16 @@ export async function fetchRows<T>(options: FetchRowsOptions): Promise<T[]> {
     client = supabase,
   } = options;
 
+  const dateColumn = DATE_COL[basis];
   const all: T[] = [];
   let from = 0;
 
   while (true) {
+    // 기준 날짜가 빈 행은 그 기준에 존재하지 않는 건이다.
     let query = client
-      .from(table)
+      .from("raw_prop_items")
       .select(select)
+      .not(dateColumn, "is", null)
       .gte(dateColumn, start);
 
     if (end) {

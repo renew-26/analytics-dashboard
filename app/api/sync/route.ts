@@ -276,7 +276,9 @@ export async function POST(req: Request) {
     // prop_items (기본) — order/contract도 같은 경로로 처리한다.
     //
     // 4678의 한 행은 견적신청·주문확정·계약완료 세 기준 날짜를 동시에 담으므로
-    // 기준별로 나눠 저장할 필요가 없다. 기준 분리는 raw_orders/raw_contracts 뷰가 한다.
+    // 기준별로 나눠 저장할 필요가 없다. 기준 분리는 raw_prop_items 를 읽는
+    // 호출부가 어느 날짜 컬럼(order_confirmed_at/contract_date)으로 필터링하는지로
+    // 한다(뷰 전환안은 폐기됐다 — lib/date-basis.ts 참고).
     // 그래서 여기서는 4678이 준 행을 기준일로 걸러내지 않고 전부 적재한다 —
     // 계약완료일로만 걸린 행도 그 prop_item의 정당한 최신 상태이기 때문이다.
     const rows = (await fetchRedashData(REDASH_QUERY.PROP_ITEMS, startDate, endDate)) as Redash4678Row[];

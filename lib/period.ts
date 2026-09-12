@@ -47,9 +47,17 @@ export async function getDataAsOf(): Promise<string | null> {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     );
+    // 아래 .not("contract_date", "is", null) 은 장식이 아니다 — 지우면 안 된다.
+    // Postgres 는 ORDER BY ... DESC 에서 기본이 NULLS FIRST 이고, raw_prop_items 는
+    // contract_date 가 null 인 행이 수만 건 있다(계약 전 단계 주문도 여기 함께 쌓인다).
+    // 실측: 이 필터 없이 돌리면 { contract_date: null }, 있으면 2026-09-10 이 나왔다.
+    // null 이 나오면 getDataAsOf() 가 실패로 보고 getPeriod() 의 기본값("어제")으로
+    // 빠지는데, 그 값이 그럴듯해 보여서 기준일이 조용히 틀려도 알아채기 어렵다.
+    // 레거시 raw_contracts 에는 null 날짜가 없어서 이 위험이 없었다.
     const { data } = await supabase
-      .from("raw_contracts")
+      .from("raw_prop_items")
       .select("contract_date")
+      .not("contract_date", "is", null)
       .order("contract_date", { ascending: false })
       .limit(1)
       .single();

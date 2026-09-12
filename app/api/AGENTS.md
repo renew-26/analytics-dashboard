@@ -10,7 +10,7 @@ Next.js API 라우트 모음. Redash → Supabase 데이터 동기화(`sync/`), 
 
 | Directory | Purpose |
 |-----------|---------|
-| `sync/` | Redash에서 raw_orders·raw_contracts·auto_quote(typeA/B)·tps_pnl 동기화. `type` 파라미터로 대상 선택. `cron/`은 인증된 스케줄 진입점 (see `sync/AGENTS.md`) |
+| `sync/` | Redash에서 raw_prop_items(견적아이템 통합 원장)·auto_quote(typeA/B)·tps_pnl 동기화. `type` 파라미터로 대상 선택. `cron/`은 인증된 스케줄 진입점 (see `sync/AGENTS.md`) |
 | `margin-analysis/` | 마진 분석 — 엑셀 업로드(`survey-upload`), 수동 매칭(`subsidies`), 설정(`settings`) |
 | `survey-selection/` | 조사 상품 선정 — 카탈로그 후보(`candidates`), 선정 확정(`confirm`) |
 | `sync/tps/` | TPS 상품 Redash 동기화 (Q4622) |

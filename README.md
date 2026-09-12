@@ -37,7 +37,7 @@
 ```
 Redash (분석 DB)
     ↓  POST /api/sync
-Supabase (raw_orders, raw_contracts)
+Supabase (raw_prop_items)
     ↓
 Next.js Pages
 ```
@@ -49,8 +49,7 @@ Next.js Pages
 
 | 테이블 | 설명 |
 |--------|------|
-| `raw_orders` | 주문확정 데이터 (Redash Query 4441) |
-| `raw_contracts` | 계약완료 데이터 (Redash Query 4445) |
+| `raw_prop_items` | 견적아이템 통합 원장 — 주문확정(`order_confirmed_at`)·계약완료(`contract_date`)를 날짜 컬럼으로 구분 (Redash Query 4678) |
 | `auto_quote_typeb` | 가전&상조 렌탈사별 자동견적 (Redash Query 4404) |
 | `auto_quote_typea` | 정수기 자동견적 — 더블체크파트너스 기준 (Redash Query 4403) |
 | `competitive_subsidy` | 경쟁사 지원금 조사 데이터 |

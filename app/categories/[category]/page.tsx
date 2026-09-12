@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { fetchRows } from "@/lib/fetch-rows";
+import { BASIS_LABEL, DATE_COL } from "@/lib/date-basis";
 import { getPeriod, getDataAsOf } from "@/lib/period";
 import {
   CATEGORY_GROUPS,
@@ -281,6 +282,8 @@ export default async function CategoryGroupPage({
   const prodOf = (r: Row) => {
     const product = r.product_name?.trim() || "(상품명 없음)";
     const company = companyLabelOf(r);
+    // 키에 리터럴 NUL 바이트(\0)를 구분자로 쓴다 — BSD grep(macOS 기본)은
+    // NUL이 섞인 파일을 바이너리로 보고 통째로 건너뛴다. 이 파일을 grep할 땐 -a를 쓸 것.
     const k = `${company} ${product}`;
     let a = prodMap.get(k);
     if (!a) {
@@ -779,7 +782,8 @@ export default async function CategoryGroupPage({
       </section>
 
       <p className="text-[11px] leading-[1.7] text-[var(--color-gray-400)]">
-        출처: <code>raw_contracts</code>(계약완료) · 기준 구간은 홈·헤더와 동일한{" "}
+        기준: {BASIS_LABEL.contract}(<code>{DATE_COL.contract}</code>) · 기준 구간은
+        홈·헤더와 동일한{" "}
         <code>getPeriod()</code> · 카테고리 매핑은{" "}
         <code>lib/biz-category.ts</code> 하나만 쓴다.
       </p>

@@ -125,8 +125,9 @@ async function fetchContractsUncached(
   const PAGE = 50000;
   while (true) {
     const { data, error } = await supabase
-      .from("raw_contracts")
+      .from("raw_prop_items")
       .select(CONTRACT_COLS)
+      .not("contract_date", "is", null)
       .gte("contract_date", start)
       .lte("contract_date", end)
       .order("prop_item_usid", { ascending: true })
@@ -158,8 +159,9 @@ async function fetchContractsUncached(
  *
  * unstable_cache 는 항목당 약 2MB 제한이 있다 — 넘으면 Next 가 경고 로그만 남기고
  * 조용히 저장하지 않는다(정합성은 안 깨지고 그 조회만 캐시가 안 타는 상태로 남는다).
- * 아래 fetchAllYearOrders(연초~, 68,455행, 6.71MB)와 fetchAllYearContracts(연초~,
- * 45,315행, 4.19MB)는 이 한도를 넘어 실제로는 캐시되지 않는다(2026-09-11 측정).
+ * 아래 fetchAllYearOrders(연초~, 132,813행, 약 13MB — raw_prop_items 전환으로
+ * 2025 주문확정이 되살아나며 행 수가 늘었다)와 fetchAllYearContracts(연초~,
+ * 45,315행, 4.19MB)는 이 한도를 넘어 실제로는 캐시되지 않는다(2026-09-12 재측정).
  * 반면 이 바로 아래 fetchContracts처럼 단일 월 구간 조회는 한도 안에 들어와 정상
  * 캐시된다. 근본 원인은 두 조회 모두 수만 행을 통째로 내려받아 카드 수십 개 분량의
  * 집계값을 계산하는 구조라는 점이다 — 캐싱으로는 못 고치고, 집계를 Postgres 로
@@ -193,10 +195,11 @@ async function fetchAllYearContractsUncached(
   const PAGE = 50000;
   while (true) {
     const { data, error } = await supabase
-      .from("raw_contracts")
+      .from("raw_prop_items")
       .select(
         "contract_date, category, partner_company, rental_company, total_rental_fee, sales, contribution_margin",
       )
+      .not("contract_date", "is", null)
       .gte("contract_date", yearStart)
       .lte("contract_date", end)
       .order("prop_item_usid", { ascending: true })
@@ -231,8 +234,9 @@ async function fetchAllYearOrdersUncached(
   const PAGE = 50000;
   while (true) {
     const { data, error } = await supabase
-      .from("raw_orders")
+      .from("raw_prop_items")
       .select("order_confirmed_at, partner_company")
+      .not("order_confirmed_at", "is", null)
       .gte("order_confirmed_at", yearStart)
       .lte("order_confirmed_at", end)
       .order("prop_item_usid", { ascending: true })
@@ -338,7 +342,7 @@ function particle(word: string, withFinal: string, withoutFinal: string) {
 /**
  * 스파크라인 앞쪽의 "데이터 없음" 구간을 잘라낸다.
  *
- * 손익(매출·공헌이익)은 raw_contracts에 2026-01부터만 채워져 있다. 그 앞 달을
+ * 손익(매출·공헌이익)은 계약완료 데이터에 2026-01부터만 채워져 있다. 그 앞 달을
  * 0으로 그리면 선이 바닥에서 솟아올라 "그때는 0원이었다"는 거짓말이 된다.
  * 값이 처음 잡히는 달부터만 그린다.
  */
@@ -481,13 +485,15 @@ export default async function Home({
     allOrders,
   ] = await Promise.all([
     supabase
-      .from("raw_orders")
+      .from("raw_prop_items")
       .select("*", { count: "exact", head: true })
+      .not("order_confirmed_at", "is", null)
       .gte("order_confirmed_at", curr.start)
       .lte("order_confirmed_at", curr.end),
     supabase
-      .from("raw_orders")
+      .from("raw_prop_items")
       .select("*", { count: "exact", head: true })
+      .not("order_confirmed_at", "is", null)
       .gte("order_confirmed_at", prev.start)
       .lte("order_confirmed_at", prev.end),
 
@@ -628,7 +634,7 @@ export default async function Home({
   const amountPrev = prevAgg.revenue.total / EOK;
   const salesCurr = currAgg.salesTotal.total / EOK;
   const salesPrev = prevAgg.salesTotal.total / EOK;
-  // 설치인증률 = 계약완료 / 주문확정 (앱 전반이 raw_contracts를 '설치인증'으로 부른다)
+  // 설치인증률 = 계약완료 / 주문확정 (앱 전반이 계약완료를 '설치인증'으로 부른다)
   const certCurr = rate(contractCurr, orderCurr);
   const certPrev = rate(contractPrev, orderPrev);
 

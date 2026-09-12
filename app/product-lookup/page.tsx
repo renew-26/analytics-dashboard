@@ -9,7 +9,7 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
 );
 
-// raw_orders/raw_contracts는 컬럼이 많으면 6개월 기본 범위에서 50,000건 단위 조회가
+// 주문확정·계약완료 조회는 컬럼이 많으면 6개월 기본 범위에서 50,000건 단위 조회가
 // DB statement timeout에 걸릴 수 있어 더 작게 나눈다 (operation-efficiency 페이지와 동일한 이슈).
 const PAGE = 10000;
 const MONTHS_BACK = 6;
@@ -65,9 +65,13 @@ function getDefaultStart(monthsBack: number): string {
 
 async function fetchAllApplianceRows(start: string): Promise<RawRow[]> {
   const all: RawRow[] = [];
+  // 테이블명이 같아 복붙처럼 보이지만 두 패스는 의도한 것이다 — 기준(날짜 컬럼)만
+  // 다르다. 기간 내 주문확정도 되고 계약완료도 된 건은 두 번 잡혀야 구
+  // raw_orders/raw_contracts 두 테이블을 따로 세던 예전 동작과 같아진다.
+  // 한쪽을 지우면 그런 건들의 카운트가 반으로 줄어든다.
   for (const [table, dateCol] of [
-    ["raw_orders", "order_confirmed_at"],
-    ["raw_contracts", "contract_date"],
+    ["raw_prop_items", "order_confirmed_at"],
+    ["raw_prop_items", "contract_date"],
   ] as const) {
     let from = 0;
     while (true) {
@@ -76,6 +80,7 @@ async function fetchAllApplianceRows(start: string): Promise<RawRow[]> {
         .select(
           "category, brand, product_name, model_name, partner_company, total_rental_fee, sales_incentive, contribution_margin, management_type, management_cycle",
         )
+        .not(dateCol, "is", null)
         .neq("category", "인터넷")
         .neq("category", "타이어")
         .neq("category", "유심")

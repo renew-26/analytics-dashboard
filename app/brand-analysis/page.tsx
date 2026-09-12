@@ -32,8 +32,9 @@ async function fetchContracts(
   let from = 0;
   while (true) {
     const { data, error } = await supabase
-      .from("raw_contracts")
+      .from("raw_prop_items")
       .select("contract_date, brand, category, sales, monthly_fee, sales_incentive, contribution_margin, contract_months, product_name")
+      .not("contract_date", "is", null)
       .gte("contract_date", start)
       .lte("contract_date", end)
       .order("contract_date", { ascending: true })

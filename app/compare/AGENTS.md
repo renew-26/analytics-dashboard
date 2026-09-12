@@ -4,13 +4,13 @@
 # app/compare
 
 ## Purpose
-렌탈사 2개를 선택해 나란히 비교하는 페이지. 계약완료(`raw_contracts`)·주문확정(`raw_orders`) 기준 최근 6개월 데이터를 렌탈사×월×카테고리 단위로 집계한다.
+렌탈사 2개를 선택해 나란히 비교하는 페이지. `raw_prop_items` 한 테이블에서 계약완료(`contract_date`)·주문확정(`order_confirmed_at`) 기준 최근 6개월 데이터를 렌탈사×월×카테고리 단위로 집계한다.
 
 ## Key Files
 
 | File | Description |
 |------|-------------|
-| `page.tsx` | Server Component — `raw_contracts`·`raw_orders` 6개월 병렬 조회 후 렌탈사×월×카테고리 집계 |
+| `page.tsx` | Server Component — `raw_prop_items` 를 `contract_date`·`order_confirmed_at` 두 날짜 컬럼으로 6개월 병렬 조회 후 렌탈사×월×카테고리 집계 |
 | `CompareClient.tsx` | Client Component — 렌탈사 2개 선택 UI, 월별/카테고리별 비교 표·차트 |
 
 ## For AI Agents

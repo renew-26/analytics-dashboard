@@ -4,13 +4,13 @@
 # app/brand-analysis
 
 ## Purpose
-브랜드 분석 페이지. 계약완료(`raw_contracts`) 기준 최근 6개월 데이터를 브랜드별로 조망한다. 브랜드를 선택(최대 10개)해 월별 매출·판매 상품·공헌이익을 비교한다.
+브랜드 분석 페이지. `raw_prop_items`(계약완료, `contract_date`) 기준 최근 6개월 데이터를 브랜드별로 조망한다. 브랜드를 선택(최대 10개)해 월별 매출·판매 상품·공헌이익을 비교한다.
 
 ## Key Files
 
 | File | Description |
 |------|-------------|
-| `page.tsx` | Server Component — `raw_contracts` 6개월 조회 후 브랜드×월×카테고리×상품×계약기간 단위로 집계 |
+| `page.tsx` | Server Component — `raw_prop_items` 를 `contract_date` 기준 6개월 조회 후 브랜드×월×카테고리×상품×계약기간 단위로 집계 |
 | `BrandAnalysisClient.tsx` | Client Component — 브랜드 선택 UI, 월별/상품별 표·차트 렌더링 |
 
 ## For AI Agents
