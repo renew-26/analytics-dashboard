@@ -301,14 +301,22 @@ export default async function CategoryGroupPage({
   // 축별 값을 그냥 더해도 전체 건당이 안 나온다. 가법 분해라야 워터폴이 닫힌다.
   const marginOf = (r: Row) => r.contribution_margin ?? 0;
   const cpuGaps = cpuContribution(currRows, prevRows, companyLabelOf, marginOf);
+  // 브랜드 기여도 분모를 그룹 전체로 유지해야 자식 합이 부모 막대와 같아진다.
+  // 렌탈사별로 cpuContribution 을 다시 부르면 분모가 그 렌탈사 건수로 재정규화돼
+  // "X 자체의 Δ건당"이 나오고, 위 막대(= X 가 그룹 Δ건당에 기여한 몫)와 어긋난다.
+  // 구분자는 이스케이프로 적는다 — 소스에 리터럴 NUL 바이트를 새로 심지 않는다.
+  const CO_BRAND = "\u0000";
   const cpuSubMovers: Record<string, Mover[]> = {};
-  for (const co of companies) {
-    cpuSubMovers[co.label] = cpuContribution(
-      currByCo.get(co.label) ?? NO_ROWS,
-      prevByCo.get(co.label) ?? NO_ROWS,
-      brandOf,
-      marginOf,
-    ).map((x) => ({ label: x.key, value: x.value }));
+  for (const co of companies) cpuSubMovers[co.label] = [];
+  for (const x of cpuContribution(
+    currRows,
+    prevRows,
+    (r) => `${companyLabelOf(r)}${CO_BRAND}${brandOf(r)}`,
+    marginOf,
+  )) {
+    const i = x.key.indexOf(CO_BRAND);
+    const co = x.key.slice(0, i);
+    cpuSubMovers[co]?.push({ label: x.key.slice(i + 1), value: x.value });
   }
   waterfallMetrics.push({
     key: "cpu",
