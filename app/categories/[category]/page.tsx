@@ -220,7 +220,11 @@ export default async function CategoryGroupPage({
 
   const brandByCompany: Record<string, AxisAgg[]> = {};
   const convByCompany: Record<string, ConvStats> = {};
+  // 렌탈사 상세로 가는 경로 — ④ 표는 행 클릭이 선택이라 링크를 따로 건다
+  const coHrefByCompany: Record<string, string> = {};
   for (const co of companies) {
+    const href = coHref(co.label);
+    if (href) coHrefByCompany[co.label] = href;
     brandByCompany[co.label] = aggregateAxis(
       currByCo.get(co.label) ?? NO_ROWS,
       prevByCo.get(co.label) ?? NO_ROWS,
@@ -619,6 +623,7 @@ export default async function CategoryGroupPage({
         groupKey={key}
         metrics={waterfallMetrics}
         companies={companies}
+        coHref={coHrefByCompany}
         brandByCompany={brandByCompany}
         convByCompany={convByCompany}
         prodUp={prodUp}

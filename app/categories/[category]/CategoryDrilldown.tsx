@@ -8,6 +8,7 @@ import WaterfallPanel, {
 import { type AxisAgg } from "@/lib/category-aggregate";
 import { type ConvStats } from "@/lib/conversion";
 import { EOK, fmt, signedInt } from "@/lib/format";
+import { topic } from "@/lib/korean";
 import { manwon, deltaColor } from "@/app/components/home/cardKit";
 
 export type ProductDelta = {
@@ -46,6 +47,7 @@ export default function CategoryDrilldown({
   groupKey,
   metrics,
   companies,
+  coHref,
   brandByCompany,
   convByCompany,
   prodUp,
@@ -57,6 +59,8 @@ export default function CategoryDrilldown({
   groupKey: string;
   metrics: WaterfallMetric[];
   companies: AxisAgg[];
+  /** 렌탈사 → 상세 경로. COMPANY_LABELS 에 없는 이름은 키가 없다. */
+  coHref: Record<string, string>;
   brandByCompany: Record<string, AxisAgg[]>;
   convByCompany: Record<string, ConvStats>;
   prodUp: ProductDelta[];
@@ -82,7 +86,7 @@ export default function CategoryDrilldown({
       {/* ── ③ 왜 변했나 ─────────────────────────────── */}
       <section>
         <h2 className={`mb-[11px] ${sectionHead}`}>
-          이번 달 {groupKey}는 왜 변했나
+          이번 달 {topic(groupKey)} 왜 변했나
         </h2>
         <WaterfallPanel metrics={metrics} panelClass={panelClass} />
         <div className={`${panelClass} mt-[11px] overflow-hidden`}>
@@ -148,8 +152,8 @@ export default function CategoryDrilldown({
                 <th className={th}>점유율</th>
                 <th className={th}>전환율</th>
                 <th className={th}>리드타임</th>
-                <th className={th}>거래액</th>
-                <th className={th}>매출</th>
+                <th className={th}>거래액(억)</th>
+                <th className={th}>매출(억)</th>
                 <th className={th}>건당 공헌이익</th>
               </tr>
             </thead>
@@ -167,8 +171,20 @@ export default function CategoryDrilldown({
                         : "hover:bg-[var(--color-gray-25)]"
                     }`}
                   >
-                    <td className="p-[8px_12px] text-left font-semibold">
-                      {c.label}
+                    <td className="p-[8px_12px] text-left">
+                      <span className="font-semibold">{c.label}</span>
+                      {/* 행 클릭은 선택이라 상세로 가는 길이 따로 필요하다.
+                          경로를 병기하고, 클릭이 선택까지 발동하지 않게 막는다. */}
+                      {coHref[c.label] && (
+                        <Link
+                          href={coHref[c.label]}
+                          onClick={(e) => e.stopPropagation()}
+                          className="mt-px block font-mono text-[10px] text-[var(--color-gray-400)] hover:text-[var(--color-primary)] hover:underline"
+                        >
+                          {decodeURIComponent(coHref[c.label])}
+                          <span aria-hidden> ↗</span>
+                        </Link>
+                      )}
                     </td>
                     <td className={`${td} num`}>{fmt(c.cnt)}</td>
                     <td className={`${td} num text-[var(--color-gray-500)]`}>
@@ -222,8 +238,8 @@ export default function CategoryDrilldown({
                 <th className={th}>계약</th>
                 <th className={th}>전월</th>
                 <th className={th}>증감</th>
-                <th className={th}>거래액</th>
-                <th className={th}>매출</th>
+                <th className={th}>거래액(억)</th>
+                <th className={th}>매출(억)</th>
                 <th className={th}>건당 공헌이익</th>
               </tr>
             </thead>
