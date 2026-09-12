@@ -4,13 +4,13 @@
 # app/category-trends
 
 ## Purpose
-카테고리 트렌드 페이지. 계약완료(`raw_contracts`) 기준 **월별** 트렌드와 주문확정(`raw_orders`) 기준 **주차별** 트렌드를 함께 보여준다. 상위 카테고리의 추이, 렌탈사 드릴다운, 전년 동기 대비(YoY) 배지, 신규/이탈 카테고리 감지를 제공한다.
+카테고리 트렌드 페이지. `raw_prop_items` 한 테이블에서 계약완료(`contract_date`) 기준 **월별** 트렌드와 주문확정(`order_confirmed_at`) 기준 **주차별** 트렌드를 함께 보여준다. 상위 카테고리의 추이, 렌탈사 드릴다운, 전년 동기 대비(YoY) 배지, 신규/이탈 카테고리 감지를 제공한다.
 
 ## Key Files
 
 | File | Description |
 |------|-------------|
-| `page.tsx` | Server Component — `raw_contracts`(24개월)·`raw_orders` 조회 후 월별·주차별 집계, YoY·신규/이탈 계산 |
+| `page.tsx` | Server Component — `raw_prop_items` 를 `contract_date`(24개월)·`order_confirmed_at` 두 날짜 컬럼으로 나눠 조회 후 월별·주차별 집계, YoY·신규/이탈 계산 |
 | `CategoryTrendsClient.tsx` | Client Component — 월별 트렌드 표/차트, 주차별 상품 표, 카테고리 클릭 시 렌탈사 드릴다운 |
 
 ## For AI Agents

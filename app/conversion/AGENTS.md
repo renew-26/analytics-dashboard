@@ -4,13 +4,13 @@
 # app/conversion
 
 ## Purpose
-전환율 분석 페이지. 주문확정(`raw_orders`) → 계약완료(`raw_contracts`) 전환을 렌탈사×월 단위로 비교한다. 기간 기준 추정치(주문건 대비 계약건 비율)를 표시한다.
+전환율 분석 페이지. `raw_prop_items` 한 테이블에서 주문확정(`order_confirmed_at`) → 계약완료(`contract_date`) 전환을 렌탈사×월 단위로 비교한다. 기간 기준 추정치(주문건 대비 계약건 비율)를 표시한다.
 
 ## Key Files
 
 | File | Description |
 |------|-------------|
-| `page.tsx` | Server Component — `raw_orders`·`raw_contracts` 6개월 병렬 조회 후 월×렌탈사별 주문/계약 건수 집계 |
+| `page.tsx` | Server Component — `raw_prop_items` 를 `order_confirmed_at`·`contract_date` 두 날짜 컬럼으로 6개월 병렬 조회 후 월×렌탈사별 주문/계약 건수 집계 |
 | `ConversionClient.tsx` | Client Component — 월별·렌탈사별 전환율 표 렌더링 |
 
 ## For AI Agents

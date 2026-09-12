@@ -159,8 +159,9 @@ async function fetchContractsUncached(
  *
  * unstable_cache 는 항목당 약 2MB 제한이 있다 — 넘으면 Next 가 경고 로그만 남기고
  * 조용히 저장하지 않는다(정합성은 안 깨지고 그 조회만 캐시가 안 타는 상태로 남는다).
- * 아래 fetchAllYearOrders(연초~, 68,455행, 6.71MB)와 fetchAllYearContracts(연초~,
- * 45,315행, 4.19MB)는 이 한도를 넘어 실제로는 캐시되지 않는다(2026-09-11 측정).
+ * 아래 fetchAllYearOrders(연초~, 132,813행, 약 13MB — raw_prop_items 전환으로
+ * 2025 주문확정이 되살아나며 행 수가 늘었다)와 fetchAllYearContracts(연초~,
+ * 45,315행, 4.19MB)는 이 한도를 넘어 실제로는 캐시되지 않는다(2026-09-12 재측정).
  * 반면 이 바로 아래 fetchContracts처럼 단일 월 구간 조회는 한도 안에 들어와 정상
  * 캐시된다. 근본 원인은 두 조회 모두 수만 행을 통째로 내려받아 카드 수십 개 분량의
  * 집계값을 계산하는 구조라는 점이다 — 캐싱으로는 못 고치고, 집계를 Postgres 로

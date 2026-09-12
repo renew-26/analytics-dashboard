@@ -32,9 +32,10 @@
 | `sales IS NOT NULL` | **버린다** | 사용자 확정 — "주문확정은 언제 주문확정됐는지 재는 것"이라 손익이 나중에 채워졌는지와 무관. 2025 = 62,710 이 맞다 |
 | 취소 건(`status=취소`) | **포함 유지** | 사용자 — 견적 취소도 분석 대상 (2026-09-10 결정, 그대로 유지) |
 | 패턴 | `app/exception-approval/page.tsx` 의 `DateBasis` 를 `lib/` 로 승격 | 사용자 지정 |
-| 구 테이블 | 재배선 검증 후 **즉시 드롭** | 사용자 — 놓친 호출부가 조용히 낡은 값을 주는 대신 에러로 터진다 |
+| 구 테이블 | 재배선 검증 후 드롭 — 단, `app/revenue-analysis/page.tsx` 재배선(PR #34) 병합 전까지 **보류** | 진행 중 발견 — 아래 "revenue-analysis 제외" 참고. 드롭을 먼저 하면 그 화면이 깨진다 |
+| `app/revenue-analysis/page.tsx` | 이번 재배선에서 **제외** — 구 테이블(`raw_orders`/`raw_contracts`) 그대로 유지 | 진행 중 발견 — PR #34 가 이 파일을 별도로 재작성 중이라 여기서 손대면 그 PR 과 충돌한다. PR #34 병합 후 `raw_prop_items` 로 옮긴다 |
 
-## 범위 — 19개 파일
+## 범위 — 18개 파일 (`revenue-analysis` 제외)
 
 `app/api/sync/` 는 이미 `raw_prop_items` 에만 쓰므로 제외.
 
@@ -43,16 +44,22 @@
 `app/categories/[category]/[company]/page.tsx` · `.../[product]/page.tsx` ·
 `app/category/[category]/page.tsx` · `app/components/HeaderData.tsx`
 
-**둘 다 (11) — 주문확정 부분이 바뀐다**
+**둘 다 (10) — 주문확정 부분이 바뀐다**
 `app/components/DashboardSections.tsx`(10곳) · `app/company/[company]/page.tsx`(7) ·
 `app/category-trends/CategoryTrendsClient.tsx`(6) · `app/page.tsx`(5) ·
-`app/revenue-analysis/page.tsx`(3) · `app/category-trends/page.tsx` ·
+`app/category-trends/page.tsx` ·
 `app/compare/page.tsx` · `app/conversion/page.tsx` · `app/group/[group]/page.tsx` ·
 `app/operation-efficiency/page.tsx` · `app/product-lookup/page.tsx`
 
 **죽은 코드 (1)** `app/api/test-query-compare/route.ts` — 2026-08-09 작성, 호출부 없음,
 주석이 "Redash 4625(신규) vs raw_orders(기존 4441) 행 수 비교"인데 두 쿼리 모두 4678 로
 대체됐다. 삭제한다.
+
+**제외 (1)** `app/revenue-analysis/page.tsx` — 재배선하지 않는다. 진행 중 오픈된
+PR #34 가 이 파일을 통째로 재작성하고 있어, 여기서 손대면 그 PR 과 충돌한다. 구
+테이블(`raw_orders`/`raw_contracts`)을 그대로 읽는 채로 남기고, PR #34 병합 후
+별도로 `raw_prop_items` 로 옮긴다. **이 파일이 남아 있는 한 구 테이블을 드롭할 수
+없다** — 위 결정 사항 표 참고.
 
 ## 설계
 
@@ -125,7 +132,7 @@ PR #35 에서 실제로 밟은 함정이다(`import type` 은 지워지지만 �
 | 1 | `lib/` 공용층 | 숫자 불변 | 다르면 재배선 버그 |
 | 2 | 계약완료 전용 5파일 | 숫자 불변 (34,896 = 34,896) | 다르면 재배선 버그 |
 | 3 | 섞인 11파일, 무거운 순 | 2025 주문확정 27배 증가 | 델타 표와 대조 |
-| 4 | 죽은 코드 삭제 + 구 테이블 드롭 | 남은 참조 0 | grep 확인 후 |
+| 4 | 죽은 코드 삭제 + 구 테이블 드롭 | 남은 참조 0(단, `revenue-analysis` 는 의도적으로 제외 — 드롭은 그 파일 재배선(PR #34) 후로 보류) | grep 확인 후 |
 
 1·2단계가 **기계적 변환 자체가 옳다는 것을 이진법으로 증명**한다. 그게 통과해야
 3단계에서 숫자가 바뀔 때 "의도된 변화"로 읽을 근거가 생긴다.
@@ -144,7 +151,7 @@ PR #35 에서 실제로 밟은 함정이다(`import type` 은 지워지지만 �
 | 위험 | 완화 |
 |---|---|
 | 2025 주문확정이 27배 늘어 과거 지표 해석이 바뀐다 | 의도된 수정이다. 데이터레이크가 기준임을 사용자가 확인 |
-| 호출부 하나를 놓쳐 조용히 틀린다 | 구 테이블을 드롭하므로 놓친 곳은 에러로 터진다 |
+| 호출부 하나를 놓쳐 조용히 틀린다 | `revenue-analysis` 를 남겨두느라 구 테이블 드롭이 보류돼 "에러로 터진다"는 안전망이 없다 — 대신 1·2단계 이진 게이트 + Task 8 Step 1 의 저장소 전체 `grep` 로 남은 참조 0을 직접 확인한다 |
 | 재배선 중 필터를 잘못 옮겨 한 페이지만 틀어진다 | 1·2단계의 이진 게이트 + 3단계 델타 표 대조 |
 | 구 테이블을 참조하는 외부 소비자(Redash·타 서비스) | **없음 확인됨** (사용자, 2026-09-12) — 드롭해도 안전하다 |
 

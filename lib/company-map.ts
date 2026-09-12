@@ -1,4 +1,4 @@
-// 사이드바 라벨 → Supabase raw_contracts.rental_company 매핑
+// 사이드바 라벨 → Supabase raw_prop_items.rental_company 매핑
 export const COMPANY_MAP: {
   label: string;
   dbName: string;

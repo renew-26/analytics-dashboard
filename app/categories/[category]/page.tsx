@@ -282,6 +282,8 @@ export default async function CategoryGroupPage({
   const prodOf = (r: Row) => {
     const product = r.product_name?.trim() || "(상품명 없음)";
     const company = companyLabelOf(r);
+    // 키에 리터럴 NUL 바이트(\0)를 구분자로 쓴다 — BSD grep(macOS 기본)은
+    // NUL이 섞인 파일을 바이너리로 보고 통째로 건너뛴다. 이 파일을 grep할 땐 -a를 쓸 것.
     const k = `${company} ${product}`;
     let a = prodMap.get(k);
     if (!a) {

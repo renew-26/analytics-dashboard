@@ -1,7 +1,7 @@
 /**
  * 카테고리 계층 — 새 IA의 단일 소스.
  *
- *   상위 카테고리(3축, 내비 단위)  →  카테고리 그룹(6그룹)  →  세부 카테고리(raw_contracts.category)
+ *   상위 카테고리(3축, 내비 단위)  →  카테고리 그룹(6그룹)  →  세부 카테고리(raw_prop_items.category)
  *
  * 6그룹은 rentre_logic_sync_onepager.pdf의 "현행 카테고리 체계 — 임시 6그룹"
  * (DW dim_prod_category 가동 중, M3 결정의 출발점)을 그대로 이식했다.

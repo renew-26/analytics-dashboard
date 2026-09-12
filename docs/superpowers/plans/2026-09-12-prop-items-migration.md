@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** `raw_orders`·`raw_contracts` 를 버리고 19개 파일이 `raw_prop_items` 한 테이블을 읽게 한다 — 그 과정에서 화면이 2025년 주문확정의 97%를 버리던 버그가 고쳐진다.
+**Goal:** `raw_orders`·`raw_contracts` 를 버리고 18개 파일이 `raw_prop_items` 한 테이블을 읽게 한다 — 그 과정에서 화면이 2025년 주문확정의 97%를 버리던 버그가 고쳐진다. `app/revenue-analysis/page.tsx` 는 이번에 다루지 않는다(진행 중 발견 — 아래 File Structure 표와 Task 7 참고).
 
 **Architecture:** 호출부가 **테이블을 고르는 대신 기준(`DateBasis`)을 고른다.** `app/exception-approval/page.tsx` 가 이미 쓰는 패턴을 `lib/date-basis.ts` 로 승격하고, 각 호출부는 `.from("raw_prop_items")` + 해당 날짜 컬럼 `NOT NULL` 필터로 바꾼다. `sales IS NOT NULL` 은 넣지 않는다 — 그 조건이 버그의 원인이다.
 
@@ -48,7 +48,6 @@
 | `app/category-trends/CategoryTrendsClient.tsx` | 116,191,236,239,248,251,1259 (표시층) | 5 |
 | `app/category-trends/page.tsx` | o:136 · c:117 | 5 |
 | `app/page.tsx` | o:234,484,489 · c:128,196 | 6 |
-| `app/revenue-analysis/page.tsx` | o:48 · c:70,103 | 7 |
 | `app/compare/page.tsx` | o:56 · c:37 | 7 |
 | `app/conversion/page.tsx` | o:31 · c:53 | 7 |
 | `app/group/[group]/page.tsx` | o:95 · c:69 | 7 |
@@ -56,6 +55,11 @@
 | `app/product-lookup/page.tsx` | o:69 · c:70 | 7 |
 
 **삭제** `app/api/test-query-compare/route.ts` (태스크 8)
+
+**제외 (재배선하지 않음)** `app/revenue-analysis/page.tsx` — 진행 중이던 PR #34 가
+이 파일을 통째로 재작성하고 있어 여기서 손대면 충돌한다. 구 테이블을 그대로 쓴 채
+남기고, PR #34 병합 후 별도로 옮긴다. 태스크 8 의 구 테이블 드롭도 이 파일이
+옮겨지기 전까지 보류한다.
 
 **생성 (커밋 안 함 — `~/.claude/scripts/`)**
 
@@ -432,7 +436,7 @@ npx tsc --noEmit && npm run lint && npm run build
 
 - [ ] **Step 4: 델타 표와 대조한다**
 
-이 컴포넌트는 홈에서 렌더된다. `PORT=4100 npm run start` 후 `/` 를 열어 거래건수·매출 섹션의 2025 월 값이 Task 0 표의 "주문확정 신" 열과 방향이 맞는지 본다(정확히 같을 필요는 없다 — 페이지가 추가 필터를 걸 수 있다. **2025 값이 눈에 띄게 늘었는지**가 판정 기준이다).
+이 컴포넌트는 홈이 아니라 `/transaction-count` 에서 렌더된다(`app/transaction-count/page.tsx`). `PORT=4100 npm run start` 후 `/transaction-count` 를 열어 거래건수·매출 섹션의 2025 월 값이 Task 0 표의 "주문확정 신" 열과 방향이 맞는지 본다(정확히 같을 필요는 없다 — 페이지가 추가 필터를 걸 수 있다. **2025 값이 눈에 띄게 늘었는지**가 판정 기준이다).
 
 계약완료 기반 수치(매출·공헌이익 등)는 **변하면 안 된다.**
 
@@ -666,7 +670,19 @@ curl -s -o /dev/null -w "%{http_code}\n" "http://localhost:4100/"
 curl -s -o /dev/null -w "%{http_code}\n" "http://localhost:4100/?hide2025=1"
 ```
 
-둘 다 200 이어야 한다. 그리고 홈의 거래건수 월별 격자에서 **2025 월들이 더 이상 비어 보이지 않는지** 확인한다 — Task 0 델타 표의 "주문확정 신" 열과 방향이 맞아야 한다.
+둘 다 200 이어야 한다.
+
+**주의:** "상세 데이터 → 카테고리 거래건수" 월별 격자(`visibleMonths`/`monthCatMap`)는
+`fetchAllYearContracts` 로 채워지는 **계약완료 기준**이라 2025 주문확정 27배 증가가
+애초에 거기 반영되지 않는다 — 그 격자로 이 태스크를 검증하지 않는다. 대신
+① Task 0 델타 표의 "주문확정 신" 2025 합계(62,710)와, ② 아래처럼 프로덕션 DB를
+직접 세어 2025 `order_confirmed_at` 건수가 그 값과 일치하는지 확인한다:
+
+```bash
+curl -s "${NEXT_PUBLIC_SUPABASE_URL}/rest/v1/raw_prop_items?select=order_confirmed_at&order_confirmed_at=gte.2025-01-01&order_confirmed_at=lt.2026-01-01&limit=1" \
+  -H "apikey: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}" -H "Authorization: Bearer ${NEXT_PUBLIC_SUPABASE_ANON_KEY}" \
+  -H "Prefer: count=exact" -I | grep -i content-range
+```
 
 - [ ] **Step 4: 커밋**
 
@@ -677,39 +693,42 @@ git commit -m "refactor(data): 홈을 raw_prop_items 로 옮긴다 — 2025 주�
 
 ---
 
-## Task 7: 나머지 6파일 — 같은 모양의 기계적 변환
+## Task 7: 나머지 5파일 — 같은 모양의 기계적 변환
 
-각 파일이 주문확정 1곳 + 계약완료 1~2곳으로 모양이 같다. 한 태스크로 묶는다.
+각 파일이 주문확정 1곳 + 계약완료 1곳으로 모양이 같다. 한 태스크로 묶는다.
+
+**`app/revenue-analysis/page.tsx` 는 이 태스크에 포함하지 않는다** — 진행 중이던
+PR #34 가 그 파일을 통째로 재작성 중이라 여기서 손대면 그 PR 과 충돌한다. 구
+테이블을 그대로 쓴 채 남기고 PR #34 병합 후 별도로 옮긴다.
 
 **Files:**
-- Modify: `app/revenue-analysis/page.tsx` — o:48 · c:70,103
 - Modify: `app/compare/page.tsx` — o:56 · c:37
 - Modify: `app/conversion/page.tsx` — o:31 · c:53
 - Modify: `app/group/[group]/page.tsx` — o:95 · c:69
 - Modify: `app/operation-efficiency/page.tsx` — o:161 · c:183
 - Modify: `app/product-lookup/page.tsx` — o:69 · c:70
 
-- [ ] **Step 1: 열한 곳을 규칙대로 바꾼다**
+- [ ] **Step 1: 열 곳을 규칙대로 바꾼다**
 
 Task 3 Step 1 규칙 그대로. 각 파일에서 `raw_contracts` → 계약완료 규칙, `raw_orders` → 주문확정 규칙.
 
 - [ ] **Step 2: 남은 참조 0 확인 + 타입·린트·빌드**
 
 ```bash
-grep -rac 'raw_contracts\|raw_orders' app/revenue-analysis/page.tsx app/compare/page.tsx app/conversion/page.tsx "app/group/[group]/page.tsx" app/operation-efficiency/page.tsx app/product-lookup/page.tsx
+grep -rac 'raw_contracts\|raw_orders' app/compare/page.tsx app/conversion/page.tsx "app/group/[group]/page.tsx" app/operation-efficiency/page.tsx app/product-lookup/page.tsx
 npx tsc --noEmit && npm run lint && npm run build
 ```
 
-기대: 여섯 파일 모두 `0`.
+기대: 다섯 파일 모두 `0`. (`app/revenue-analysis/page.tsx` 는 의도적으로 여전히 `raw_orders`/`raw_contracts` 를 참조한다 — 이 grep 대상에 넣지 않는다.)
 
-- [ ] **Step 3: 여섯 페이지가 전부 렌더되는지 확인한다**
+- [ ] **Step 3: 다섯 페이지가 전부 렌더되는지 확인한다**
 
 ```bash
 PORT=4100 npm run start
 ```
 
 ```bash
-for p in /revenue-analysis /compare /conversion /group/정수기 /operation-efficiency /product-lookup; do
+for p in /compare /conversion /group/정수기 /operation-efficiency /product-lookup; do
   printf "%-26s " "$p"
   curl -s -o /dev/null -w "%{http_code}\n" "http://localhost:4100$p"
 done
@@ -720,8 +739,8 @@ done
 - [ ] **Step 4: 커밋**
 
 ```bash
-git add app/revenue-analysis/page.tsx app/compare/page.tsx app/conversion/page.tsx "app/group/[group]/page.tsx" app/operation-efficiency/page.tsx app/product-lookup/page.tsx
-git commit -m "refactor(data): 나머지 6개 화면을 raw_prop_items 로 옮긴다"
+git add app/compare/page.tsx app/conversion/page.tsx "app/group/[group]/page.tsx" app/operation-efficiency/page.tsx app/product-lookup/page.tsx
+git commit -m "refactor(data): 나머지 5개 화면을 raw_prop_items 로 옮긴다"
 ```
 
 ---
@@ -734,8 +753,11 @@ git commit -m "refactor(data): 나머지 6개 화면을 raw_prop_items 로 옮�
 
 - [ ] **Step 1: 저장소 전체에 남은 참조가 0인지 확인한다**
 
+`app/revenue-analysis/page.tsx` 는 의도적 제외라 이 grep 에서 뺀다(File Structure
+표 참고 — PR #34 병합 전까지는 구 테이블을 그대로 참조한다).
+
 ```bash
-grep -ran 'raw_orders\|raw_contracts' app/ lib/ --include='*.ts' --include='*.tsx' | grep -v '/api/test-query-compare/'
+grep -ran 'raw_orders\|raw_contracts' app/ lib/ --include='*.ts' --include='*.tsx' | grep -v '/api/test-query-compare/' | grep -v '/revenue-analysis/page.tsx'
 ```
 
 기대: **출력 없음.** 하나라도 나오면 그 파일을 먼저 처리한다.
@@ -781,12 +803,27 @@ git add -A
 git commit -m "chore(data): 죽은 비교 라우트를 지우고 문서를 단일 원장으로 고친다"
 ```
 
-- [ ] **Step 6: 사용자에게 DROP SQL 을 넘긴다 — 직접 실행하지 않는다**
+- [ ] **Step 6: DROP 은 `revenue-analysis` 재배선 전까지 차단한다 — 지금 실행하지 않는다**
 
-Supabase 는 다른 계정이므로 DDL 을 실행할 수 없다. 아래를 전달한다:
+**이 브랜치는 `app/revenue-analysis/page.tsx` 를 의도적으로 제외했다** (진행 중이던
+PR #34 가 그 파일을 통째로 재작성 중이라 여기서 손대면 충돌하기 때문). 그 결과
+그 파일은 지금도 `raw_orders`/`raw_contracts` 를 직접 읽는다(48·70·103행).
+
+**"이 브랜치를 배포해 전 화면이 정상 동작함을 확인했다"는 이 DROP 의 선행 조건으로
+불충분하다** — `/revenue-analysis` 는 구 테이블을 읽는 채로도 정상 렌더되므로, 그
+확인은 통과하면서도 구 테이블은 여전히 필요한 상태가 된다. 이 상태에서 DROP 을
+실행하면 `/revenue-analysis` 하나가 그대로 깨진다.
+
+**따라서 DROP SQL 은 PR #34 가 병합되어 `app/revenue-analysis/page.tsx` 가
+`raw_prop_items` 로 옮겨지고, 저장소 전체 grep(Step 1 규칙, 이번에는 예외 없이)이
+0을 낼 때까지 사용자에게 넘기지 않는다.** Supabase 는 다른 계정이라 DDL 은 어차피
+사용자가 실행해야 한다 — 그 시점이 되면 아래를 전달한다:
 
 ```sql
--- 선행 조건: 이 브랜치가 배포되어 전 화면이 정상 동작함을 확인한 뒤에 실행할 것.
+-- 선행 조건 (둘 다 충족돼야 함):
+--   1) 이 브랜치가 배포되어 전 화면이 정상 동작함을 확인
+--   2) app/revenue-analysis/page.tsx 가 raw_prop_items 로 재배선됨 (PR #34 병합 후)
+--      — 이 조건이 없으면 이 화면 하나가 구 테이블에 의존한 채로 남아 드롭과 함께 깨진다.
 -- 외부 소비자 없음은 확인됨(사용자, 2026-09-12).
 BEGIN;
 DROP TABLE IF EXISTS raw_orders;
@@ -794,7 +831,8 @@ DROP TABLE IF EXISTS raw_contracts;
 COMMIT;
 ```
 
-**드롭은 코드 배포 후에 한다.** 먼저 드롭하면 아직 구 코드가 도는 운영에서 전 화면이 깨진다.
+**드롭은 두 조건을 모두 채운 후에 한다.** 코드 배포만 확인하고 드롭하면, 아직
+구 테이블을 읽는 `revenue-analysis` 가 그 자리에서 깨진다.
 
 ---
 

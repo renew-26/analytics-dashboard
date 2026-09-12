@@ -16,25 +16,19 @@ import {
   Cell,
 } from "recharts";
 import { CHART_ANIM } from "@/lib/chart";
+import { BASIS_LABEL, type DateBasis } from "@/lib/date-basis";
 import type {
   MonthlySummary,
   OverallSummary,
   ExceptionDetail,
   WaterfallStage,
   WaterfallBridge,
-  DateBasis,
   ImpactCategory,
 } from "./page";
 
-/**
- * 날짜 기준 라벨은 여기 둔다 — page.tsx에서 값으로 가져오면 그 모듈이 클라이언트
- * 번들 그래프에 끌려온다(모듈 스코프에서 SUPABASE_SERVICE_ROLE_KEY로 admin 클라이언트를
- * 만드는 파일이다). page.tsx에서 오는 건 컴파일 시 지워지는 타입만이어야 한다.
- */
-const BASIS_LABEL: Record<DateBasis, string> = {
-  order: "주문확정",
-  contract: "계약완료",
-};
+// 날짜 기준 타입·라벨은 `lib/date-basis.ts`(의존성 없는 모듈)에서 가져온다 —
+// page.tsx에서 값으로 가져오면 그 모듈이 클라이언트 번들 그래프에 끌려온다
+// (모듈 스코프에서 SUPABASE_SERVICE_ROLE_KEY로 admin 클라이언트를 만드는 파일이다).
 
 type Props = {
   months: { month: string; label: string }[];
