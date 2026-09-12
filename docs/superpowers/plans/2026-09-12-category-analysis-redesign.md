@@ -524,7 +524,7 @@ git commit -m "feat(categories): 주문확정 레인을 붙이고 KPI 를 5타�
 
 **Interfaces:**
 - Consumes: `conversionStats` (Task 1), `orderCurr` / `orderPrev` (Task 4)
-- Produces: `convCurr` / `convPrev` — Task 7 의 ④ 표가 쓴다
+- Produces: `convCurr` / `convPrev` — **② 섹션에서만 쓴다.** ④ 표의 렌탈사별 전환율은 Task 6 이 `convByCompany` 로 따로 만든다
 
 - [ ] **Step 1: 집계한다**
 
@@ -533,7 +533,17 @@ const convCurr = conversionStats(orderCurr);
 const convPrev = conversionStats(orderPrev);
 ```
 
-- [ ] **Step 2: 섹션을 ① 바로 뒤에 넣는다**
+- [ ] **Step 2: 기존 ② 주석 마커를 먼저 개명한다**
+
+현행 `page.tsx` 에 이미 `{/* ── ② 왜 변했나 ─────… */}` 주석이 있다. 새 ② 를 넣기
+전에 그 줄을 바꿔 둔다 — 안 그러면 Task 6 이 "② 를 지운다"면서 방금 만든 섹션을 지운다.
+
+```
+- {/* ── ② 왜 변했나 ─────────────────────────────── */}
++ {/* ── (구) 왜 변했나 — Task 6 에서 CategoryDrilldown 으로 대체된다 ── */}
+```
+
+- [ ] **Step 3: 새 ② 섹션을 ① 바로 뒤에 넣는다**
 
 ```tsx
 {/* ── ② 전환·리드타임 ─────────────────────────── */}
@@ -597,7 +607,7 @@ const convPrev = conversionStats(orderPrev);
 
 캡션은 **빼지 말 것.** 절단 보정을 안 하기로 했으므로 값이 낮게 나오는 이유를 화면에 적어두지 않으면 읽는 사람이 오독한다.
 
-- [ ] **Step 3: 빌드 + 렌더 대조**
+- [ ] **Step 4: 빌드 + 렌더 대조**
 
 Run: `npx tsc --noEmit && npm run lint && npm run build`
 
@@ -607,8 +617,9 @@ sleep 8
 curl -s -o /dev/null -w "%{http_code}\n" "http://localhost:4100/categories/%EC%A0%95%EC%88%98%EA%B8%B0"
 ```
 Expected: `200`. 화면의 전환율·평균 소요일이 Task 0 의 `② 전환율 X% 평균 소요 Y일` 과 일치.
+`(구) 왜 변했나` 워터폴도 아직 그대로 떠 있어야 한다 — Task 6 전까지는 안 지운다.
 
-- [ ] **Step 4: 커밋**
+- [ ] **Step 5: 커밋**
 
 ```bash
 git add app/categories/\[category\]/page.tsx
@@ -1007,7 +1018,19 @@ function DeltaCount({ value }: { value: number }) {
 
 - [ ] **Step 4: `page.tsx` 에서 ③(세부 카테고리)·④(렌탈사 표) 섹션 JSX 를 걷어내고 컴포넌트를 꽂는다**
 
-기존 484~494행(② 왜 변했나)과 539~638행(④ 렌탈사별 성과), 640~747행(⑤ 상품)을 지우고 그 자리에:
+**행번호로 찾지 말 것.** Task 4·5 가 같은 파일에 조회 블록과 새 ② 섹션을 끼워 넣어
+원래 계획을 쓸 때의 행번호가 전부 밀렸다. 아래 세 블록을 **JSX 주석 마커로 찾아** 지운다:
+
+| 지울 블록 | 찾는 마커 |
+|---|---|
+| 구 워터폴 섹션 | `{/* ── (구) 왜 변했나 …` (Task 5 Step 2 가 개명해 둔 것) |
+| 렌탈사별 성과 | `{/* ── ④ 렌탈사별 성과 …` |
+| 상품·모델별 성과 | `{/* ── ⑤ 상품·모델별 성과 …` |
+
+**`{/* ── ② 전환·리드타임 ── */}` 은 지우지 않는다** — Task 5 가 방금 만든 것이다.
+`{/* ── ③ 세부 카테고리 ── */}` 와 `{/* ── ⑥ BM 구성 ── */}` 도 남긴다 (Task 7).
+
+세 블록을 지운 자리(구 워터폴이 있던 곳)에 넣는다:
 
 ```tsx
 <CategoryDrilldown
