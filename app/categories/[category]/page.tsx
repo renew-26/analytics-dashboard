@@ -264,12 +264,22 @@ export default async function CategoryGroupPage({
     },
   ];
 
+  // 워터폴 막대는 증가를 먼저(큰 것부터) · 감소를 나중(큰 폭부터) 보여준다 —
+  // 사용자 확정(2026-09-13). diffMap 자체는 홈 ②도 쓰므로 건드리지 않고
+  // 이 호출부에서만 재정렬한다. movers 리스트는 |값| 내림차순 그대로 둔다 — 별개 관심사.
+  const sortIncreasesFirst = (gaps: { key: string; value: number }[]) => {
+    const inc = gaps.filter((g) => g.value > 0).sort((a, b) => b.value - a.value);
+    const dec = gaps.filter((g) => g.value < 0).sort((a, b) => a.value - b.value);
+    return [...inc, ...dec];
+  };
+
   const waterfallMetrics: WaterfallMetric[] = METRIC_DEFS.map((def) => {
     const c = sumBy(currRows, companyLabelOf, def.of);
     const p = sumBy(prevRows, companyLabelOf, def.of);
     const currTotal = sum(currRows, def.of);
     const prevTotal = sum(prevRows, def.of);
     const gaps = diffMap(c, p);
+    const barGaps = sortIncreasesFirst(gaps);
     const subMovers: Record<string, Mover[]> = {};
     for (const co of companies) {
       subMovers[co.label] = diffMap(
@@ -285,7 +295,7 @@ export default async function CategoryGroupPage({
       changePct: pctAbs(currTotal, prevTotal),
       items: [
         { label: "전월 동기간", type: "total" as const, value: prevTotal },
-        ...gaps.map((g) => ({
+        ...barGaps.map((g) => ({
           label: g.key,
           type: "delta" as const,
           value: g.value,
@@ -323,6 +333,7 @@ export default async function CategoryGroupPage({
     const co = x.key.slice(0, i);
     cpuSubMovers[co]?.push({ label: x.key.slice(i + 1), value: x.value });
   }
+  const cpuBarGaps = sortIncreasesFirst(cpuGaps);
   waterfallMetrics.push({
     key: "cpu",
     label: "건당 공헌이익",
@@ -331,7 +342,7 @@ export default async function CategoryGroupPage({
     changePct: pctAbs(cpu, cpuPrev),
     items: [
       { label: "전월 동기간", type: "total" as const, value: cpuPrev },
-      ...cpuGaps.map((g) => ({
+      ...cpuBarGaps.map((g) => ({
         label: g.key,
         type: "delta" as const,
         value: g.value,
