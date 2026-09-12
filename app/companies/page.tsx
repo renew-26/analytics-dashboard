@@ -13,6 +13,7 @@ import { conversionStats, type ConvRow } from "@/lib/conversion";
 import { resolveTier, TIER_META, TIER_ORDER, type Tier } from "@/lib/tiers";
 import CompanyCards from "@/app/components/home/CompanyCards";
 import Overview from "@/app/components/companies/Overview";
+import Priority from "@/app/components/companies/Priority";
 
 /** fetch B 행 — 전환율 분모용. 렌탈사·카테고리는 COMPANY_MAP 매칭에만 쓴다 */
 type OrderRow = ConvRow & {
@@ -187,6 +188,8 @@ export default async function CompaniesPage() {
           (c) => c.prev,
         )}
       />
+
+      <Priority companies={visibleCards} />
 
       <CompanyCards companies={visibleCards} />
 
