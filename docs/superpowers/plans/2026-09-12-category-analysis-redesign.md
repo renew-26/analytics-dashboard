@@ -1236,6 +1236,61 @@ curr 2026-09-01~2026-09-10  prev 2026-08-01~2026-08-10
 
 ---
 
+## 데이터레이크 교차검증 — 태스크마다 돌린다
+
+**규약(사용자 지시, 2026-09-12): 값을 검증할 때 Supabase 하나만 보지 말고 데이터레이크와
+대조한다.** Supabase `raw_prop_items` 는 Redash 4678 경유 동기화본이라 드리프트가 날 수 있다.
+
+세 소스를 쓴다. **grain 이 다르다는 걸 먼저 이해하고 비교해야 한다.**
+
+| 소스 | 도구 | grain |
+|---|---|---|
+| 운영 DB `doublecheck_live.PROP` ⋈ `PROP_ITEM` | `mcp__plugin_rentre-navigator_rentre-mysql__mysql_query` | 주문·아이템 둘 다 |
+| 데이터레이크 `rentre_statistics.fact_order_confirmed` / `fact_order_completed` | `mcp__plugin_rentre-navigator_rentre-mysql-analytics__mysql_query` | **주문 1건** (`prop_usid` PK) |
+| Supabase `raw_prop_items` | `.superpowers/sdd/<plan>/xcheck.mjs` | **아이템 1건** |
+
+```sql
+-- 데이터레이크 (주문 grain)
+SELECT COUNT(*) FROM rentre_statistics.fact_order_confirmed
+ WHERE event_ts >= '2026-09-01' AND event_ts < '2026-09-11';
+
+-- 운영 DB (원천, 두 grain 동시)
+SELECT COUNT(DISTINCT p.PROP_USID) AS orders, COUNT(*) AS items
+  FROM doublecheck_live.PROP p
+  JOIN doublecheck_live.PROP_ITEM pi ON pi.PROP_USID = p.PROP_USID AND pi.DEL_YN = 0
+ WHERE p.CONFIRMED_TS >= '2026-09-01 00:00:00' AND p.CONFIRMED_TS < '2026-09-11 00:00:00';
+```
+
+### 2026-09-12 기준선 (`synced_at` 2026-09-10), 주문확정 09-01~09-10
+
+| 소스 | 값 |
+|---|---:|
+| 운영 DB | 2,603 주문 / 2,779 아이템 |
+| 데이터레이크 | 2,603 (주문 — 운영 DB와 **정확히 일치**) |
+| Supabase | 2,781 아이템 (운영 대비 **+2, 0.07%**) |
+
++2 는 삭제행 포함 탓이 아니다(그랬다면 +101). 경계 시각으로 보이며 무시 가능.
+**싱크 드리프트 없음.**
+
+### ⚠️ 이 화면의 카테고리 건수는 "아이템" 이다 — 주문이 아니다
+
+9월 주문 2,603건 중 **145건이 아이템 2~5개**를 담은 결합견적이다(2개 121 · 3개 19 ·
+4개 3 · 5개 2). 데이터레이크는 주문 1건에 대표 `prod_catg` 하나만 붙이므로:
+
+| 카테고리 | 레이크(주문) | Supabase(아이템) |
+|---|---:|---:|
+| 인터넷 | 308 | 308 |
+| 노트북 | 107 | 107 |
+| PC | 34 | 34 |
+| 정수기 | 1,456 | 1,498 |
+| 비데 | 53 | 95 |
+| 공기청정기 | 54 | 84 |
+
+결합 대상이 될 수 없는 카테고리는 정확히 일치하고, 크로스셀 애드온(비데·공기청정기)에서만
+크게 벌어진다. **이 화면에서 "정수기+공기청정기" 결합은 정수기 1건이자 공기청정기 1건으로
+각각 잡힌다.** 카테고리 분석 목적에는 이게 맞지만, **주문 grain 리포트와는 원래 대사되지
+않는다.** 안 맞는다고 버그로 보지 말 것.
+
 ## 알려진 위험
 
 | 위험 | 완화 |
