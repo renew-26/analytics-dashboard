@@ -4,6 +4,7 @@
  * 같은 렌탈사가 화면마다 다른 상태로 보이므로 여기 하나만 둔다.
  */
 import { COMPANY_MAP, dbNamesOf, getBM } from "@/lib/company-map";
+import { conversionStats } from "@/lib/conversion";
 import type { CompanyCard } from "@/app/components/home/CompanyCards";
 
 export type CardContractRow = {
@@ -14,6 +15,8 @@ export type CardContractRow = {
   total_rental_fee: number | null;
   contribution_margin: number | null;
   sales: number | null;
+  /** 주문확정일 — 리드타임용. select 에 안 넣은 호출부는 leadDays 가 null 로 나온다 */
+  order_confirmed_at?: string | null;
 };
 
 const EOK = 100_000_000;
@@ -64,6 +67,22 @@ export function companyLabelOf(r: {
 /** 건당 공헌이익 — 비율보다 "한 건 팔면 얼마 남나"가 직관적이다 */
 export function perDeal(margin: number, count: number) {
   return count > 0 ? margin / count : 0;
+}
+
+/**
+ * 주문→계약 평균 소요일. 주문일이 붙은 계약완료 행만 센다.
+ *
+ * conversionStats를 빌려 쓰되 rate는 보지 않는다 — 여기 넘기는 행은 이미 전부
+ * 계약된 행이라 rate가 항상 1.0이고 뜻이 없다. avgDays만 쓰는 이유는 계약일이
+ * 주문일보다 앞서는 원천 오류 행을 평균에서 빼는 처리가 거기 들어 있어서다.
+ */
+function leadDaysOf(rows: CardContractRow[]): number | null {
+  const withOrder = rows.flatMap((r) =>
+    r.order_confirmed_at
+      ? [{ order_confirmed_at: r.order_confirmed_at, contract_date: r.contract_date }]
+      : [],
+  );
+  return withOrder.length > 0 ? conversionStats(withOrder).avgDays : null;
 }
 
 /**
@@ -125,7 +144,14 @@ export function buildCompanyCards({
     }
     // 전월 매출은 "매출 급증/급감" 신호를 만들기 위해서만 쌓는다
     let salesPrevSum = 0;
-    for (const r of pRows) salesPrevSum += r.sales ?? 0;
+    // 전월 공헌이익은 "건당 공헌이익 급변" 신호용 — 총액이 아니라 건당으로 비교한다
+    let marginPrevSum = 0;
+    let revenuePrevSum = 0;
+    for (const r of pRows) {
+      salesPrevSum += r.sales ?? 0;
+      marginPrevSum += r.contribution_margin ?? 0;
+      revenuePrevSum += r.total_rental_fee ?? 0;
+    }
 
     const topCats = Array.from(catCount.entries()).sort((a, b) => b[1] - a[1]);
     const total = cRows.length || 1;
@@ -139,9 +165,13 @@ export function buildCompanyCards({
       prev: pRows.length,
       pace,
       amount: revenue / EOK,
+      amountPrev: revenuePrevSum / EOK,
       sales: sales / EOK,
       salesPrev: salesPrevSum / EOK,
       cpu: perDeal(margin, cRows.length),
+      cpuPrev: perDeal(marginPrevSum, pRows.length),
+      leadDays: leadDaysOf(cRows),
+      leadDaysPrev: leadDaysOf(pRows),
       topCategory: topCats[0]?.[0] ?? "-",
       topShare: ((topCats[0]?.[1] ?? 0) / total) * 100,
       rank: 0,
