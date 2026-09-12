@@ -90,6 +90,30 @@ export default async function CategoryGroupPage({
   });
   const install90 = countInstall90d(rows12, curr.end);
 
+  // 주문확정 레인 — 계약완료(rows12)와 별도로 주문확정 기준을 최소 컬럼만 받는다
+  type OrderRow = {
+    order_confirmed_at: string;
+    contract_date: string | null;
+    rental_company: string | null;
+    brand: string | null;
+    category: string | null;
+  };
+
+  const orderRows = await fetchRows<OrderRow>({
+    basis: "order",
+    select: "order_confirmed_at, contract_date, rental_company, brand, category",
+    start: `${recentYms[0]}-01`,
+    end: curr.end,
+    orderBy: "prop_item_usid",
+  });
+  const orderGroupRows = orderRows.filter((r) => catGroupOf(r.category) === key);
+  const orderCurr = orderGroupRows.filter(
+    (r) => r.order_confirmed_at >= curr.start && r.order_confirmed_at <= curr.end,
+  );
+  const orderPrev = orderGroupRows.filter(
+    (r) => r.order_confirmed_at >= prev.start && r.order_confirmed_at <= prev.end,
+  );
+
   const groupRows = rows12.filter((r) => catGroupOf(r.category) === key);
   const currRows = groupRows.filter(
     (r) => r.contract_date >= curr.start && r.contract_date <= curr.end,
@@ -146,6 +170,14 @@ export default async function CategoryGroupPage({
       return c > 0 ? (mgByYm.get(ym) ?? 0) / c : 0;
     }),
   );
+
+  const ordByYm = new Map<string, number>();
+  for (const r of orderGroupRows) {
+    if (Number(r.order_confirmed_at.slice(8, 10)) > dayCut) continue;
+    const ym = r.order_confirmed_at.slice(0, 7);
+    ordByYm.set(ym, (ordByYm.get(ym) ?? 0) + 1);
+  }
+  const ordSpark = trimLeadingGap(recentYms.map((ym) => ordByYm.get(ym) ?? 0));
 
   // ── 왜 변했나 — 세부 카테고리(막대) × 렌탈사(기여) 분해 ──
   const catKeyOf = (r: Row) => detailCatOf(group, r.category);
@@ -399,8 +431,16 @@ export default async function CategoryGroupPage({
           {month}월 {key} 한눈에 보기
         </h2>
         <div className={`${panel} overflow-hidden`}>
-          <dl className="grid grid-cols-2 gap-px bg-[var(--color-line-2)] lg:grid-cols-4">
+          <dl className="grid grid-cols-2 gap-px bg-[var(--color-line-2)] lg:grid-cols-5">
             {[
+              {
+                label: "주문확정",
+                value: fmt(orderCurr.length),
+                unit: "건",
+                prev: `${fmt(orderPrev.length)}건`,
+                delta: pct(orderCurr.length, orderPrev.length),
+                spark: ordSpark,
+              },
               {
                 label: "계약건수",
                 value: fmt(cnt),
