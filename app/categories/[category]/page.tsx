@@ -240,6 +240,22 @@ export default async function CategoryGroupPage({
     );
   }
 
+  // ── 워터폴 축 롤업 — 상위 6 + 기타 (④ 표의 companies는 원본 그대로 둔다) ──
+  // 사용자 확정(2026-09-13). companies는 이미 당월 계약건수(cnt) 내림차순이라
+  // 앞 6개가 곧 상위 6이다. 접는 건 차트 가독성 문제이지 표에서 숨기는 게
+  // 아니므로 ④/⑤(companies, brandByCompany 등)는 이 아래에서 건드리지 않는다.
+  const TOP_N = 6;
+  const topCompanyLabels = new Set(companies.slice(0, TOP_N).map((c) => c.label));
+  const rollupRemainder = companies.slice(TOP_N);
+  // 남는 게 한 곳뿐이면 접어도 "기타(1곳)"일 뿐이라 그 회사 이름을 그대로 쓴다
+  const rollup = rollupRemainder.length >= 2;
+  const OTHER_LABEL = "기타";
+  const axisBucketOf = (label: string) =>
+    !rollup || topCompanyLabels.has(label) ? label : OTHER_LABEL;
+  const axisKeyOf = (r: Row) => axisBucketOf(companyLabelOf(r));
+  const currByAxis = bucketBy(currRows, axisKeyOf);
+  const prevByAxis = bucketBy(prevRows, axisKeyOf);
+
   const METRIC_DEFS: {
     key: string;
     label: string;
@@ -274,17 +290,17 @@ export default async function CategoryGroupPage({
   };
 
   const waterfallMetrics: WaterfallMetric[] = METRIC_DEFS.map((def) => {
-    const c = sumBy(currRows, companyLabelOf, def.of);
-    const p = sumBy(prevRows, companyLabelOf, def.of);
+    const c = sumBy(currRows, axisKeyOf, def.of);
+    const p = sumBy(prevRows, axisKeyOf, def.of);
     const currTotal = sum(currRows, def.of);
     const prevTotal = sum(prevRows, def.of);
     const gaps = diffMap(c, p);
     const barGaps = sortIncreasesFirst(gaps);
     const subMovers: Record<string, Mover[]> = {};
-    for (const co of companies) {
-      subMovers[co.label] = diffMap(
-        sumBy(currByCo.get(co.label) ?? NO_ROWS, brandOf, def.of),
-        sumBy(prevByCo.get(co.label) ?? NO_ROWS, brandOf, def.of),
+    for (const label of new Set([...c.keys(), ...p.keys()])) {
+      subMovers[label] = diffMap(
+        sumBy(currByAxis.get(label) ?? NO_ROWS, brandOf, def.of),
+        sumBy(prevByAxis.get(label) ?? NO_ROWS, brandOf, def.of),
       ).map((x) => ({ label: x.key, value: x.value }));
     }
     return {
@@ -315,23 +331,24 @@ export default async function CategoryGroupPage({
   // 건당 공헌이익만 diffMap 이 아니라 cpuContribution 을 쓴다 — 건당은 비율이라
   // 축별 값을 그냥 더해도 전체 건당이 안 나온다. 가법 분해라야 워터폴이 닫힌다.
   const marginOf = (r: Row) => r.contribution_margin ?? 0;
-  const cpuGaps = cpuContribution(currRows, prevRows, companyLabelOf, marginOf);
+  // 렌탈사 대신 axisKeyOf(상위 6 + 기타)로 묶어 위 막대들과 같은 축을 쓴다.
+  const cpuGaps = cpuContribution(currRows, prevRows, axisKeyOf, marginOf);
   // 브랜드 기여도 분모를 그룹 전체로 유지해야 자식 합이 부모 막대와 같아진다.
-  // 렌탈사별로 cpuContribution 을 다시 부르면 분모가 그 렌탈사 건수로 재정규화돼
+  // 축별로 cpuContribution 을 다시 부르면 분모가 그 축의 건수로 재정규화돼
   // "X 자체의 Δ건당"이 나오고, 위 막대(= X 가 그룹 Δ건당에 기여한 몫)와 어긋난다.
   // 구분자는 이스케이프로 적는다 — 소스에 리터럴 NUL 바이트를 새로 심지 않는다.
   const CO_BRAND = "\u0000";
   const cpuSubMovers: Record<string, Mover[]> = {};
-  for (const co of companies) cpuSubMovers[co.label] = [];
+  for (const g of cpuGaps) cpuSubMovers[g.key] = [];
   for (const x of cpuContribution(
     currRows,
     prevRows,
-    (r) => `${companyLabelOf(r)}${CO_BRAND}${brandOf(r)}`,
+    (r) => `${axisKeyOf(r)}${CO_BRAND}${brandOf(r)}`,
     marginOf,
   )) {
     const i = x.key.indexOf(CO_BRAND);
-    const co = x.key.slice(0, i);
-    cpuSubMovers[co]?.push({ label: x.key.slice(i + 1), value: x.value });
+    const axisLabel = x.key.slice(0, i);
+    cpuSubMovers[axisLabel]?.push({ label: x.key.slice(i + 1), value: x.value });
   }
   const cpuBarGaps = sortIncreasesFirst(cpuGaps);
   waterfallMetrics.push({
