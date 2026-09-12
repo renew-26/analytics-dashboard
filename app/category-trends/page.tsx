@@ -114,8 +114,9 @@ async function fetchContracts(start: string, end: string): Promise<ContractRow[]
   let from = 0;
   while (true) {
     const { data, error } = await supabase
-      .from("raw_contracts")
+      .from("raw_prop_items")
       .select("contract_date, category, rental_company")
+      .not("contract_date", "is", null)
       .gte("contract_date", start)
       .lte("contract_date", end)
       .order("contract_date", { ascending: true })
@@ -133,8 +134,9 @@ async function fetchOrders(startDate: string): Promise<OrderRow[]> {
   let from = 0;
   while (true) {
     const { data, error } = await supabase
-      .from("raw_orders")
+      .from("raw_prop_items")
       .select("order_confirmed_at, category, product_name, model_name, rental_company")
+      .not("order_confirmed_at", "is", null)
       .gte("order_confirmed_at", startDate)
       .range(from, from + PAGE_ORDERS - 1);
     if (error || !data || data.length === 0) break;

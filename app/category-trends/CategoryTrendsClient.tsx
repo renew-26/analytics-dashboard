@@ -4,6 +4,7 @@ import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import Sparkline from "@/app/components/home/Sparkline";
 import { deltaColor } from "@/app/components/home/cardKit";
+import { BASIS_LABEL, DATE_COL } from "@/lib/date-basis";
 import type {
   MonthCategoryData,
   YoYBadge,
@@ -106,16 +107,16 @@ export default function CategoryTrendsClient({
       </div>
 
       {/*
-        두 탭은 서로 다른 테이블에서 옵니다 — 월별은 raw_contracts(계약완료),
-        주차별은 raw_orders(주문확정). 표시가 없으면 탭을 오가며 숫자를
-        비교했을 때 반드시 틀립니다. 그래서 페이지 상단 한 줄이 아니라
-        각 뷰에 붙여, 한 탭만 보는 사람도 놓칠 수 없게 둡니다.
+        두 탭은 서로 다른 기준에서 옵니다 — 월별은 계약완료일, 주차별은
+        주문확정일. 표시가 없으면 탭을 오가며 숫자를 비교했을 때 반드시
+        틀립니다. 그래서 페이지 상단 한 줄이 아니라 각 뷰에 붙여, 한 탭만
+        보는 사람도 놓칠 수 없게 둡니다.
       */}
       <BasisNotice
-        source={activeTab === "monthly" ? "계약완료" : "주문확정"}
-        table={activeTab === "monthly" ? "raw_contracts" : "raw_orders"}
+        source={BASIS_LABEL[activeTab === "monthly" ? "contract" : "order"]}
+        column={DATE_COL[activeTab === "monthly" ? "contract" : "order"]}
         counterpart={activeTab === "monthly" ? "주차별" : "월별"}
-        counterpartSource={activeTab === "monthly" ? "주문확정" : "계약완료"}
+        counterpartSource={BASIS_LABEL[activeTab === "monthly" ? "order" : "contract"]}
       />
 
       {groupName && (
@@ -183,10 +184,11 @@ function TabButton({
 }
 
 /**
- * 데이터 기준 표기 — 월별=계약완료(raw_contracts), 주차별=주문확정(raw_orders).
- * 탭마다 테이블이 달라 두 탭의 숫자를 직접 비교하면 틀린다. 그래서
- * 각 뷰 안에 자기 기준 + 다른 탭의 기준을 함께 두어, 한 탭만 보고 있어도
- * 놓칠 수 없게 한다. (모든 뷰포트에서 항상 보인다 — 숨김 브레이크포인트 없음)
+ * 데이터 기준 표기 — 월별=계약완료(contract_date), 주차별=주문확정(order_confirmed_at).
+ * 한 테이블(raw_prop_items)의 날짜 컬럼만 다르지만 두 탭의 숫자를 직접
+ * 비교하면 틀린다. 그래서 각 뷰 안에 자기 기준 + 다른 탭의 기준을 함께
+ * 두어, 한 탭만 보고 있어도 놓칠 수 없게 한다.
+ * (모든 뷰포트에서 항상 보인다 — 숨김 브레이크포인트 없음)
  */
 function BasisBar({
   basis,
@@ -232,11 +234,11 @@ function BasisBar({
 function MonthlyBasisBar() {
   return (
     <BasisBar
-      basis="계약완료"
-      source="raw_contracts"
+      basis={BASIS_LABEL.contract}
+      source={DATE_COL.contract}
       otherTab="주차별 트렌드"
-      otherBasis="주문확정"
-      otherSource="raw_orders"
+      otherBasis={BASIS_LABEL.order}
+      otherSource={DATE_COL.order}
     />
   );
 }
@@ -244,11 +246,11 @@ function MonthlyBasisBar() {
 function WeeklyBasisBar() {
   return (
     <BasisBar
-      basis="주문확정"
-      source="raw_orders"
+      basis={BASIS_LABEL.order}
+      source={DATE_COL.order}
       otherTab="월별 트렌드"
-      otherBasis="계약완료"
-      otherSource="raw_contracts"
+      otherBasis={BASIS_LABEL.contract}
+      otherSource={DATE_COL.contract}
     />
   );
 }
@@ -415,7 +417,7 @@ function MonthlyView({
 
   return (
     <div className="space-y-6">
-      {/* 이 뷰의 데이터 기준 — 계약완료(raw_contracts) */}
+      {/* 이 뷰의 데이터 기준 — 계약완료(contract_date) */}
       <MonthlyBasisBar />
 
       {/* 결론 — 뜨는 것 / 지는 것 / 신규·이탈 */}
@@ -1252,18 +1254,19 @@ function SmallMultiples({
 /**
  * 기준 데이터 출처 표시.
  *
- * 월별=계약완료(raw_contracts) / 주차별=주문확정(raw_orders)로 계열이 갈리는데
- * 화면에 표시가 없으면 두 탭을 비교했을 때 반드시 틀린 결론이 나옵니다.
- * docs/ia-map.html이 모든 개편안보다 앞선 1순위로 지목한 정확성 항목입니다.
+ * 월별=계약완료(contract_date) / 주차별=주문확정(order_confirmed_at)로 날짜
+ * 컬럼이 갈리는데 화면에 표시가 없으면 두 탭을 비교했을 때 반드시 틀린
+ * 결론이 나옵니다. docs/ia-map.html이 모든 개편안보다 앞선 1순위로 지목한
+ * 정확성 항목입니다.
  */
 function BasisNotice({
   source,
-  table,
+  column,
   counterpart,
   counterpartSource,
 }: {
   source: string;
-  table: string;
+  column: string;
   counterpart: string;
   counterpartSource: string;
 }) {
@@ -1278,7 +1281,7 @@ function BasisNotice({
     >
       <b style={{ color: "var(--color-gray-900)" }}>이 화면은 {source} 기준</b>
       <code className="font-mono text-[11px] text-[var(--color-gray-500)]">
-        {table}
+        {column}
       </code>
       <span style={{ color: "var(--color-gray-500)" }}>
         · {counterpart} 트렌드는 {counterpartSource} 기준이라 두 탭의 건수를 그대로
@@ -1568,7 +1571,7 @@ function WeeklyView({
 
   return (
     <div>
-      {/* 이 뷰의 데이터 기준 — 주문확정(raw_orders) */}
+      {/* 이 뷰의 데이터 기준 — 주문확정(order_confirmed_at) */}
       <div className="mb-5">
         <WeeklyBasisBar />
       </div>
