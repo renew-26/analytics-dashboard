@@ -3,7 +3,7 @@
 # analytics-dashboard
 
 ## Purpose
-렌트리(Rentree) 애널리틱스 대시보드 — Next.js 16 서버 컴포넌트 기반의 내부 렌탈 분석 플랫폼. Redash에서 동기화된 `raw_orders`(주문확정)와 `raw_contracts`(계약완료) 데이터를 Supabase에 저장하고, 렌탈사별·카테고리별·BM별 매출·거래건수·공헌이익을 시각화한다.
+렌트리(Rentree) 애널리틱스 대시보드 — Next.js 16 서버 컴포넌트 기반의 내부 렌탈 분석 플랫폼. Redash에서 동기화된 `raw_prop_items`(견적아이템 통합 원장, 주문확정·계약완료를 날짜 컬럼으로 구분) 데이터를 Supabase에 저장하고, 렌탈사별·카테고리별·BM별 매출·거래건수·공헌이익을 시각화한다.
 
 ## Key Files
 
@@ -12,7 +12,7 @@
 | `package.json` | 프로젝트 의존성 및 스크립트 (Next.js 16, React 19, Supabase, Recharts, xlsx) |
 | `next.config.js` | Next.js 설정 |
 | `tsconfig.json` | TypeScript 설정 (`@/` 경로 alias → 프로젝트 루트) |
-| `vercel.json` | Vercel 배포 설정 (maxDuration 등) |
+| `instrumentation.ts` | 장기 실행 컨테이너의 cron 등록 — `node-cron` 스케줄을 `ENABLE_CRON` 플래그 뒤에서 실행 |
 | `rentre.config.json` | 렌트리 내부 설정 파일 |
 | `CLAUDE.md` | AI 에이전트용 프로젝트 지침 (AGENTS.md, GUIDELINES.md, DESIGN.md 참조) |
 | `GUIDELINES.md` | 코딩 행동 가이드라인 (단순성, 외과적 변경, 목표 중심 실행) |
@@ -58,8 +58,7 @@
 
 | Table | Description |
 |-------|-------------|
-| `raw_orders` | 주문확정 데이터 (Redash Query 4441에서 동기화) |
-| `raw_contracts` | 계약완료 데이터 (Redash Query 4445에서 동기화) |
+| `raw_prop_items` | 견적아이템 통합 원장 — 주문확정·계약완료를 날짜 컬럼으로 구분 (Redash Query 4678에서 동기화) |
 | `auto_quote_typeb` | 가전&상조 렌탈사별 자동견적 (Redash Query 4404) |
 | `auto_quote_typea` | 정수기 자동견적 — 더블체크 파트너스 기준 (Redash Query 4403) |
 | `tps_pnl` | 견적/손익 원장 — 예외승인 분석용 (Redash Query 4405) |
