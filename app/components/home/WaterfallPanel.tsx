@@ -20,6 +20,11 @@ export type WaterfallMetric = {
   changePct: number | null;
   items: WaterfallItem[];
   movers: Mover[];
+  /**
+   * movers 항목을 펼쳤을 때 나올 하위 축 (렌탈사 → 브랜드).
+   * 없으면 기존처럼 펼치지 않는다 — 홈은 넘기지 않으므로 동작이 그대로다.
+   */
+  subMovers?: Record<string, Mover[]>;
 };
 
 /** 증가·감소 각각 몇 곳까지 세울지 — 캡션에 그대로 노출한다 */
@@ -131,6 +136,7 @@ export default function WaterfallPanel({
   panelClass: string;
 }) {
   const [active, setActive] = useState(0);
+  const [openMover, setOpenMover] = useState<string | null>(null);
   const m = metrics[active] ?? metrics[0];
   if (!m) return null;
 
@@ -283,6 +289,8 @@ export default function WaterfallPanel({
                     </div>
                     <ul>
                       {blk.rows.map((r) => {
+                        const sub = m.subMovers?.[r.label];
+                        const expandable = !!sub && sub.length > 1;
                         const row = (
                           <>
                             <span className="truncate text-[12px] font-semibold group-hover:text-[var(--color-primary)]">
@@ -328,6 +336,40 @@ export default function WaterfallPanel({
                               </Link>
                             ) : (
                               <div className={grid}>{row}</div>
+                            )}
+                            {expandable && sub && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setOpenMover(
+                                    openMover === r.label ? null : r.label,
+                                  )
+                                }
+                                aria-expanded={openMover === r.label}
+                                className="press ml-1 text-[10px] font-bold text-[var(--color-gray-400)] hover:text-[var(--color-gray-900)]"
+                              >
+                                {openMover === r.label
+                                  ? "접기"
+                                  : `브랜드 ${sub.length}`}
+                              </button>
+                            )}
+                            {expandable && sub && openMover === r.label && (
+                              <ul className="mt-[6px] ml-[13px] border-l border-[var(--color-line-2)] pl-[11px]">
+                                {sub.map((s) => (
+                                  <li
+                                    key={s.label}
+                                    className="flex justify-between py-[2px] text-[11px] text-[var(--color-gray-600)]"
+                                  >
+                                    <span>{s.label}</span>
+                                    <span
+                                      className="num font-semibold"
+                                      style={{ color: deltaColor(s.value) }}
+                                    >
+                                      {signed(s.value, m.decimals)}
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
                             )}
                           </li>
                         );
