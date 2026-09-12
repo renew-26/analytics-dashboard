@@ -545,6 +545,13 @@ export default async function CategoryGroupPage({
                     ? (convCurr.rate - convPrev.rate) * 100
                     : null,
                 deltaUnit: "%p",
+                // 퍼센트포인트의 "미미함"은 기반값에 따라 다르다. 5.3%에서 1.2%p는
+                // 큰 움직임이고 45%에서 1.4%p는 노이즈다 — DESIGN.md의 ±1.5%를
+                // 상대 기준으로 되돌려 적용한다.
+                deltaBand:
+                  convPrev.rate !== null
+                    ? Math.max(0.5, Math.abs(convPrev.rate * 100) * 0.015)
+                    : undefined,
               },
               {
                 label: "주문 → 계약완료 평균 소요",
@@ -559,6 +566,8 @@ export default async function CategoryGroupPage({
                     ? pctAbs(convCurr.avgDays, convPrev.avgDays)
                     : null,
                 deltaUnit: "%",
+                // 일수는 절대량이라 상대%의 기본 데드존(1.5)이 이미 맞는다
+                deltaBand: undefined,
               },
             ].map((k) => (
               <div key={k.label} className="bg-white p-[13px_15px_11px]">
@@ -574,7 +583,9 @@ export default async function CategoryGroupPage({
                       </i>
                     )}
                   </span>
-                  {k.delta !== null && <Delta value={k.delta} unit={k.deltaUnit} />}
+                  {k.delta !== null && (
+                    <Delta value={k.delta} unit={k.deltaUnit} flatBand={k.deltaBand} />
+                  )}
                 </div>
                 <p className="num mt-[4px] text-[11px] text-[var(--color-gray-500)]">
                   {k.sub}
