@@ -57,7 +57,8 @@
 - [ ] **Step 1: 단정 스크립트를 쓴다**
 
 ```bash
-mkdir -p /tmp/cat-plan && cat > /tmp/cat-plan/expect.mjs <<'EOF'
+WS=.superpowers/sdd/2026-09-12-category-analysis-redesign
+cat > "$WS/expect.mjs" <<'EOF'
 import { createClient } from "@supabase/supabase-js";
 import fs from "fs";
 const env = Object.fromEntries(
@@ -126,8 +127,10 @@ for (const [name, filt] of [["정수기", r => r.category === "정수기"], ["�
   console.log(`  ⑤ 렌탈사별 브랜드수 : ${[...bc].sort((a,b)=>b[1].size-a[1].size).slice(0,4).map(([k,s])=>`${k} ${s.size}개`).join(" · ")}\n`);
 }
 EOF
-node /tmp/cat-plan/expect.mjs
+node "$WS/expect.mjs"
 ```
+
+**`/tmp` 에 두지 말 것** — node 는 스크립트 위치에서 위로 올라가며 `node_modules` 를 찾는다. 저장소 밖이면 `@supabase/supabase-js` 를 못 찾는다.
 
 - [ ] **Step 2: 출력을 이 계획 파일 맨 아래 "기대값 스냅샷" 절에 붙여넣는다**
 
@@ -219,7 +222,7 @@ Expected: 오류 없음
 - [ ] **Step 3: 단정 스크립트로 산식을 실데이터에 대조한다**
 
 ```bash
-node /tmp/cat-plan/expect.mjs | grep "② 전환율"
+node .superpowers/sdd/2026-09-12-category-analysis-redesign/expect.mjs | grep "② 전환율"
 ```
 
 Expected: 정수기·대형가전 각각의 전환율과 평균 소요일이 출력된다. `expect.mjs` 는
@@ -1190,7 +1193,39 @@ git commit -m "refactor(categories): 섹션 순서를 명세대로 맞춘다"
 
 ## 기대값 스냅샷
 
-_Task 0 Step 2 에서 채운다._
+`synced_at` 2026-09-10T15:05Z 기준, 2026-09-12 측정. 비교창은 `getPeriod` 와 같은
+규칙(당월 1일~데이터 최신일 vs 전월 같은 일자).
+
+**크론이 돌면 값이 달라진다.** 검증 시점에 값이 안 맞으면 먼저
+`node .superpowers/sdd/2026-09-12-category-analysis-redesign/expect.mjs` 를 다시 돌려
+스냅샷을 갱신하고, 그래도 안 맞으면 그때 코드를 의심한다.
+
+```
+synced_at 최신 : 2026-09-10T15:05:25.152+00:00
+curr 2026-09-01~2026-09-10  prev 2026-08-01~2026-08-10
+
+### 정수기
+  ① 계약건수 1314 (전월동기 1187)
+  ① 거래액 32.0억  매출 1.81억  건당공헌이익 11.3만
+  ① 주문확정 1498건 (전월동기 1618)
+  ② 전환율 42.8%  평균 소요 3.6일
+  ③1단 렌탈사 : 코웨이 +175 · LG -52 · 쿠쿠 -6 · 교원웰스 +5 · KT +3
+  ③3단 상품   : 코웨이 아이콘3 냉온정 정수기 +142 · LG 퓨리케어 오브제컬렉션 냉온정 정수기(맞춤출수, 초 -136 · LG 퓨리케어 오브제컬렉션 냉온정 정수기 베이지(맞춤출 +52
+  ⑤ 렌탈사별 브랜드수 : 코웨이 1개 · LG 1개 · 청호 1개 · SK인텔릭스 1개
+
+### 대형가전
+  ① 계약건수 73 (전월동기 100)
+  ① 거래액 2.1억  매출 0.32억  건당공헌이익 14.4만
+  ① 주문확정 318건 (전월동기 464)
+  ② 전환율 5.3%  평균 소요 3.9일
+  ③1단 렌탈사 : KT -9 · BS렌탈 -8 · 코웨이 -6 · 이니렌탈 +5 · LG헬로비전 -4
+  ③3단 상품   : 삼성 AI Q9000 2in1 에어컨 17+6평형 (2 -9 · 삼성 AI 세탁기 21kg + 건조기 21kg -5 · 코웨이 벽걸이에어컨 6평형 (에너지효율 1등급) -5
+  ⑤ 렌탈사별 브랜드수 : 이니렌탈 3개 · 스마트렌탈 3개 · KT 2개 · BS렌탈 2개
+```
+
+**읽을 때 주의 — ② 전환율이 낮다.** 정수기 42.8% · 대형가전 5.3% 는 절단 때문이다
+(주문확정 후 30일까지 전환이 이어지는데 분모에 최근 주문이 다 들어있다). 화면에
+이 값이 그대로 나오는 게 **정상**이다 — 낮다고 산식을 고치지 말 것.
 
 ---
 
