@@ -1,4 +1,5 @@
 import { fetchRows } from "@/lib/fetch-rows";
+import { BASIS_LABEL, DATE_COL } from "@/lib/date-basis";
 import { getPeriod, getDataAsOf } from "@/lib/period";
 import { CATEGORY_GROUPS, catGroupOf } from "@/lib/biz-category";
 import { buildCategoryCards } from "@/lib/category-cards";
@@ -274,7 +275,8 @@ export default async function CategoriesPage() {
       </section>
 
       <p className="text-[11px] leading-[1.7] text-[var(--color-gray-400)]">
-        출처: <code>raw_contracts</code>(계약완료) · 기준 구간은 홈·헤더와 동일한{" "}
+        기준: {BASIS_LABEL.contract}(<code>{DATE_COL.contract}</code>) · 기준 구간은
+        홈·헤더와 동일한{" "}
         <code>getPeriod()</code> · 카테고리 매핑은{" "}
         <code>lib/biz-category.ts</code> 하나만 쓴다.
       </p>
