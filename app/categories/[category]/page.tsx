@@ -22,6 +22,7 @@ import {
 } from "@/lib/company-cards";
 import { getBM } from "@/lib/company-map";
 import { resolveTier, TIER_META } from "@/lib/tiers";
+import { conversionStats } from "@/lib/conversion";
 import { cpuContribution, diffMap, sumBy, trimLeadingGap } from "@/lib/decompose";
 import { EOK, MAN, fmt, pct, pctAbs, recentYmsOf, signedInt } from "@/lib/format";
 import { topic } from "@/lib/korean";
@@ -113,6 +114,8 @@ export default async function CategoryGroupPage({
   const orderPrev = orderGroupRows.filter(
     (r) => r.order_confirmed_at >= prev.start && r.order_confirmed_at <= prev.end,
   );
+  const convCurr = conversionStats(orderCurr);
+  const convPrev = conversionStats(orderPrev);
 
   const groupRows = rows12.filter((r) => catGroupOf(r.category) === key);
   const currRows = groupRows.filter(
@@ -526,7 +529,67 @@ export default async function CategoryGroupPage({
         </div>
       </section>
 
-      {/* ── ② 왜 변했나 ─────────────────────────────── */}
+      {/* ── ② 전환·리드타임 ─────────────────────────── */}
+      <section>
+        <h2 className={`mb-[11px] ${sectionHead}`}>전환·리드타임</h2>
+        <div className={`${panel} overflow-hidden`}>
+          <dl className="grid grid-cols-2 gap-px bg-[var(--color-line-2)]">
+            {[
+              {
+                label: "주문 → 계약완료 전환율",
+                value: convCurr.rate === null ? "—" : (convCurr.rate * 100).toFixed(1),
+                unit: convCurr.rate === null ? "" : "%",
+                sub: `${fmt(convCurr.converted)} / ${fmt(convCurr.orders)}건`,
+                delta:
+                  convCurr.rate !== null && convPrev.rate !== null
+                    ? (convCurr.rate - convPrev.rate) * 100
+                    : null,
+                deltaUnit: "%p",
+              },
+              {
+                label: "주문 → 계약완료 평균 소요",
+                value: convCurr.avgDays === null ? "—" : convCurr.avgDays.toFixed(1),
+                unit: convCurr.avgDays === null ? "" : "일",
+                sub:
+                  convPrev.avgDays === null
+                    ? "전월 동기간 —"
+                    : `전월 동기간 ${convPrev.avgDays.toFixed(1)}일`,
+                delta:
+                  convCurr.avgDays !== null && convPrev.avgDays !== null
+                    ? pctAbs(convCurr.avgDays, convPrev.avgDays)
+                    : null,
+                deltaUnit: "%",
+              },
+            ].map((k) => (
+              <div key={k.label} className="bg-white p-[13px_15px_11px]">
+                <dt className="mb-[5px] text-[11px] font-semibold text-[var(--color-gray-500)]">
+                  {k.label}
+                </dt>
+                <div className="flex items-end gap-2">
+                  <span className="num text-[24px] font-bold leading-[28px] tracking-[-.6px]">
+                    {k.value}
+                    {k.unit && (
+                      <i className="ml-0.5 text-[12px] font-semibold not-italic tracking-normal text-[var(--color-gray-500)]">
+                        {k.unit}
+                      </i>
+                    )}
+                  </span>
+                  {k.delta !== null && <Delta value={k.delta} unit={k.deltaUnit} />}
+                </div>
+                <p className="num mt-[4px] text-[11px] text-[var(--color-gray-500)]">
+                  {k.sub}
+                </p>
+              </div>
+            ))}
+          </dl>
+          <p className="border-t border-[var(--color-line-2)] bg-[var(--color-gray-25)] p-[8px_15px] text-[11px] text-[var(--color-gray-500)]">
+            진행 중인 달은 아직 전환할 시간이 지나지 않은 최근 주문이 분모에 포함돼 값이
+            실제보다 낮게 나온다. 전환은 주문확정 후 30일까지 이어진다.
+          </p>
+        </div>
+      </section>
+
+      {/* ── (구) 왜 변했나 — Task 6 에서 CategoryDrilldown 으로 대체된다 ── */}
       <section>
         <div className="mb-[11px] flex flex-wrap items-baseline gap-2.5">
           <h2 className={sectionHead}>이번 달 {topic(key)} 왜 변했나</h2>
