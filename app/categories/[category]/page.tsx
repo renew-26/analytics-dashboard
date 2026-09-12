@@ -473,8 +473,13 @@ export default async function CategoryGroupPage({
                 delta: pctAbs(cpu, cpuPrev),
                 spark: cpuSpark,
               },
-            ].map((k) => (
-              <div key={k.label} className="bg-white p-[13px_15px_11px]">
+            ].map((k, i, arr) => (
+              <div
+                key={k.label}
+                className={`bg-white p-[13px_15px_11px] ${
+                  i === arr.length - 1 ? "col-span-2 lg:col-span-1" : ""
+                }`}
+              >
                 <dt className="mb-[5px] text-[11px] font-semibold text-[var(--color-gray-500)]">
                   {k.label}
                 </dt>
