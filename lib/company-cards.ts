@@ -24,6 +24,25 @@ const EOK = 100_000_000;
 /** 그룹 필터 노출 순서 */
 export const CARD_GROUP_ORDER = ["정수기", "가전&상조", "통신"];
 
+/**
+ * 렌탈사 그룹의 표시명 — COMPANY_MAP.group 값은 그대로 두고 보이는 글자만 바꾼다.
+ * 사이드바와 /companies 탭이 같은 이 맵을 쓴다.
+ *
+ * 왜 개명하나: 원래 값을 그대로 쓰면 내비에 "정수기"가 두 번 나온다 — 카테고리
+ * 하위에 한 번(정수기 카테고리 실적), 렌탈사 하위에 한 번(정수기 계열 렌탈사들).
+ * 뜻도 숫자도 다르다. LG_가전구독이 정수기 그룹인데 대형가전도 팔기 때문에
+ * "렌탈사 > 정수기" 매출과 "카테고리 > 정수기" 매출은 애초에 안 맞는다.
+ *
+ * 왜 "인터넷"이 아니라 "통신"인가: 카테고리 6그룹에 이미 인터넷이 있다.
+ */
+export const GROUP_LABEL: Record<string, string> = {
+  정수기: "더블체크파트너스",
+  "가전&상조": "종합렌탈사",
+  통신: "통신",
+};
+
+export const groupLabelOf = (group: string) => GROUP_LABEL[group] ?? group;
+
 export const CARD_DEFS = COMPANY_MAP.map((c) => ({
   label: c.label,
   dbName: c.dbName,
