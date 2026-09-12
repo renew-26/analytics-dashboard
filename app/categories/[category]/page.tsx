@@ -215,6 +215,13 @@ export default async function CategoryGroupPage({
   const orderCurrByCo = bucketBy(orderCurr, companyLabelOf);
 
   const companies = aggregateAxis(currRows, prevRows, companyLabelOf);
+  // 주문은 있는데 당월·전월 모두 계약이 0건인 렌탈사 — ②의 분모에는 들어가는데
+  // ④에는 행이 없어 두 섹션이 안 맞는다. 0건 행으로 세워 전환율이 보이게 한다.
+  const seenCo = new Set(companies.map((c) => c.label));
+  for (const label of orderCurrByCo.keys()) {
+    if (seenCo.has(label)) continue;
+    companies.push({ label, cnt: 0, cntPrev: 0, amount: 0, sales: 0, margin: 0 });
+  }
 
   const brandByCompany: Record<string, AxisAgg[]> = {};
   const convByCompany: Record<string, ConvStats> = {};
