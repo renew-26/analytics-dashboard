@@ -476,7 +476,7 @@ export default async function CategoryGroupPage({
                 spark: ordSpark,
               },
               {
-                label: "계약건수",
+                label: "계약완료",
                 value: fmt(cnt),
                 unit: "건",
                 prev: `${fmt(cntPrev)}건`,
