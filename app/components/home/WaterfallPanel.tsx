@@ -30,6 +30,27 @@ export type WaterfallMetric = {
 /** 증가·감소 각각 몇 곳까지 세울지 — 캡션에 그대로 노출한다 */
 const MOVER_LIMIT = 5;
 
+/**
+ * 축 라벨 — 홈(카테고리 막대 · 렌탈사 기여)과 카테고리 화면(렌탈사 막대 ·
+ * 같은 렌탈사 축의 top-N)이 서로 다른 말을 써야 해서 뺐다. 안 넘기면 홈의
+ * 기존 문구 그대로다.
+ */
+export type WaterfallPanelLabels = {
+  axisBadge: string;
+  moversTitle: string;
+  moversSubtitle: string;
+  moversHintTail: string;
+  emptyText: string;
+};
+
+const DEFAULT_LABELS: WaterfallPanelLabels = {
+  axisBadge: "2단계 · 렌탈사",
+  moversTitle: "어느 렌탈사에서 왔나",
+  moversSubtitle: "",
+  moversHintTail: "상품 단위는 렌탈사 상세에서 확인",
+  emptyText: "기여를 가를 만한 렌탈사 변화가 없습니다.",
+};
+
 function fmt(n: number, decimals: number) {
   return n.toLocaleString("ko-KR", {
     minimumFractionDigits: decimals,
@@ -131,10 +152,13 @@ function TopDriver({
 export default function WaterfallPanel({
   metrics,
   panelClass,
+  labels,
 }: {
   metrics: WaterfallMetric[];
   panelClass: string;
+  labels?: Partial<WaterfallPanelLabels>;
 }) {
+  const l = { ...DEFAULT_LABELS, ...labels };
   const [active, setActive] = useState(0);
   const [openMover, setOpenMover] = useState<string | null>(null);
   const m = metrics[active] ?? metrics[0];
@@ -250,7 +274,7 @@ export default function WaterfallPanel({
         <div>
           <div className="mb-1 flex flex-wrap items-baseline gap-1.5 text-[11px] text-[var(--color-gray-400)]">
             <b className="rounded-[4px] bg-[var(--color-gray-100)] px-1.5 py-px text-[10px] font-bold text-[var(--color-gray-500)]">
-              1단계 · 대카테고리
+              {labels?.axisBadge ?? "1단계 · 대카테고리"}
             </b>
             {m.label} 기여도 · 단위 {m.unit}
           </div>
@@ -261,20 +285,24 @@ export default function WaterfallPanel({
         <div>
           <div className="mb-0.5 flex flex-wrap items-baseline gap-1.5">
             <b className="rounded-[4px] bg-[var(--color-gray-100)] px-1.5 py-px text-[10px] font-bold text-[var(--color-gray-500)]">
-              2단계 · 렌탈사
+              {l.axisBadge}
             </b>
             <span className="text-[12px] font-bold text-[var(--color-gray-600)]">
-              어느 렌탈사에서 왔나
+              {l.moversTitle}
             </span>
           </div>
+          {l.moversSubtitle && (
+            <div className="mb-1 text-[11px] text-[var(--color-gray-500)]">
+              {l.moversSubtitle}
+            </div>
+          )}
           <div className="mb-2.5 text-[11px] text-[var(--color-gray-400)]">
-            증가·감소 각 상위 {MOVER_LIMIT}곳 · 단위 {m.unit} · 상품 단위는
-            렌탈사 상세에서 확인
+            증가·감소 각 상위 {MOVER_LIMIT}곳 · 단위 {m.unit} · {l.moversHintTail}
           </div>
 
           {ups.length === 0 && downs.length === 0 ? (
             <p className="py-6 text-center text-[12px] text-[var(--color-gray-400)]">
-              기여를 가를 만한 렌탈사 변화가 없습니다.
+              {l.emptyText}
             </p>
           ) : (
             <div className="space-y-3">

@@ -194,8 +194,6 @@ export default async function CategoryGroupPage({
     COMPANY_LABELS.has(label)
       ? `/categories/${encodeURIComponent(key)}/${encodeURIComponent(label)}`
       : undefined;
-  const catHref = (label: string) =>
-    label === "그 외" ? undefined : `/category/${encodeURIComponent(label)}`;
 
   // ── 축 집계 — 렌탈사(1차) · 렌탈사별 브랜드(2차) ────────
   // 렌탈사별 행 버킷을 한 번만 만들어 돌려 쓴다. 지표 4개 × 렌탈사 N곳마다

@@ -5,6 +5,18 @@ import Link from "next/link";
 import WaterfallPanel, {
   type WaterfallMetric,
 } from "@/app/components/home/WaterfallPanel";
+
+/**
+ * 이 화면에서는 막대와 기여 목록이 같은 렌탈사 축이다(대카테고리 → 렌탈사
+ * 2단계가 아니라, 렌탈사 1축을 차트와 top-N으로 두 번 보여줄 뿐) — 홈의
+ * "1단계/2단계" 문구를 그대로 쓰면 거짓이 되므로 이 화면 전용 문구로 바꾼다.
+ */
+const WATERFALL_LABELS = {
+  axisBadge: "렌탈사",
+  moversTitle: "가장 크게 움직인 렌탈사",
+  moversSubtitle: "펼치면 브랜드별로 갈라집니다",
+  moversHintTail: "상품은 아래 표에서",
+};
 import { type AxisAgg } from "@/lib/category-aggregate";
 import { type ConvStats } from "@/lib/conversion";
 import { EOK, fmt, signedInt } from "@/lib/format";
@@ -88,7 +100,11 @@ export default function CategoryDrilldown({
         <h2 className={`mb-[11px] ${sectionHead}`}>
           이번 달 {topic(groupKey)} 왜 변했나
         </h2>
-        <WaterfallPanel metrics={metrics} panelClass={panelClass} />
+        <WaterfallPanel
+          metrics={metrics}
+          panelClass={panelClass}
+          labels={WATERFALL_LABELS}
+        />
         <div className={`${panelClass} mt-[11px] overflow-hidden`}>
           <h3 className="border-b border-[var(--color-line-2)] p-[11px_15px] text-[12px] font-semibold text-[var(--color-gray-600)]">
             어떤 상품이 움직였나
@@ -172,7 +188,17 @@ export default function CategoryDrilldown({
                     }`}
                   >
                     <td className="p-[8px_12px] text-left">
-                      <span className="font-semibold">{c.label}</span>
+                      {/* 행 전체 클릭(마우스)은 그대로 두고, 선택 자체는 이
+                          버튼에 둔다 — 셀 안에 이미 Link 가 있어 행을 통째로
+                          <button> 로 감쌀 수 없다(인터랙티브 요소 중첩 금지). */}
+                      <button
+                        type="button"
+                        onClick={() => setSelected(c.label)}
+                        aria-pressed={on}
+                        className="press rounded-[4px] font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]"
+                      >
+                        {c.label}
+                      </button>
                       {/* 행 클릭은 선택이라 상세로 가는 길이 따로 필요하다.
                           경로를 병기하고, 클릭이 선택까지 발동하지 않게 막는다. */}
                       {coHref[c.label] && (
