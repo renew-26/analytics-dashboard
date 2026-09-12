@@ -66,10 +66,11 @@ async function fetchContracts(
   let from = 0;
   while (true) {
     const { data, error } = await supabase
-      .from("raw_contracts")
+      .from("raw_prop_items")
       .select(
         "rental_company, category, monthly_fee, contribution_margin, sales",
       )
+      .not("contract_date", "is", null)
       .in("rental_company", dbNames)
       .gte("contract_date", start)
       .lte("contract_date", end)
@@ -92,8 +93,9 @@ async function fetchOrders(
   let from = 0;
   while (true) {
     const { data, error } = await supabase
-      .from("raw_orders")
+      .from("raw_prop_items")
       .select("rental_company, category")
+      .not("order_confirmed_at", "is", null)
       .in("rental_company", dbNames)
       .gte("order_confirmed_at", start)
       .lte("order_confirmed_at", end)

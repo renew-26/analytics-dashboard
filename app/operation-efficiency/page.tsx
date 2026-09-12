@@ -10,7 +10,7 @@ const supabase = createClient(
 );
 
 const PAGE = 50000;
-// raw_orders/raw_contracts는 상품 상세 컬럼(모델명/관리방식 등)까지 select하면
+// 주문확정·계약완료 조회는 상품 상세 컬럼(모델명/관리방식 등)까지 select하면
 // 6개월치 기본 범위에서 50,000건 단위 조회가 DB statement timeout에 걸릴 수 있어 더 작게 나눈다.
 const APPLIANCE_PAGE = 10000;
 const MONTHS_BACK = 6;
@@ -158,10 +158,11 @@ async function fetchRawOrders(start: string, end: string): Promise<RawOrderRow[]
   let from = 0;
   while (true) {
     const { data, error } = await supabase
-      .from("raw_orders")
+      .from("raw_prop_items")
       .select(
         "prop_item_usid, order_confirmed_at, category, brand, product_name, model_name, management_type, management_cycle, contract_months, monthly_fee, partner_company, sales, bad_debt, target_margin, sales_incentive, contribution_margin, total_rental_fee",
       )
+      .not("order_confirmed_at", "is", null)
       .neq("category", "인터넷")
       .gte("order_confirmed_at", start)
       .lte("order_confirmed_at", end)
@@ -180,10 +181,11 @@ async function fetchRawContracts(start: string, end: string): Promise<RawContrac
   let from = 0;
   while (true) {
     const { data, error } = await supabase
-      .from("raw_contracts")
+      .from("raw_prop_items")
       .select(
         "prop_item_usid, contract_date, category, brand, product_name, model_name, management_type, management_cycle, contract_months, monthly_fee, partner_company, sales, bad_debt, target_margin, sales_incentive, contribution_margin, total_rental_fee",
       )
+      .not("contract_date", "is", null)
       .neq("category", "인터넷")
       .gte("contract_date", start)
       .lte("contract_date", end)
@@ -219,8 +221,8 @@ function tpsToRow(r: TpsPnlRow): OpEfficiencyRow {
   };
 }
 
-// 가전 등(비 인터넷) 카테고리: raw_orders/raw_contracts를 prop_item_usid로 합치되,
-// 계약완료 데이터가 더 확정된 값이므로 raw_contracts를 우선한다(기존 settle > pnl 관례와 동일).
+// 가전 등(비 인터넷) 카테고리: 주문확정·계약완료 조회 결과를 prop_item_usid로 합치되,
+// 계약완료 데이터가 더 확정된 값이므로 계약완료를 우선한다(기존 settle > pnl 관례와 동일).
 //
 // 가전은 TPS와 달리 "지원금"이 개별 지급 항목으로 존재하지 않는다(현금성 지원금 지급 구조 자체가 없음).
 // 실제 검증된 운영효율 정의(Redash #4678 "RAW 견적신청&주문확정&계약완료_상세 상태값" 쿼리 기준):
