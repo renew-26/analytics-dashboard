@@ -365,9 +365,10 @@ type Alert = {
   /** 값만으로 안 되는 한 줄 — 없으면 비운다 */
   detail?: string;
   /** 이 행에서 할 일 — "상세 보기" / "원인 확인" */
-  action: string;
-  href: string;
-  hrefBase: string;
+  action?: string;
+  /** 목적지 — 없으면 행을 링크로 걸지 않는다 */
+  href?: string;
+  hrefBase?: string;
   hrefQuery?: string;
 };
 
@@ -380,6 +381,25 @@ const SEV_TO_STATE: Record<Alert["sev"], TriState> = {
   info: "check",
   good: "check",
 };
+
+/** 알림 행 — 목적지가 있으면 링크, 없으면 같은 격자의 정적 행 */
+function Row({
+  href,
+  children,
+}: {
+  href?: string;
+  children: React.ReactNode;
+}) {
+  const cls =
+    "grid grid-cols-[3px_auto_minmax(0,1fr)_auto] items-center gap-x-[11px] gap-y-1 py-[10px]";
+  return href ? (
+    <Link href={href} className={`group ${cls}`}>
+      {children}
+    </Link>
+  ) : (
+    <div className={cls}>{children}</div>
+  );
+}
 
 /** 주의 신호·확인 필요가 같은 행 모양을 쓴다 — 판정 기준만 다르다 */
 function AlertList({ items, empty }: { items: Alert[]; empty: string }) {
@@ -401,10 +421,7 @@ function AlertList({ items, empty }: { items: Alert[]; empty: string }) {
             key={`${a.title}-${i}`}
             className="border-t border-[var(--color-line-2)] first:border-t-0"
           >
-            <Link
-              href={a.href}
-              className="group grid grid-cols-[3px_auto_minmax(0,1fr)_auto] items-center gap-x-[11px] gap-y-1 py-[10px]"
-            >
+            <Row href={a.href}>
               <span
                 className="row-span-2 h-full min-h-[34px] w-[3px] rounded-full"
                 style={{ background: s.color }}
@@ -443,20 +460,22 @@ function AlertList({ items, empty }: { items: Alert[]; empty: string }) {
               <span className="col-start-3 min-w-0 text-[11px] leading-[15px] text-[var(--color-gray-500)]">
                 {a.detail}
               </span>
-              <span className="col-start-4 inline-flex items-center gap-1.5 justify-self-end whitespace-nowrap">
-                <span className="text-[11px] font-bold text-[var(--color-gray-500)] group-hover:text-[var(--color-primary)]">
-                  {a.action} ↗
+              {a.href && (
+                <span className="col-start-4 inline-flex items-center gap-1.5 justify-self-end whitespace-nowrap">
+                  <span className="text-[11px] font-bold text-[var(--color-gray-500)] group-hover:text-[var(--color-primary)]">
+                    {a.action} ↗
+                  </span>
+                  <span className="font-mono text-[10px] text-[var(--color-gray-400)] group-hover:text-[var(--color-primary-400)]">
+                    {a.hrefBase}
+                    {a.hrefQuery && (
+                      <b className="font-semibold text-[var(--color-primary)]">
+                        {a.hrefQuery}
+                      </b>
+                    )}
+                  </span>
                 </span>
-                <span className="font-mono text-[10px] text-[var(--color-gray-400)] group-hover:text-[var(--color-primary-400)]">
-                  {a.hrefBase}
-                  {a.hrefQuery && (
-                    <b className="font-semibold text-[var(--color-primary)]">
-                      {a.hrefQuery}
-                    </b>
-                  )}
-                </span>
-              </span>
-            </Link>
+              )}
+            </Row>
           </li>
         );
       })}
@@ -1180,9 +1199,6 @@ export default async function Home({
       changePct: certCurr - certPrev,
       changeUnit: "%p",
       detail: `주문확정 ${orderCurr.toLocaleString("ko-KR")}건 중 ${(orderCurr - contractCurr).toLocaleString("ko-KR")}건 미인증`,
-      action: "상세 보기",
-      href: "/conversion",
-      hrefBase: "/conversion",
     });
   }
 
@@ -1669,7 +1685,6 @@ export default async function Home({
                 delta: pct(orderCurr, orderPrev),
                 unit: "%",
                 flat: 1.5,
-                href: "/conversion",
               },
               {
                 label: "설치인증률",
@@ -1677,14 +1692,9 @@ export default async function Home({
                 delta: certPrev > 0 ? certCurr - certPrev : null,
                 unit: "%p",
                 flat: 0.3,
-                href: "/conversion",
               },
             ].map((s) => (
-              <Link
-                key={s.label}
-                href={s.href}
-                className="flex items-baseline gap-1.5 hover:text-[var(--color-primary)]"
-              >
+              <div key={s.label} className="flex items-baseline gap-1.5">
                 <span className="text-[11px] text-[var(--color-gray-500)]">
                   {s.label}
                 </span>
@@ -1694,7 +1704,7 @@ export default async function Home({
                 <span className="text-[11px] font-bold">
                   <Delta value={s.delta} unit={s.unit} flatBand={s.flat} />
                 </span>
-              </Link>
+              </div>
             ))}
             <span className="text-[11px] text-[var(--color-gray-400)]">
               타일의 선 = 월별 추이 (매월 1–{dayCut}일 같은 기간 · 데이터가 있는
