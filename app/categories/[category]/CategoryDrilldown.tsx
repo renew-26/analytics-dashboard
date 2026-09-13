@@ -17,6 +17,9 @@ const WATERFALL_LABELS = {
   moversSubtitle: "펼치면 브랜드별로 갈라집니다",
   moversHintTail: "상품은 아래 표에서",
 };
+import CategoryMonthlyChart, {
+  type CategoryMonthPoint,
+} from "@/app/components/CategoryMonthlyChart";
 import { type AxisAgg } from "@/lib/category-aggregate";
 import { type ConvStats } from "@/lib/conversion";
 import { EOK, MAN, fmt, signedInt } from "@/lib/format";
@@ -41,6 +44,16 @@ export type BrandGroup = {
   sales: number;
   margin: number;
   products: ProductDelta[];
+};
+
+/** ③ 아래에 세우는 월별 추이 차트 한 장 */
+export type TrendChart = {
+  title: string;
+  subtitle: string;
+  seriesKey: string;
+  color: string;
+  unit: string;
+  data: CategoryMonthPoint[];
 };
 
 /** 브랜드 묶음의 스크롤 앵커 — ④ 행 클릭이 여기로 보낸다 */
@@ -72,6 +85,7 @@ function DeltaCount({ value }: { value: number }) {
 export default function CategoryDrilldown({
   groupKey,
   metrics,
+  trendCharts,
   companies,
   coHref,
   topBrandByCompany,
@@ -84,6 +98,7 @@ export default function CategoryDrilldown({
 }: {
   groupKey: string;
   metrics: WaterfallMetric[];
+  trendCharts: TrendChart[];
   companies: AxisAgg[];
   /** 렌탈사 → 상세 경로. COMPANY_LABELS 에 없는 이름은 키가 없다. */
   coHref: Record<string, string>;
@@ -130,6 +145,20 @@ export default function CategoryDrilldown({
           panelClass={panelClass}
           labels={WATERFALL_LABELS}
         />
+        {trendCharts.length > 0 && (
+          <div className="mt-[11px] grid grid-cols-1 gap-[11px] xl:grid-cols-2">
+            {trendCharts.map((c) => (
+              <CategoryMonthlyChart
+                key={c.seriesKey}
+                title={c.title}
+                subtitle={c.subtitle}
+                data={c.data}
+                series={[{ key: c.seriesKey, color: c.color }]}
+                unit={c.unit}
+              />
+            ))}
+          </div>
+        )}
       </section>
 
       {/* ── ④ 렌탈사별 성과 ─────────────────────────── */}

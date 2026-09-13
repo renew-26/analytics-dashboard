@@ -22,13 +22,17 @@ import {
 import { getBM } from "@/lib/company-map";
 import { aggregateAxis } from "@/lib/category-aggregate";
 import { conversionStats, type ConvStats } from "@/lib/conversion";
-import { cpuContribution, diffMap, sumBy, trimLeadingGap } from "@/lib/decompose";
+import { diffMap, sumBy, trimLeadingGap } from "@/lib/decompose";
 import { EOK, MAN, fmt, pct, pctAbs, recentYmsOf } from "@/lib/format";
 import {
   type Mover,
   type WaterfallMetric,
 } from "@/app/components/home/WaterfallPanel";
-import CategoryDrilldown, { type BrandGroup } from "./CategoryDrilldown";
+import { type CategoryMonthPoint } from "@/app/components/CategoryMonthlyChart";
+import CategoryDrilldown, {
+  type BrandGroup,
+  type TrendChart,
+} from "./CategoryDrilldown";
 import BMMixBar from "@/app/components/home/BMMixBar";
 import CategoryCards from "@/app/components/home/CategoryCards";
 import Sparkline from "@/app/components/home/Sparkline";
@@ -331,52 +335,69 @@ export default async function CategoryGroupPage({
     };
   });
 
-  // 건당 공헌이익만 diffMap 이 아니라 cpuContribution 을 쓴다 — 건당은 비율이라
-  // 축별 값을 그냥 더해도 전체 건당이 안 나온다. 가법 분해라야 워터폴이 닫힌다.
-  const marginOf = (r: Row) => r.contribution_margin ?? 0;
-  // 렌탈사 대신 axisKeyOf(상위 6 + 기타)로 묶어 위 막대들과 같은 축을 쓴다.
-  const cpuGaps = cpuContribution(currRows, prevRows, axisKeyOf, marginOf);
-  // 브랜드 기여도 분모를 그룹 전체로 유지해야 자식 합이 부모 막대와 같아진다.
-  // 축별로 cpuContribution 을 다시 부르면 분모가 그 축의 건수로 재정규화돼
-  // "X 자체의 Δ건당"이 나오고, 위 막대(= X 가 그룹 Δ건당에 기여한 몫)와 어긋난다.
-  // 구분자는 이스케이프로 적는다 — 소스에 리터럴 NUL 바이트를 새로 심지 않는다.
-  const CO_BRAND = "\u0000";
-  const cpuSubMovers: Record<string, Mover[]> = {};
-  for (const g of cpuGaps) cpuSubMovers[g.key] = [];
-  for (const x of cpuContribution(
-    currRows,
-    prevRows,
-    (r) => `${axisKeyOf(r)}${CO_BRAND}${brandOf(r)}`,
-    marginOf,
-  )) {
-    const i = x.key.indexOf(CO_BRAND);
-    const axisLabel = x.key.slice(0, i);
-    cpuSubMovers[axisLabel]?.push({ label: x.key.slice(i + 1), value: x.value });
+  // ── ③ 12개월 추이 — 거래건수·매출 ───────────────────────
+  // 워터폴 4번째 탭(건당 공헌이익)을 걷어낸 자리. "왜 변했나"보다 "1년 동안 어떤
+  // 모양이었나"가 낫다는 사용자 판단(2026-09-13).
+  //
+  // ①의 스파크라인은 달마다 1~dayCut 으로 잘라 같은 기간끼리 비교하지만, 여기는
+  // 한 해의 모양을 보는 자리라 지난달까지는 달을 통째로 쓴다. 마지막 달만 진행
+  // 중이라 낮게 찍히므로 부제에 그 사실을 적는다.
+  const trendCntByYm = new Map<string, number>();
+  const trendSalesByYm = new Map<string, number>();
+  for (const r of groupRows) {
+    const ym = r.contract_date.slice(0, 7);
+    trendCntByYm.set(ym, (trendCntByYm.get(ym) ?? 0) + 1);
+    trendSalesByYm.set(ym, (trendSalesByYm.get(ym) ?? 0) + (r.sales ?? 0));
   }
-  const cpuBarGaps = sortIncreasesFirst(cpuGaps);
-  waterfallMetrics.push({
-    key: "cpu",
-    label: "건당 공헌이익",
-    unit: "원",
-    decimals: 0,
-    changePct: pctAbs(cpu, cpuPrev),
-    items: [
-      { label: "전월 동기간", type: "total" as const, value: cpuPrev },
-      ...cpuBarGaps.map((g) => ({
-        label: g.key,
-        type: "delta" as const,
-        value: g.value,
-        href: coHref(g.key),
-      })),
-      { label: "이번 달", type: "total" as const, value: cpu },
-    ],
-    movers: cpuGaps.map((x) => ({
-      label: x.key,
-      value: x.value,
-      href: coHref(x.key),
-    })),
-    subMovers: cpuSubMovers,
-  });
+  // 값이 잡히기 전 구간을 0으로 그리면 "그때는 0이었다"는 거짓말이 된다 —
+  // 손익은 2026-01부터만 채워져 있다. 앞을 잘라낸다.
+  const trendPoints = (
+    seriesKey: string,
+    valueOf: (ym: string) => number,
+  ): CategoryMonthPoint[] => {
+    const vals = recentYms.map(valueOf);
+    const first = vals.findIndex((v) => v !== 0);
+    if (first < 0) return [];
+    return recentYms.slice(first).map((ym, i) => ({
+      month: `${ym.slice(2, 4)}.${ym.slice(5, 7)}`,
+      [seriesKey]: vals[first + i],
+    }));
+  };
+  // 매출 단위는 그룹 크기에 따라 고른다. 억으로 고정하면 타이어(월 40~60만원)가
+  // 열두 달 내내 0.00~0.01 로 접혀 축이 바닥에 눌어붙는다 — 그건 축이 아니라
+  // 반올림이 모양을 지운 것이다. 1억을 못 넘는 그룹은 만원으로 그린다.
+  const maxSalesMan = Math.max(
+    0,
+    ...recentYms.map((ym) => (trendSalesByYm.get(ym) ?? 0) / MAN),
+  );
+  const salesInEok = maxSalesMan >= EOK / MAN;
+  const salesOf = (ym: string) => {
+    const won = trendSalesByYm.get(ym) ?? 0;
+    return salesInEok
+      ? Math.round((won / EOK) * 100) / 100
+      : Math.round(won / MAN);
+  };
+  // 자릿수가 달라 한 축에 못 올린다(거래건수는 백 단위, 매출은 억) — 차트를 나눈다.
+  const trendSubtitle = `최근 12개월 · ${month}월은 ${dayCut}일까지 (진행중)`;
+  const trendCharts: TrendChart[] = [
+    {
+      title: `${key} 월별 거래건수`,
+      subtitle: trendSubtitle,
+      seriesKey: "거래건수",
+      color: "var(--color-cat-1)",
+      unit: "건",
+      data: trendPoints("거래건수", (ym) => trendCntByYm.get(ym) ?? 0),
+    },
+    {
+      // Y축에 단위 라벨이 없고 단위가 그룹마다 갈리므로 제목에 적는다
+      title: `${key} 월별 매출 (${salesInEok ? "억" : "만원"})`,
+      subtitle: trendSubtitle,
+      seriesKey: "매출",
+      color: "var(--color-cat-2)",
+      unit: salesInEok ? "억" : "만원",
+      data: trendPoints("매출", salesOf),
+    },
+  ].filter((c) => c.data.length > 0);
 
   // ── ⑤ 브랜드별 상품 성과 ────────────────────────────────
   // "SK·쿠쿠 각 렌탈사마다 잘나가는 상품"을 한 화면에서 훑는 표 — ④에서 고른
@@ -696,10 +717,11 @@ export default async function CategoryGroupPage({
         </div>
       </section>
 
-      {/* ── ③④⑤ 왜 변했나 · 렌탈사별 · 브랜드별 상품 (렌탈사 선택 공유) ── */}
+      {/* ── ③④⑤ 왜 변했나 · 추이 · 렌탈사별 · 브랜드별 상품 ── */}
       <CategoryDrilldown
         groupKey={key}
         metrics={waterfallMetrics}
+        trendCharts={trendCharts}
         companies={companies}
         coHref={coHrefByCompany}
         topBrandByCompany={topBrandByCompany}
