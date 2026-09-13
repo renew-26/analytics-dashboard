@@ -20,7 +20,7 @@ import {
   type CardContractRow,
 } from "@/lib/company-cards";
 import { getBM } from "@/lib/company-map";
-import { aggregateAxis, type AxisAgg } from "@/lib/category-aggregate";
+import { aggregateAxis } from "@/lib/category-aggregate";
 import { conversionStats, type ConvStats } from "@/lib/conversion";
 import { cpuContribution, diffMap, sumBy, trimLeadingGap } from "@/lib/decompose";
 import { EOK, MAN, fmt, pct, pctAbs, recentYmsOf } from "@/lib/format";
@@ -28,7 +28,7 @@ import {
   type Mover,
   type WaterfallMetric,
 } from "@/app/components/home/WaterfallPanel";
-import CategoryDrilldown, { type ProductDelta } from "./CategoryDrilldown";
+import CategoryDrilldown, { type BrandGroup } from "./CategoryDrilldown";
 import BMMixBar from "@/app/components/home/BMMixBar";
 import CategoryCards from "@/app/components/home/CategoryCards";
 import Sparkline from "@/app/components/home/Sparkline";
@@ -53,8 +53,8 @@ const BM_COLORS: Record<string, string> = {
   BM3: "var(--color-cat-3)",
 };
 
-/** 상품·모델 표에 세울 증가·감소 상품 수 */
-const PRODUCT_LIMIT = 10;
+/** ⑤ 브랜드 묶음 하나에 세울 상품 수 (당월 계약완료 상위) */
+const BRAND_PRODUCT_LIMIT = 5;
 
 type Row = CardContractRow & {
   product_name: string | null;
@@ -223,18 +223,21 @@ export default async function CategoryGroupPage({
     companies.push({ label, cnt: 0, cntPrev: 0, amount: 0, sales: 0, margin: 0 });
   }
 
-  const brandByCompany: Record<string, AxisAgg[]> = {};
+  // ④ 행을 누르면 ⑤에서 그 렌탈사의 브랜드 묶음으로 스크롤한다. 한 렌탈사가
+  // 여러 브랜드를 달고 있으면 당월 계약완료가 가장 많은 브랜드로 보낸다.
+  const topBrandByCompany: Record<string, string> = {};
   const convByCompany: Record<string, ConvStats> = {};
   // 렌탈사 상세로 가는 경로 — ④ 표는 행 클릭이 선택이라 링크를 따로 건다
   const coHrefByCompany: Record<string, string> = {};
   for (const co of companies) {
     const href = coHref(co.label);
     if (href) coHrefByCompany[co.label] = href;
-    brandByCompany[co.label] = aggregateAxis(
+    const topBrand = aggregateAxis(
       currByCo.get(co.label) ?? NO_ROWS,
       prevByCo.get(co.label) ?? NO_ROWS,
       brandOf,
-    );
+    )[0];
+    if (topBrand) topBrandByCompany[co.label] = topBrand.label;
     convByCompany[co.label] = conversionStats(
       orderCurrByCo.get(co.label) ?? [],
     );
@@ -375,50 +378,84 @@ export default async function CategoryGroupPage({
     subMovers: cpuSubMovers,
   });
 
-  // ── 상품 증감 ──────────────────────────────────────────
-  // "이 카테고리가 움직였는데 정확히 어떤 상품이 움직였나"에 답한다.
+  // ── ⑤ 브랜드별 상품 성과 ────────────────────────────────
+  // "SK·쿠쿠 각 렌탈사마다 잘나가는 상품"을 한 화면에서 훑는 표 — ④에서 고른
+  // 렌탈사로 좁히지 않고 카테고리 전체를 브랜드로 세운다.
+  //
+  // 상품 키는 product_name 만 쓴다(2026-09-13 확정). model_name 은 순전히
+  // 표시용인데 이 페이지에서 가장 무거운 조회에 컬럼을 하나 더 얹어야 하고,
+  // product_name 만으로도 6그룹 전체에서 정규화 충돌이 사실상 0이다.
   type ProdAgg = {
     product: string;
     company: string;
     brand: string;
     cnt: number;
     cntPrev: number;
+    sales: number;
+    margin: number;
   };
   const prodMap = new Map<string, ProdAgg>();
   const prodOf = (r: Row) => {
     const product = r.product_name?.trim() || "(상품명 없음)";
-    const company = companyLabelOf(r);
-    // 키에 리터럴 NUL 바이트(\0)를 구분자로 쓴다 — BSD grep(macOS 기본)은
-    // NUL이 섞인 파일을 바이너리로 보고 통째로 건너뛴다. 이 파일을 grep할 땐 -a를 쓸 것.
-    const k = `${company} ${product}`;
+    const brand = brandOf(r);
+    // 구분자는 NUL — 브랜드명·상품명에 절대 들어가지 않는다
+    const k = `${brand}\u0000${product}`;
     let a = prodMap.get(k);
     if (!a) {
-      a = { product, company, brand: brandOf(r), cnt: 0, cntPrev: 0 };
+      a = {
+        product,
+        // 상품 상세 경로는 렌탈사를 요구한다. 브랜드→렌탈사는 사실상 1:1이라
+        // 그 상품을 처음 세운 행(당월이 먼저 돈다)의 렌탈사를 대표로 쓴다.
+        company: companyLabelOf(r),
+        brand,
+        cnt: 0,
+        cntPrev: 0,
+        sales: 0,
+        margin: 0,
+      };
       prodMap.set(k, a);
     }
     return a;
   };
-  for (const r of currRows) prodOf(r).cnt += 1;
+  for (const r of currRows) {
+    const a = prodOf(r);
+    a.cnt += 1;
+    a.sales += r.sales ?? 0;
+    a.margin += r.contribution_margin ?? 0;
+  }
   for (const r of prevRows) prodOf(r).cntPrev += 1;
-  const prodAll = Array.from(prodMap.values());
+
   const prodHref = (p: ProdAgg) =>
     COMPANY_LABELS.has(p.company) && p.product !== "(상품명 없음)"
       ? `/categories/${encodeURIComponent(key)}/${encodeURIComponent(p.company)}/${encodeURIComponent(p.product)}`
       : undefined;
-  const withHref = (list: ProdAgg[]): ProductDelta[] =>
-    list.map((p) => ({ ...p, href: prodHref(p) }));
-  const prodUp = withHref(
-    prodAll
-      .filter((p) => p.cnt - p.cntPrev > 0)
-      .sort((a, b) => b.cnt - b.cntPrev - (a.cnt - a.cntPrev))
-      .slice(0, PRODUCT_LIMIT),
-  );
-  const prodDown = withHref(
-    prodAll
-      .filter((p) => p.cnt - p.cntPrev < 0)
-      .sort((a, b) => a.cnt - a.cntPrev - (b.cnt - b.cntPrev))
-      .slice(0, PRODUCT_LIMIT),
-  );
+
+  const prodByBrand = bucketBy(Array.from(prodMap.values()), (p) => p.brand);
+  // 브랜드 묶음은 당월 계약완료 내림차순. 당월 0건이라도 전월에 있었으면 남긴다
+  // — "이 브랜드가 통째로 빠졌다"도 이 표가 답해야 할 것 중 하나다.
+  const brandGroups: BrandGroup[] = aggregateAxis(
+    currRows,
+    prevRows,
+    brandOf,
+  ).map((b) => ({
+    label: b.label,
+    cnt: b.cnt,
+    cntPrev: b.cntPrev,
+    sales: b.sales,
+    margin: b.margin,
+    products: (prodByBrand.get(b.label) ?? [])
+      .filter((p) => p.cnt > 0)
+      .sort((x, y) => y.cnt - x.cnt || y.cntPrev - x.cntPrev)
+      .slice(0, BRAND_PRODUCT_LIMIT)
+      .map((p) => ({
+        product: p.product,
+        cnt: p.cnt,
+        cntPrev: p.cntPrev,
+        sales: p.sales,
+        margin: p.margin,
+        href: prodHref(p),
+      })),
+  }));
 
   // ── 세부 카테고리 카드 ─────────────────────────────────
   // 그룹 안에 세부가 하나뿐이면(정수기·타이어·인터넷) 카드가 KPI의 복사본이라 세우지 않는다
@@ -659,16 +696,16 @@ export default async function CategoryGroupPage({
         </div>
       </section>
 
-      {/* ── ③④⑤ 왜 변했나 · 렌탈사별 · 브랜드별 (렌탈사 선택 공유) ── */}
+      {/* ── ③④⑤ 왜 변했나 · 렌탈사별 · 브랜드별 상품 (렌탈사 선택 공유) ── */}
       <CategoryDrilldown
         groupKey={key}
         metrics={waterfallMetrics}
         companies={companies}
         coHref={coHrefByCompany}
-        brandByCompany={brandByCompany}
+        topBrandByCompany={topBrandByCompany}
         convByCompany={convByCompany}
-        prodUp={prodUp}
-        prodDown={prodDown}
+        brandGroups={brandGroups}
+        productLimit={BRAND_PRODUCT_LIMIT}
         initialCompany={initialCompany}
         panelClass={panel}
         sectionHead={sectionHead}
