@@ -23,10 +23,7 @@ Next.js App Router 루트 디렉토리. 전역 레이아웃(사이드바+헤더)
 | `company/` | 렌탈사별 상세 분석 페이지 — 동적 라우트 `[company]` (see `company/AGENTS.md`) |
 | `companies/` | 전체 렌탈사 — 렌탈사 카드 그리드(홈에서 이관) + 티어(T1/T2/T3)·그룹 필터·정렬 |
 | `categories/` | 상위 카테고리 3축(가전&상조/정수기/인터넷) — `[category]`(KPI·워터폴·렌탈사별 성과·세부 카테고리 카드·BM 구성), `[category]/[company]`(카테고리 × 렌탈사 — 상품별 성과·변화 원인) |
-| `brand-analysis/` | 브랜드별 매출·판매 상품 분석 (see `brand-analysis/AGENTS.md`) |
 | `category-trends/` | 카테고리 월별·주차별 트렌드 (see `category-trends/AGENTS.md`) |
-| `compare/` | 렌탈사 2개 선택 비교 (see `compare/AGENTS.md`) |
-| `conversion/` | 주문확정→계약완료 전환율 분석 (see `conversion/AGENTS.md`) |
 | `exception-approval/` | 예외승인(2만원 추가 보상제) 영향 분석 (see `exception-approval/AGENTS.md`) |
 | `competitive-subsidy/` | 경쟁사 지원금 조사 (엑셀 업로드) (see `competitive-subsidy/AGENTS.md`) |
 | `margin-analysis/` | 타사 비교 — 경쟁사 타겟마진 역산 (tps-dashboard에서 이관) |

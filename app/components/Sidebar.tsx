@@ -133,19 +133,6 @@ export default function Sidebar() {
             기타 분석 ▾
           </summary>
 
-          {/* 매출 분석 섹션 */}
-          <SectionHeader label="매출 분석" />
-          <NavItem
-            href="/revenue-analysis"
-            label="수수료 매출"
-            active={pathname === "/revenue-analysis"}
-          />
-          <NavItem
-            href="/transaction-count"
-            label="전체 거래건수"
-            active={pathname === "/transaction-count"}
-          />
-
           {/* 렌탈사별 매출 추이 섹션 */}
           <SectionHeader label="렌탈사별 매출 추이" />
 
@@ -231,24 +218,6 @@ export default function Sidebar() {
             href="/category/정수기"
             label="카테고리 상세"
             active={pathname.startsWith("/category/")}
-          />
-          <NavItem
-            href="/brand-analysis"
-            label="브랜드 분석"
-            active={pathname === "/brand-analysis"}
-          />
-
-          {/* 렌탈사 분석 섹션 */}
-          <SectionHeader label="렌탈사 분석" />
-          <NavItem
-            href="/compare"
-            label="렌탈사 비교"
-            active={pathname === "/compare"}
-          />
-          <NavItem
-            href="/conversion"
-            label="전환율 분석"
-            active={pathname === "/conversion"}
           />
 
           {/* 시장 정보 섹션 */}

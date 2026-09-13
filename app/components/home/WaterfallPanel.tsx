@@ -20,10 +20,36 @@ export type WaterfallMetric = {
   changePct: number | null;
   items: WaterfallItem[];
   movers: Mover[];
+  /**
+   * movers 항목을 펼쳤을 때 나올 하위 축 (렌탈사 → 브랜드).
+   * 없으면 기존처럼 펼치지 않는다 — 홈은 넘기지 않으므로 동작이 그대로다.
+   */
+  subMovers?: Record<string, Mover[]>;
 };
 
 /** 증가·감소 각각 몇 곳까지 세울지 — 캡션에 그대로 노출한다 */
 const MOVER_LIMIT = 5;
+
+/**
+ * 축 라벨 — 홈(카테고리 막대 · 렌탈사 기여)과 카테고리 화면(렌탈사 막대 ·
+ * 같은 렌탈사 축의 top-N)이 서로 다른 말을 써야 해서 뺐다. 안 넘기면 홈의
+ * 기존 문구 그대로다.
+ */
+export type WaterfallPanelLabels = {
+  axisBadge: string;
+  moversTitle: string;
+  moversSubtitle: string;
+  moversHintTail: string;
+  emptyText: string;
+};
+
+const DEFAULT_LABELS: WaterfallPanelLabels = {
+  axisBadge: "2단계 · 렌탈사",
+  moversTitle: "어느 렌탈사에서 왔나",
+  moversSubtitle: "",
+  moversHintTail: "상품 단위는 렌탈사 상세에서 확인",
+  emptyText: "기여를 가를 만한 렌탈사 변화가 없습니다.",
+};
 
 function fmt(n: number, decimals: number) {
   return n.toLocaleString("ko-KR", {
@@ -126,11 +152,15 @@ function TopDriver({
 export default function WaterfallPanel({
   metrics,
   panelClass,
+  labels,
 }: {
   metrics: WaterfallMetric[];
   panelClass: string;
+  labels?: Partial<WaterfallPanelLabels>;
 }) {
+  const l = { ...DEFAULT_LABELS, ...labels };
   const [active, setActive] = useState(0);
+  const [openMover, setOpenMover] = useState<string | null>(null);
   const m = metrics[active] ?? metrics[0];
   if (!m) return null;
 
@@ -244,7 +274,7 @@ export default function WaterfallPanel({
         <div>
           <div className="mb-1 flex flex-wrap items-baseline gap-1.5 text-[11px] text-[var(--color-gray-400)]">
             <b className="rounded-[4px] bg-[var(--color-gray-100)] px-1.5 py-px text-[10px] font-bold text-[var(--color-gray-500)]">
-              1단계 · 대카테고리
+              {labels?.axisBadge ?? "1단계 · 대카테고리"}
             </b>
             {m.label} 기여도 · 단위 {m.unit}
           </div>
@@ -255,20 +285,24 @@ export default function WaterfallPanel({
         <div>
           <div className="mb-0.5 flex flex-wrap items-baseline gap-1.5">
             <b className="rounded-[4px] bg-[var(--color-gray-100)] px-1.5 py-px text-[10px] font-bold text-[var(--color-gray-500)]">
-              2단계 · 렌탈사
+              {l.axisBadge}
             </b>
             <span className="text-[12px] font-bold text-[var(--color-gray-600)]">
-              어느 렌탈사에서 왔나
+              {l.moversTitle}
             </span>
           </div>
+          {l.moversSubtitle && (
+            <div className="mb-1 text-[11px] text-[var(--color-gray-500)]">
+              {l.moversSubtitle}
+            </div>
+          )}
           <div className="mb-2.5 text-[11px] text-[var(--color-gray-400)]">
-            증가·감소 각 상위 {MOVER_LIMIT}곳 · 단위 {m.unit} · 상품 단위는
-            렌탈사 상세에서 확인
+            증가·감소 각 상위 {MOVER_LIMIT}곳 · 단위 {m.unit} · {l.moversHintTail}
           </div>
 
           {ups.length === 0 && downs.length === 0 ? (
             <p className="py-6 text-center text-[12px] text-[var(--color-gray-400)]">
-              기여를 가를 만한 렌탈사 변화가 없습니다.
+              {l.emptyText}
             </p>
           ) : (
             <div className="space-y-3">
@@ -283,6 +317,8 @@ export default function WaterfallPanel({
                     </div>
                     <ul>
                       {blk.rows.map((r) => {
+                        const sub = m.subMovers?.[r.label];
+                        const expandable = !!sub && sub.length > 1;
                         const row = (
                           <>
                             <span className="truncate text-[12px] font-semibold group-hover:text-[var(--color-primary)]">
@@ -328,6 +364,40 @@ export default function WaterfallPanel({
                               </Link>
                             ) : (
                               <div className={grid}>{row}</div>
+                            )}
+                            {expandable && sub && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setOpenMover(
+                                    openMover === r.label ? null : r.label,
+                                  )
+                                }
+                                aria-expanded={openMover === r.label}
+                                className="press ml-1 text-[10px] font-bold text-[var(--color-gray-400)] hover:text-[var(--color-gray-900)]"
+                              >
+                                {openMover === r.label
+                                  ? "접기"
+                                  : `브랜드 ${sub.length}`}
+                              </button>
+                            )}
+                            {expandable && sub && openMover === r.label && (
+                              <ul className="mt-[6px] ml-[13px] border-l border-[var(--color-line-2)] pl-[11px]">
+                                {sub.map((s) => (
+                                  <li
+                                    key={s.label}
+                                    className="flex justify-between py-[2px] text-[11px] text-[var(--color-gray-600)]"
+                                  >
+                                    <span>{s.label}</span>
+                                    <span
+                                      className="num font-semibold"
+                                      style={{ color: deltaColor(s.value, 0) }}
+                                    >
+                                      {signed(s.value, m.decimals)}
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
                             )}
                           </li>
                         );
