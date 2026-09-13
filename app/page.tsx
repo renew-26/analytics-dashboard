@@ -159,13 +159,12 @@ async function fetchContractsUncached(
  *
  * unstable_cache 는 항목당 약 2MB 제한이 있다 — 넘으면 Next 가 경고 로그만 남기고
  * 조용히 저장하지 않는다(정합성은 안 깨지고 그 조회만 캐시가 안 타는 상태로 남는다).
- * 아래 fetchAllYearOrders(연초~, 132,813행, 약 13MB — raw_prop_items 전환으로
- * 2025 주문확정이 되살아나며 행 수가 늘었다)와 fetchAllYearContracts(연초~,
- * 45,315행, 4.19MB)는 이 한도를 넘어 실제로는 캐시되지 않는다(2026-09-12 재측정).
- * 반면 이 바로 아래 fetchContracts처럼 단일 월 구간 조회는 한도 안에 들어와 정상
- * 캐시된다. 근본 원인은 두 조회 모두 수만 행을 통째로 내려받아 카드 수십 개 분량의
- * 집계값을 계산하는 구조라는 점이다 — 캐싱으로는 못 고치고, 집계를 Postgres 로
- * 미는 것(B안 / 집계 SQL)이 다음 단계다.
+ * fetchAllYearOrders(연초~, 132,813행, 9.63MB)가 여기 걸려 캐시가 아예 안 됐는데,
+ * 그 조회는 결과를 BM별 건수로만 쓰므로 조회 안에서 날짜×BM 로 접어 한도 아래로
+ * 내렸다(2026-09-13). fetchAllYearContracts(연초~, 45,315행, 4.19MB)는 아직 넘는다 —
+ * 이쪽은 행 자체를 카드·차트 네 곳에 그대로 넘겨서 접을 수 없고, 집계를 Postgres 로
+ * 미는 것(B안 / 집계 SQL)이 다음 단계다. 반면 fetchContracts처럼 단일 월 구간 조회는
+ * 한도 안에 들어와 정상 캐시된다.
  */
 const fetchContracts = unstable_cache(
   fetchContractsUncached,
@@ -218,18 +217,30 @@ const fetchAllYearContracts = unstable_cache(
   { tags: ["dashboard-data"], revalidate: 86400 },
 );
 
-/** 주문확정 — 월별 스파크라인과 BM별 집계에 함께 쓴다 */
-type OrderRow = {
-  order_confirmed_at: string | null;
-  partner_company: string | null;
+/**
+ * 주문확정 — BM별 집계에만 쓴다(app/page.tsx 의 bmOrderCurr/bmOrderPrev).
+ *
+ * 행을 통째로 들고 오지 않고 조회 안에서 날짜×BM 로 접어서 돌려준다. 132,813행
+ * (약 9.6MB)은 unstable_cache 의 항목당 2MB 한도를 넘어 캐시가 아예 안 걸렸다
+ * ("items over 2MB can not be cached" 경고 후 조용히 버려진다). 접으면 하루 1행
+ * (연초~ 약 600행, 수십 KB)이라 한도 안에 들어온다.
+ *
+ * 날짜 단위로 접어도 손실이 없다 — order_confirmed_at 은 동기화가 slice(0,10) 로
+ * 넣는 'YYYY-MM-DD' 문자열이고(app/api/sync/route.ts), 호출부도 날짜 문자열
+ * 비교로만 구간을 자른다.
+ */
+type OrderDayBM = {
+  date: string;
+  BM1: number;
+  BM2: number;
+  BM3: number;
 };
 
-// 기존 함수는 이름만 바꿔 그대로 둔다
 async function fetchAllYearOrdersUncached(
   yearStart: string,
   end: string,
-): Promise<OrderRow[]> {
-  const all: OrderRow[] = [];
+): Promise<OrderDayBM[]> {
+  const byDate = new Map<string, OrderDayBM>();
   let from = 0;
   const PAGE = 50000;
   while (true) {
@@ -242,11 +253,20 @@ async function fetchAllYearOrdersUncached(
       .order("prop_item_usid", { ascending: true })
       .range(from, from + PAGE - 1);
     if (error || !data || data.length === 0) break;
-    all.push(...data);
+    for (const r of data) {
+      const d = r.order_confirmed_at;
+      if (!d) continue;
+      let row = byDate.get(d);
+      if (!row) {
+        row = { date: d, BM1: 0, BM2: 0, BM3: 0 };
+        byDate.set(d, row);
+      }
+      row[getBM(r.partner_company)] += 1;
+    }
     if (data.length < PAGE) break;
     from += PAGE;
   }
-  return all;
+  return Array.from(byDate.values());
 }
 
 const fetchAllYearOrders = unstable_cache(
@@ -627,18 +647,19 @@ export default async function Home({
   // ── 주문확정: BM별 집계 ────────────────────────────────
   const bmOrderCurr = { BM1: 0, BM2: 0, BM3: 0, total: 0 };
   const bmOrderPrev = { BM1: 0, BM2: 0, BM3: 0, total: 0 };
+  // allOrders 는 날짜×BM 로 접혀서 온다 (fetchAllYearOrdersUncached 주석 참고)
   for (const r of allOrders) {
-    const d = r.order_confirmed_at;
-    if (!d) continue;
     const bucket =
-      d >= curr.start && d <= curr.end
+      r.date >= curr.start && r.date <= curr.end
         ? bmOrderCurr
-        : d >= prev.start && d <= prev.end
+        : r.date >= prev.start && r.date <= prev.end
           ? bmOrderPrev
           : null;
     if (bucket) {
-      bucket[getBM(r.partner_company)] += 1;
-      bucket.total += 1;
+      bucket.BM1 += r.BM1;
+      bucket.BM2 += r.BM2;
+      bucket.BM3 += r.BM3;
+      bucket.total += r.BM1 + r.BM2 + r.BM3;
     }
   }
 
