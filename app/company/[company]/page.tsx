@@ -90,7 +90,7 @@ function normalizeCategory(cat: string | null): string {
 // 공통 정규화 행 — order/contract 모두 이 타입으로 변환
 interface DataRow {
   dateStr: string;
-  total_rental_fee: number | null;
+  gmv: number | null;
   contribution_margin: number | null;
   monthly_fee: number | null;
   sales_incentive: number | null;
@@ -159,7 +159,7 @@ function aggregateByWeek(rows: DataRow[]): WeekStat[] {
     const idx = getWeekIndex(row.dateStr);
     const cur = map.get(idx) ?? { count: 0, rental: 0, margin: 0 };
     cur.count += 1;
-    cur.rental += row.total_rental_fee ?? 0;
+    cur.rental += row.gmv ?? 0;
     cur.margin += row.contribution_margin ?? 0;
     map.set(idx, cur);
   }
@@ -207,7 +207,9 @@ interface ProductStat {
   product_name: string;
   model_name: string;
   count: number;
-  sales: number;
+  /** 거래액(gmv) — 매출(sales 컬럼)이 아니다.
+      온톨로지 SettlePnlFact.sales 정의상 매출은 수수료성 금액이라 둘은 다른 값이다. */
+  amount: number;
 }
 
 function aggregateByCategoryProduct(
@@ -215,7 +217,7 @@ function aggregateByCategoryProduct(
 ): { category: string; products: ProductStat[] }[] {
   const catMap = new Map<
     string,
-    Map<string, { count: number; sales: number }>
+    Map<string, { count: number; amount: number }>
   >();
 
   for (const row of rows) {
@@ -223,9 +225,9 @@ function aggregateByCategoryProduct(
     const key = `${row.product_name ?? ""}|${row.model_name ?? ""}`;
     if (!catMap.has(cat)) catMap.set(cat, new Map());
     const pm = catMap.get(cat)!;
-    const cur = pm.get(key) ?? { count: 0, sales: 0 };
+    const cur = pm.get(key) ?? { count: 0, amount: 0 };
     cur.count += 1;
-    cur.sales += row.total_rental_fee ?? 0;
+    cur.amount += row.gmv ?? 0;
     pm.set(key, cur);
   }
 
@@ -290,13 +292,12 @@ function aggregateByCategoryWeekProduct(
     const productKey = `${row.product_name ?? ""}|${row.model_name ?? ""}`;
     if (!buckets.has(bucketKey)) buckets.set(bucketKey, new Map());
     const pm = buckets.get(bucketKey)!;
-    const cur =
-      pm.get(productKey) ?? {
-        count: 0,
-        incentive: 0,
-        margin: 0,
-        periods: new Map<number, { count: number; feeSum: number }>(),
-      };
+    const cur = pm.get(productKey) ?? {
+      count: 0,
+      incentive: 0,
+      margin: 0,
+      periods: new Map<number, { count: number; feeSum: number }>(),
+    };
     cur.count += 1;
     cur.incentive += row.sales_incentive ?? 0;
     cur.margin += row.contribution_margin ?? 0;
@@ -346,7 +347,7 @@ function aggregateByMonth(rows: DataRow[]) {
   const map = new Map<string, number>();
   for (const row of rows) {
     const key = monthKeyFull(row.dateStr);
-    map.set(key, (map.get(key) ?? 0) + (row.total_rental_fee ?? 0));
+    map.set(key, (map.get(key) ?? 0) + (row.gmv ?? 0));
   }
   const sorted = Array.from(map.keys())
     .sort((a, b) => a.localeCompare(b))
@@ -383,7 +384,7 @@ function aggregateByMonthFull(revenueRows: DataRow[], countRows: DataRow[]) {
     const key = monthKeyFull(row.dateStr);
     const cur = revMap.get(key) ?? { count: 0, rental: 0, margin: 0 };
     cur.count += 1;
-    cur.rental += row.total_rental_fee ?? 0;
+    cur.rental += row.gmv ?? 0;
     cur.margin += row.contribution_margin ?? 0;
     revMap.set(key, cur);
   }
@@ -460,12 +461,12 @@ function calcSummaryStats(rows: DataRow[]) {
     const day = d.getDate();
 
     if (y === curYear && m === curMonth && day <= curDay) {
-      curRevenue += row.total_rental_fee ?? 0;
+      curRevenue += row.gmv ?? 0;
       curMargin += row.contribution_margin ?? 0;
       curCount += 1;
     }
     if (y === prevYear && m === prevMonth && day <= prevEndDay) {
-      prevRevenue += row.total_rental_fee ?? 0;
+      prevRevenue += row.gmv ?? 0;
     }
   }
 
@@ -488,6 +489,11 @@ function calcSummaryStats(rows: DataRow[]) {
 // 아래 루프들의 `data.length < PAGE` 종료 조건이 이를 마지막 페이지로 오인해 조용히
 // 누락된다. unstable_cache 키에 넣을 이유가 없는 상수라 모듈 스코프에 둔다.
 const PAGE = 50000;
+
+// 상품별 성과는 카테고리로 묶고 묶음마다 상위 N개만 편다. 카테고리 화면의
+// 브랜드 묶음(BRAND_PRODUCT_LIMIT)과 같은 값 — 두 표의 "상위 몇 개"가 서로
+// 다르면 화면을 오갈 때 같은 상품 수를 기대하다 어긋난다.
+const CAT_PRODUCT_LIMIT = 5;
 
 // 카테고리 포지션 — 정수기/가전 그룹 정의. 회사와 무관한 고정값이라 모듈 스코프.
 const GROUP_CATEGORIES: Record<string, string[]> = {
@@ -529,7 +535,7 @@ type IaRow = CardContractRow & {
 interface ShareRow {
   rental_company: string | null;
   category: string | null;
-  total_rental_fee: number | null;
+  gmv: number | null;
   monthly_fee: number | null;
   product_name: string | null;
   model_name: string | null;
@@ -558,7 +564,7 @@ type GrowthRow = {
   contract_months: number | null;
   partner_company: string | null;
   sales_incentive: number | null;
-  total_rental_fee: number | null;
+  gmv: number | null;
 };
 
 // ── 아래 6개는 이 페이지에서 가장 무거운 조회다 ──
@@ -608,7 +614,7 @@ async function fetchIaAllUncached(
     const { data, error } = await supabase
       .from("raw_prop_items")
       .select(
-        "contract_date, rental_company, category, partner_company, total_rental_fee, contribution_margin, sales, product_name, model_name",
+        "contract_date, rental_company, category, partner_company, gmv, contribution_margin, sales, product_name, model_name",
       )
       .not("contract_date", "is", null)
       .in("rental_company", dbNames)
@@ -640,7 +646,7 @@ async function fetchShareRowsUncached(
     const { data, error } = await supabase
       .from("raw_prop_items")
       .select(
-        "rental_company, category, total_rental_fee, monthly_fee, product_name, model_name",
+        "rental_company, category, gmv, monthly_fee, product_name, model_name",
       )
       .not("contract_date", "is", null)
       .gte("contract_date", start)
@@ -751,7 +757,7 @@ async function fetchGrowthRowsUncached(
     let q = supabase
       .from("raw_prop_items")
       .select(
-        "rental_company, category, product_name, model_name, management_type, contract_months, partner_company, sales_incentive, total_rental_fee",
+        "rental_company, category, product_name, model_name, management_type, contract_months, partner_company, sales_incentive, gmv",
       )
       .not(growthDateCol, "is", null)
       .in("category", positionCategories)
@@ -808,7 +814,7 @@ export default async function CompanyPage({
     );
   }
 
-  const FETCH_RANGE_START = "2025-01-01"; // 거래건수 조회 시작 시점
+  const FETCH_RANGE_START = "2025-01-01"; // 계약완료 조회 시작 시점
   const REVENUE_RANGE_START = "2025-01-01"; // 매출·공헌이익 등 현재 기준 시점
 
   // ── 무거운 조회는 여기서 "시작"만 걸고, 쓰는 자리에서 await 한다 ──
@@ -855,7 +861,7 @@ export default async function CompanyPage({
       let q = supabase
         .from("raw_prop_items")
         .select(
-          "order_confirmed_at, total_rental_fee, contribution_margin, monthly_fee, sales_incentive, contract_months, category, product_name, model_name, partner_company",
+          "order_confirmed_at, gmv, contribution_margin, monthly_fee, sales_incentive, contract_months, category, product_name, model_name, partner_company",
         )
         .not("order_confirmed_at", "is", null)
         .in("rental_company", dbNames);
@@ -864,7 +870,9 @@ export default async function CompanyPage({
         q = Array.isArray(cis) ? q.in("category", cis) : q.eq("category", cis);
       }
       if (mapping.categoryNot) {
-        const cnot = Array.isArray(mapping.categoryNot) ? mapping.categoryNot : [mapping.categoryNot];
+        const cnot = Array.isArray(mapping.categoryNot)
+          ? mapping.categoryNot
+          : [mapping.categoryNot];
         for (const c of cnot) q = q.neq("category", c);
       }
       const { data, error } = await q
@@ -879,7 +887,7 @@ export default async function CompanyPage({
       for (const r of data) {
         normalizedRows.push({
           dateStr: r.order_confirmed_at,
-          total_rental_fee: r.total_rental_fee,
+          gmv: r.gmv,
           contribution_margin: r.contribution_margin,
           monthly_fee: r.monthly_fee,
           sales_incentive: r.sales_incentive,
@@ -899,7 +907,7 @@ export default async function CompanyPage({
       let q = supabase
         .from("raw_prop_items")
         .select(
-          "contract_date, total_rental_fee, contribution_margin, monthly_fee, sales_incentive, contract_months, category, product_name, model_name, partner_company",
+          "contract_date, gmv, contribution_margin, monthly_fee, sales_incentive, contract_months, category, product_name, model_name, partner_company",
         )
         .not("contract_date", "is", null)
         .in("rental_company", dbNames);
@@ -908,7 +916,9 @@ export default async function CompanyPage({
         q = Array.isArray(cis) ? q.in("category", cis) : q.eq("category", cis);
       }
       if (mapping.categoryNot) {
-        const cnot = Array.isArray(mapping.categoryNot) ? mapping.categoryNot : [mapping.categoryNot];
+        const cnot = Array.isArray(mapping.categoryNot)
+          ? mapping.categoryNot
+          : [mapping.categoryNot];
         for (const c of cnot) q = q.neq("category", c);
       }
       const { data, error } = await q
@@ -923,7 +933,7 @@ export default async function CompanyPage({
       for (const r of data) {
         normalizedRows.push({
           dateStr: r.contract_date,
-          total_rental_fee: r.total_rental_fee,
+          gmv: r.gmv,
           contribution_margin: r.contribution_margin,
           monthly_fee: r.monthly_fee,
           sales_incentive: r.sales_incentive,
@@ -1041,11 +1051,13 @@ export default async function CompanyPage({
           if (!cm) return [];
           if (mapping.categoryIs) {
             const cis = mapping.categoryIs;
-            if (Array.isArray(cis) ? !cis.includes(cat) : cis !== cat) return [];
+            if (Array.isArray(cis) ? !cis.includes(cat) : cis !== cat)
+              return [];
           }
           if (mapping.categoryNot) {
             const cnot = mapping.categoryNot;
-            if (Array.isArray(cnot) ? cnot.includes(cat) : cnot === cat) return [];
+            if (Array.isArray(cnot) ? cnot.includes(cat) : cnot === cat)
+              return [];
           }
           const myCount = cm.get(dbName) ?? 0;
           if (myCount === 0) return [];
@@ -1203,13 +1215,22 @@ export default async function CompanyPage({
           Map<string, { count: number; feeSum: number; incentiveSum: number }>
         >();
         for (const r of allGrowthRows) {
-          if (!r.model_name || !topModelNames.has(r.model_name) || !r.partner_company)
+          if (
+            !r.model_name ||
+            !topModelNames.has(r.model_name) ||
+            !r.partner_company
+          )
             continue;
-          if (!partnerMap.has(r.model_name)) partnerMap.set(r.model_name, new Map());
+          if (!partnerMap.has(r.model_name))
+            partnerMap.set(r.model_name, new Map());
           const pm = partnerMap.get(r.model_name)!;
-          const cur = pm.get(r.partner_company) ?? { count: 0, feeSum: 0, incentiveSum: 0 };
+          const cur = pm.get(r.partner_company) ?? {
+            count: 0,
+            feeSum: 0,
+            incentiveSum: 0,
+          };
           cur.count += 1;
-          cur.feeSum += r.total_rental_fee ?? 0;
+          cur.feeSum += r.gmv ?? 0;
           cur.incentiveSum += r.sales_incentive ?? 0;
           pm.set(r.partner_company, cur);
         }
@@ -1431,7 +1452,10 @@ export default async function CompanyPage({
     totalCompanies: number;
   }
   const categoryShareData: CategoryShare[] = (() => {
-    const catMap = new Map<string, Map<string, { count: number; revenue: number }>>();
+    const catMap = new Map<
+      string,
+      Map<string, { count: number; revenue: number }>
+    >();
     for (const r of allContractRows) {
       const cat = r.category ?? "기타";
       const co = r.rental_company ?? "기타";
@@ -1439,7 +1463,7 @@ export default async function CompanyPage({
       const cm = catMap.get(cat)!;
       const cur = cm.get(co) ?? { count: 0, revenue: 0 };
       cur.count += 1;
-      cur.revenue += r.total_rental_fee ?? 0;
+      cur.revenue += r.gmv ?? 0;
       cm.set(co, cur);
     }
     const results: CategoryShare[] = [];
@@ -1493,9 +1517,14 @@ export default async function CompanyPage({
     const top3Cats = categoryShareData.slice(0, 3).map((c) => c.category);
     const results: PerformanceDriver[] = [];
     for (const cat of top3Cats) {
-      const catRows = allContractRows.filter((r) => (r.category ?? "기타") === cat);
+      const catRows = allContractRows.filter(
+        (r) => (r.category ?? "기타") === cat,
+      );
       // monthly_fee averages
-      let myFeeSum = 0, myFeeCount = 0, othersFeeSum = 0, othersFeeCount = 0;
+      let myFeeSum = 0,
+        myFeeCount = 0,
+        othersFeeSum = 0,
+        othersFeeCount = 0;
       // model counts per company
       const myModels = new Set<string>();
       const otherModelsByCompany = new Map<string, Set<string>>();
@@ -1510,16 +1539,24 @@ export default async function CompanyPage({
         } else {
           othersFeeSum += fee;
           othersFeeCount += 1;
-          if (!otherModelsByCompany.has(co)) otherModelsByCompany.set(co, new Set());
+          if (!otherModelsByCompany.has(co))
+            otherModelsByCompany.set(co, new Set());
           otherModelsByCompany.get(co)!.add(modelKey);
         }
       }
       const myAvgFee = myFeeCount > 0 ? Math.round(myFeeSum / myFeeCount) : 0;
-      const othersAvgFee = othersFeeCount > 0 ? Math.round(othersFeeSum / othersFeeCount) : 0;
+      const othersAvgFee =
+        othersFeeCount > 0 ? Math.round(othersFeeSum / othersFeeCount) : 0;
       const otherCompanyCount = otherModelsByCompany.size;
-      const othersAvgModelCount = otherCompanyCount > 0
-        ? Math.round(Array.from(otherModelsByCompany.values()).reduce((s, set) => s + set.size, 0) / otherCompanyCount)
-        : 0;
+      const othersAvgModelCount =
+        otherCompanyCount > 0
+          ? Math.round(
+              Array.from(otherModelsByCompany.values()).reduce(
+                (s, set) => s + set.size,
+                0,
+              ) / otherCompanyCount,
+            )
+          : 0;
       results.push({
         category: cat,
         myAvgFee,
@@ -1563,7 +1600,7 @@ export default async function CompanyPage({
     if (Number(r.contract_date.slice(8, 10)) > dayCut) continue;
     const ym = r.contract_date.slice(0, 7);
     kCntByYm.set(ym, (kCntByYm.get(ym) ?? 0) + 1);
-    kAmtByYm.set(ym, (kAmtByYm.get(ym) ?? 0) + (r.total_rental_fee ?? 0));
+    kAmtByYm.set(ym, (kAmtByYm.get(ym) ?? 0) + (r.gmv ?? 0));
     kSalesByYm.set(ym, (kSalesByYm.get(ym) ?? 0) + (r.sales ?? 0));
     kMgByYm.set(ym, (kMgByYm.get(ym) ?? 0) + (r.contribution_margin ?? 0));
   }
@@ -1590,17 +1627,19 @@ export default async function CompanyPage({
   const state = judgeState(iaCurr.length, pace);
   const tier = resolveTier(countInstall90d(iaRows, curr.end).get(label) ?? 0);
 
-
   // KPI 4종
   const iaSum = (rows: IaRow[], of: (r: IaRow) => number) =>
     rows.reduce((s, r) => s + of(r), 0);
   const kCnt = iaCurr.length;
   const kCntPrev = iaPrev.length;
-  const kAmtSum = iaSum(iaCurr, (r) => r.total_rental_fee ?? 0);
-  const kAmtSumPrev = iaSum(iaPrev, (r) => r.total_rental_fee ?? 0);
+  const kAmtSum = iaSum(iaCurr, (r) => r.gmv ?? 0);
+  const kAmtSumPrev = iaSum(iaPrev, (r) => r.gmv ?? 0);
   const kSalesSum = iaSum(iaCurr, (r) => r.sales ?? 0);
   const kSalesSumPrev = iaSum(iaPrev, (r) => r.sales ?? 0);
-  const kCpu = perDeal(iaSum(iaCurr, (r) => r.contribution_margin ?? 0), kCnt);
+  const kCpu = perDeal(
+    iaSum(iaCurr, (r) => r.contribution_margin ?? 0),
+    kCnt,
+  );
   const kCpuPrev = perDeal(
     iaSum(iaPrev, (r) => r.contribution_margin ?? 0),
     kCntPrev,
@@ -1662,7 +1701,8 @@ export default async function CompanyPage({
   const groupCntTotal = groupRows.reduce((s, g) => s + g.cnt, 0);
 
   // 상품별 성과 + 증감 요인 + 수익성 분해 (조합 페이지와 같은 상품 키)
-  const prodKeyOf = (r: IaRow) => `${r.product_name ?? ""}|${r.model_name ?? ""}`;
+  const prodKeyOf = (r: IaRow) =>
+    `${r.product_name ?? ""}|${r.model_name ?? ""}`;
   const prodNameOf = (k: string) => {
     const [productName, modelName] = k.split("|");
     return { productName: productName || "(상품명 없음)", modelName };
@@ -1699,10 +1739,54 @@ export default async function CompanyPage({
     a.margin += r.contribution_margin ?? 0;
   }
   for (const r of iaPrev) prodOf(r).cntPrev += 1;
-  const topProducts = Array.from(prodMap.values())
-    .filter((a) => a.cnt > 0 || a.cntPrev > 0)
-    .sort((a, b) => b.cnt - a.cnt || b.cntPrev - a.cntPrev)
-    .slice(0, 12);
+  // 카테고리 묶음 × 그 안의 상위 상품. 묶음 합계는 상위 N개의 합이 아니라
+  // 그 카테고리 전건이다 — 머리줄이 아래 줄들보다 큰 건 정상이고, 그 차이를
+  // "외 N개 상품"으로 같은 줄에서 바로 댄다.
+  const catTotal = new Map<
+    string,
+    { cnt: number; cntPrev: number; sales: number; margin: number }
+  >();
+  const catTotalOf = (category: string | null) => {
+    const k = category ?? "기타";
+    let t = catTotal.get(k);
+    if (!t) {
+      t = { cnt: 0, cntPrev: 0, sales: 0, margin: 0 };
+      catTotal.set(k, t);
+    }
+    return t;
+  };
+  for (const r of iaCurr) {
+    const t = catTotalOf(r.category);
+    t.cnt += 1;
+    t.sales += r.sales ?? 0;
+    t.margin += r.contribution_margin ?? 0;
+  }
+  for (const r of iaPrev) catTotalOf(r.category).cntPrev += 1;
+
+  const prodsByCat = new Map<string, ProdAgg[]>();
+  for (const a of prodMap.values()) {
+    const k = a.category ?? "기타";
+    const list = prodsByCat.get(k);
+    if (list) list.push(a);
+    else prodsByCat.set(k, [a]);
+  }
+
+  const productGroups = Array.from(catTotal.entries())
+    .map(([category, t]) => {
+      // 당월 0건인 상품은 묶음 안에 세우지 않는다 — 묶음 자체가 통째로 빠진
+      // 경우는 아래 filter 가 아니라 cntPrev 로 남아 "0건" 으로 드러난다.
+      const sold = (prodsByCat.get(category) ?? [])
+        .filter((pr) => pr.cnt > 0)
+        .sort((x, y) => y.cnt - x.cnt || y.cntPrev - x.cntPrev);
+      return {
+        category,
+        ...t,
+        moreProducts: Math.max(0, sold.length - CAT_PRODUCT_LIMIT),
+        products: sold.slice(0, CAT_PRODUCT_LIMIT),
+      };
+    })
+    .filter((g) => g.cnt > 0 || g.cntPrev > 0)
+    .sort((a, b) => b.cnt - a.cnt || b.cntPrev - a.cntPrev);
   const prodCountDiff = diffMap(
     sumBy(iaCurr, prodKeyOf, () => 1),
     sumBy(iaPrev, prodKeyOf, () => 1),
@@ -1853,7 +1937,9 @@ export default async function CompanyPage({
             ))}
           </dl>
           <div className="flex flex-wrap items-center gap-x-[18px] gap-y-1 border-t border-[var(--color-gray-200)] bg-[var(--color-gray-25)] p-[9px_17px] text-[11px] text-[var(--color-gray-400)]">
-            <span>계약완료(raw_prop_items) 기준 · 전월 같은 일자(1–{dayCut}일) 대비</span>
+            <span>
+              계약완료(raw_prop_items) 기준 · 전월 같은 일자(1–{dayCut}일) 대비
+            </span>
             <span>
               BM 구성:{" "}
               {(["BM1", "BM2", "BM3"] as const)
@@ -1861,7 +1947,9 @@ export default async function CompanyPage({
                 .map((b) => `${b} ${fmtN(bmCntIa[b])}건`)
                 .join(" · ") || "—"}
             </span>
-            <span>타일의 선 = 최근 12개월 추이 (매월 1–{dayCut}일 같은 기간)</span>
+            <span>
+              타일의 선 = 최근 12개월 추이 (매월 1–{dayCut}일 같은 기간)
+            </span>
           </div>
         </div>
       </section>
@@ -1923,7 +2011,9 @@ export default async function CompanyPage({
                         >
                           {fmtN(g.cnt)}
                         </td>
-                        <td className={`${iaTd} num text-[var(--color-gray-500)]`}>
+                        <td
+                          className={`${iaTd} num text-[var(--color-gray-500)]`}
+                        >
                           {fmtN(g.cntPrev)}
                         </td>
                         <td
@@ -2020,7 +2110,9 @@ export default async function CompanyPage({
                                 {nameBlock}
                               </Link>
                             ) : (
-                              <span className="min-w-0 flex-1">{nameBlock}</span>
+                              <span className="min-w-0 flex-1">
+                                {nameBlock}
+                              </span>
                             )}
                             <b
                               className="num flex-none text-[12px] font-bold"
@@ -2053,81 +2145,128 @@ export default async function CompanyPage({
         <div className="mb-[11px] flex flex-wrap items-baseline gap-2.5">
           <h2 className={iaSectionHead}>상품별 성과</h2>
           <span className="text-[12px] text-[var(--color-gray-500)]">
-            이번 달 계약완료 상위 {topProducts.length}개 · 상품명 클릭 → 상품
-            상세
+            카테고리마다 이번 달 계약완료 상위{" "}
+            <b className="num text-[var(--color-gray-700)]">
+              {CAT_PRODUCT_LIMIT}
+            </b>
+            개 · 묶음 합계는 그 카테고리 전건 · 상품명 클릭 → 상품 상세
           </span>
         </div>
-        <div className={`${iaPanel} overflow-hidden`}>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] bg-white text-[12px]">
-              <thead>
-                <tr className="border-b border-[var(--color-gray-200)]">
-                  <th className={`${iaTh} text-left`}>상품</th>
-                  <th className={`${iaTh} text-left`}>카테고리</th>
-                  <th className={iaTh}>계약완료</th>
-                  <th className={iaTh}>전월</th>
-                  <th className={iaTh}>증감</th>
-                  <th className={iaTh}>매출</th>
-                  <th className={iaTh}>건당 공헌이익</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topProducts.map((a) => {
-                  const { productName, modelName } = prodNameOf(a.key);
-                  const diff = a.cnt - a.cntPrev;
-                  const linkable = productName !== "(상품명 없음)";
-                  const nameBlock = (
-                    <>
-                      <span className="block truncate font-bold text-[var(--color-gray-700)] group-hover/prod:text-[var(--color-primary)] group-hover/prod:underline">
-                        {productName}
+        {/* 세로 스크롤을 이 상자가 가져가야 머리줄이 붙어 있는다 — 페이지가
+            스크롤하면 sticky 가 걸릴 스크롤 컨테이너가 없다. */}
+        <div className={`${iaPanel} max-h-[70vh] overflow-auto`}>
+          <table className="w-full min-w-[760px] bg-white text-[12px]">
+            <thead className="sticky top-0 z-10">
+              <tr>
+                <th className={`${iaTh} text-left`}>상품</th>
+                <th className={iaTh}>계약완료</th>
+                <th className={iaTh}>전월</th>
+                <th className={iaTh}>증감</th>
+                <th className={iaTh}>매출</th>
+                <th className={iaTh}>건당 공헌이익</th>
+              </tr>
+            </thead>
+            {productGroups.map((g) => (
+              <tbody key={g.category}>
+                <tr className="border-t border-[var(--color-gray-250)] bg-[var(--color-gray-25)]">
+                  <th
+                    scope="rowgroup"
+                    className="p-[9px_12px] text-left font-bold text-[var(--color-gray-900)]"
+                  >
+                    {g.category}
+                    {/* 머리줄 합계가 아래 줄들의 합보다 큰 이유를 그 자리에서 댄다 */}
+                    {g.moreProducts > 0 && (
+                      <span className="ml-1.5 text-[11px] font-medium text-[var(--color-gray-500)]">
+                        외 <span className="num">{fmtN(g.moreProducts)}</span>개
+                        상품
                       </span>
-                      {modelName && (
-                        <span className="block truncate font-mono text-[10px] text-[var(--color-gray-400)]">
-                          {modelName}
-                        </span>
-                      )}
-                    </>
-                  );
-                  return (
-                    <tr
-                      key={a.key}
-                      className="border-t border-[var(--color-line-2)] hover:bg-[var(--color-gray-25)]"
+                    )}
+                  </th>
+                  <td className={`${iaTd} num font-bold`}>{fmtN(g.cnt)}</td>
+                  <td className={`${iaTd} num text-[var(--color-gray-500)]`}>
+                    {fmtN(g.cntPrev)}
+                  </td>
+                  <td
+                    className={`${iaTd} num font-bold`}
+                    style={{ color: dirColor(g.cnt - g.cntPrev, 0) }}
+                  >
+                    {signedInt(g.cnt - g.cntPrev)}
+                  </td>
+                  <td className={`${iaTd} num`}>{fmtN(g.sales / MAN)}만원</td>
+                  <td className={`${iaTd} num`}>
+                    {manwon(perDeal(g.margin, g.cnt))}
+                  </td>
+                </tr>
+                {g.products.length === 0 ? (
+                  <tr className="border-t border-[var(--color-line-2)]">
+                    <td
+                      colSpan={6}
+                      className="p-[9px_12px] pl-[26px] text-left text-[var(--color-gray-400)]"
                     >
-                      <td className={`${iaTd} max-w-[320px] text-left`}>
-                        {linkable ? (
-                          <Link
-                            href={prodHref(a.category, productName)}
-                            className="group/prod block"
-                          >
-                            {nameBlock}
-                          </Link>
-                        ) : (
-                          nameBlock
+                      이번 달 계약완료 없음
+                    </td>
+                  </tr>
+                ) : (
+                  g.products.map((a) => {
+                    const { productName, modelName } = prodNameOf(a.key);
+                    const diff = a.cnt - a.cntPrev;
+                    const linkable = productName !== "(상품명 없음)";
+                    const nameBlock = (
+                      <>
+                        <span className="block truncate font-medium text-[var(--color-gray-900)] group-hover/prod:text-[var(--color-primary)] group-hover/prod:underline">
+                          {productName}
+                        </span>
+                        {modelName && (
+                          <span className="block truncate font-mono text-[10px] text-[var(--color-gray-400)]">
+                            {modelName}
+                          </span>
                         )}
-                      </td>
-                      <td className={`${iaTd} text-left text-[var(--color-gray-500)]`}>
-                        {a.category ?? "기타"}
-                      </td>
-                      <td className={`${iaTd} num font-bold`}>{fmtN(a.cnt)}</td>
-                      <td className={`${iaTd} num text-[var(--color-gray-500)]`}>
-                        {fmtN(a.cntPrev)}
-                      </td>
-                      <td
-                        className={`${iaTd} num font-bold`}
-                        style={{ color: dirColor(diff, 0) }}
+                      </>
+                    );
+                    return (
+                      <tr
+                        key={a.key}
+                        className="border-t border-[var(--color-line-2)] hover:bg-[var(--color-gray-25)]"
                       >
-                        {signedInt(diff)}
-                      </td>
-                      <td className={`${iaTd} num`}>{fmtN(a.sales / MAN)}만원</td>
-                      <td className={`${iaTd} num`}>
-                        {manwon(perDeal(a.margin, a.cnt))}
-                      </td>
-                    </tr>
-                  );
-                })}
+                        <td className="max-w-[360px] p-[9px_12px] pl-[26px] text-left">
+                          {linkable ? (
+                            <Link
+                              href={prodHref(a.category, productName)}
+                              className="group/prod block"
+                            >
+                              {nameBlock}
+                            </Link>
+                          ) : (
+                            nameBlock
+                          )}
+                        </td>
+                        <td className={`${iaTd} num font-bold`}>
+                          {fmtN(a.cnt)}
+                        </td>
+                        <td
+                          className={`${iaTd} num text-[var(--color-gray-500)]`}
+                        >
+                          {fmtN(a.cntPrev)}
+                        </td>
+                        <td
+                          className={`${iaTd} num font-bold`}
+                          style={{ color: dirColor(diff, 0) }}
+                        >
+                          {signedInt(diff)}
+                        </td>
+                        <td className={`${iaTd} num`}>
+                          {fmtN(a.sales / MAN)}만원
+                        </td>
+                        <td className={`${iaTd} num`}>
+                          {manwon(perDeal(a.margin, a.cnt))}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
-            </table>
-          </div>
+            ))}
+          </table>
         </div>
       </section>
 
@@ -2166,674 +2305,694 @@ export default async function CompanyPage({
           </span>
         </summary>
         <div className="border-t border-[var(--color-line-2)] px-5 pb-5">
-
-      {/* 뷰 토글 + BM 필터 */}
-      <div className="flex items-center justify-between mb-6 pt-4">
-        <div className="flex items-center gap-3">
-          <span className="text-m text-gray-400">
-            {view === "order" ? "주문확정일 기준" : "계약완료일 기준"}
-          </span>
-          <BMFilter current={bm} />
-        </div>
-        <ViewToggle current={view} />
-      </div>
-
-      {/* 성과 원인 분석 — 상위 3개 카테고리에서 타사와 무엇이 다른가 */}
-      {performanceDrivers.length > 0 && (
-        <div className="mb-8">
-          <div className="mb-4 flex items-center gap-2">
-            <h2 className="text-base font-semibold text-gray-700">
-              성과 원인 분석
-            </h2>
-            <span className="text-xs text-gray-400">
-              상위 3개 카테고리 · {now.getMonth() + 1}월 계약완료 기준 · 타사
-              평균과 비교
-            </span>
+          {/* 뷰 토글 + BM 필터 */}
+          <div className="flex items-center justify-between mb-6 pt-4">
+            <div className="flex items-center gap-3">
+              <span className="text-m text-gray-400">
+                {view === "order" ? "주문확정일 기준" : "계약완료일 기준"}
+              </span>
+              <BMFilter current={bm} />
+            </div>
+            <ViewToggle current={view} />
           </div>
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            {performanceDrivers.map((pd) => {
-              // 불리(타사보다 비싸다 / 취급 모델이 적다)할 때만 심각도색 + 텍스트 라벨.
-              // 방향색(up/down)은 변화량 전용이라 여기서는 쓰지 않는다.
-              const feeGapPct =
-                pd.othersAvgFee > 0 ? (pd.feeDiff / pd.othersAvgFee) * 100 : null;
-              const feeAdverse = pd.feeDiff > 0;
-              const feeColor = !feeAdverse
-                ? "var(--color-gray-500)"
-                : feeGapPct !== null && feeGapPct >= 10
-                  ? "var(--color-sev-crit)"
-                  : "var(--color-sev-warn)";
-              const modelAdverse = pd.modelDiff < 0;
-              const modelColor = !modelAdverse
-                ? "var(--color-gray-500)"
-                : pd.othersAvgModelCount > 0 &&
-                    Math.abs(pd.modelDiff) / pd.othersAvgModelCount >= 0.3
-                  ? "var(--color-sev-crit)"
-                  : "var(--color-sev-warn)";
-              const feeMax = Math.max(pd.myAvgFee, pd.othersAvgFee, 1);
-              const modelMax = Math.max(pd.myModelCount, pd.othersAvgModelCount, 1);
-              const barPct = (v: number, max: number) =>
-                `${Math.max(3, (v / max) * 100)}%`;
 
-              return (
-                <div
-                  key={pd.category}
-                  className="rounded-xl shadow-sm border border-gray-100 bg-white px-5 py-4"
-                >
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    {pd.category}
-                  </p>
+          {/* 성과 원인 분석 — 상위 3개 카테고리에서 타사와 무엇이 다른가 */}
+          {performanceDrivers.length > 0 && (
+            <div className="mb-8">
+              <div className="mb-4 flex items-center gap-2">
+                <h2 className="text-base font-semibold text-gray-700">
+                  성과 원인 분석
+                </h2>
+                <span className="text-xs text-gray-400">
+                  상위 3개 카테고리 · {now.getMonth() + 1}월 계약완료 기준 ·
+                  타사 평균과 비교
+                </span>
+              </div>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                {performanceDrivers.map((pd) => {
+                  // 불리(타사보다 비싸다 / 취급 모델이 적다)할 때만 심각도색 + 텍스트 라벨.
+                  // 방향색(up/down)은 변화량 전용이라 여기서는 쓰지 않는다.
+                  const feeGapPct =
+                    pd.othersAvgFee > 0
+                      ? (pd.feeDiff / pd.othersAvgFee) * 100
+                      : null;
+                  const feeAdverse = pd.feeDiff > 0;
+                  const feeColor = !feeAdverse
+                    ? "var(--color-gray-500)"
+                    : feeGapPct !== null && feeGapPct >= 10
+                      ? "var(--color-sev-crit)"
+                      : "var(--color-sev-warn)";
+                  const modelAdverse = pd.modelDiff < 0;
+                  const modelColor = !modelAdverse
+                    ? "var(--color-gray-500)"
+                    : pd.othersAvgModelCount > 0 &&
+                        Math.abs(pd.modelDiff) / pd.othersAvgModelCount >= 0.3
+                      ? "var(--color-sev-crit)"
+                      : "var(--color-sev-warn)";
+                  const feeMax = Math.max(pd.myAvgFee, pd.othersAvgFee, 1);
+                  const modelMax = Math.max(
+                    pd.myModelCount,
+                    pd.othersAvgModelCount,
+                    1,
+                  );
+                  const barPct = (v: number, max: number) =>
+                    `${Math.max(3, (v / max) * 100)}%`;
 
-                  {/* 월렌탈료 평균 */}
-                  <div className="mt-4">
-                    <p className="text-xs text-gray-400">월렌탈료 평균</p>
-                    <div className="mt-1 flex items-baseline gap-2">
-                      <span className="num text-xl font-bold text-gray-800">
-                        {fmt(pd.myAvgFee)}원
-                      </span>
-                      <span className="text-xs text-gray-400">vs</span>
-                      <span className="num text-sm font-medium text-gray-500">
-                        {fmt(pd.othersAvgFee)}원
-                      </span>
-                    </div>
-                    <div className="mt-2 space-y-1.5">
-                      <div className="flex items-center gap-2">
-                        <span className="w-16 shrink-0 truncate text-[11px] text-gray-500">
-                          {label}
-                        </span>
-                        <div className="flex-1">
-                          <div
-                            className="h-2 rounded"
-                            style={{
-                              width: barPct(pd.myAvgFee, feeMax),
-                              background: feeAdverse
-                                ? feeColor
-                                : "var(--color-gray-400)",
-                            }}
-                          />
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="w-16 shrink-0 text-[11px] text-gray-400">
-                          타사 평균
-                        </span>
-                        <div className="flex-1">
-                          <div
-                            className="h-2 rounded"
-                            style={{
-                              width: barPct(pd.othersAvgFee, feeMax),
-                              background: "var(--color-gray-250)",
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <p
-                      className="mt-2 text-xs font-semibold"
-                      style={{ color: feeColor }}
+                  return (
+                    <div
+                      key={pd.category}
+                      className="rounded-xl shadow-sm border border-gray-100 bg-white px-5 py-4"
                     >
-                      {pd.feeDiff > 0
-                        ? "타사 평균보다 비쌈"
-                        : pd.feeDiff < 0
-                          ? "타사 평균보다 저렴"
-                          : "타사 평균과 동일"}
-                      {feeGapPct !== null && (
-                        <>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        {pd.category}
+                      </p>
+
+                      {/* 평균 월렌탈료 */}
+                      <div className="mt-4">
+                        <p className="text-xs text-gray-400">평균 월렌탈료</p>
+                        <div className="mt-1 flex items-baseline gap-2">
+                          <span className="num text-xl font-bold text-gray-800">
+                            {fmt(pd.myAvgFee)}원
+                          </span>
+                          <span className="text-xs text-gray-400">vs</span>
+                          <span className="num text-sm font-medium text-gray-500">
+                            {fmt(pd.othersAvgFee)}원
+                          </span>
+                        </div>
+                        <div className="mt-2 space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <span className="w-16 shrink-0 truncate text-[11px] text-gray-500">
+                              {label}
+                            </span>
+                            <div className="flex-1">
+                              <div
+                                className="h-2 rounded"
+                                style={{
+                                  width: barPct(pd.myAvgFee, feeMax),
+                                  background: feeAdverse
+                                    ? feeColor
+                                    : "var(--color-gray-400)",
+                                }}
+                              />
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="w-16 shrink-0 text-[11px] text-gray-400">
+                              타사 평균
+                            </span>
+                            <div className="flex-1">
+                              <div
+                                className="h-2 rounded"
+                                style={{
+                                  width: barPct(pd.othersAvgFee, feeMax),
+                                  background: "var(--color-gray-250)",
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <p
+                          className="mt-2 text-xs font-semibold"
+                          style={{ color: feeColor }}
+                        >
+                          {pd.feeDiff > 0
+                            ? "타사 평균보다 비쌈"
+                            : pd.feeDiff < 0
+                              ? "타사 평균보다 저렴"
+                              : "타사 평균과 동일"}
+                          {feeGapPct !== null && (
+                            <>
+                              {" · "}
+                              <span className="num">
+                                {feeGapPct > 0 ? "+" : ""}
+                                {feeGapPct.toFixed(1)}%
+                              </span>
+                            </>
+                          )}
+                        </p>
+                      </div>
+
+                      {/* 취급 모델 수 */}
+                      <div className="mt-4 pt-4 border-t border-gray-50">
+                        <p className="text-xs text-gray-400">취급 모델 수</p>
+                        <div className="mt-1 flex items-baseline gap-2">
+                          <span className="num text-xl font-bold text-gray-800">
+                            {fmt(pd.myModelCount)}개
+                          </span>
+                          <span className="text-xs text-gray-400">vs</span>
+                          <span className="num text-sm font-medium text-gray-500">
+                            {fmt(pd.othersAvgModelCount)}개
+                          </span>
+                        </div>
+                        <div className="mt-2 space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <span className="w-16 shrink-0 truncate text-[11px] text-gray-500">
+                              {label}
+                            </span>
+                            <div className="flex-1">
+                              <div
+                                className="h-2 rounded"
+                                style={{
+                                  width: barPct(pd.myModelCount, modelMax),
+                                  background: modelAdverse
+                                    ? modelColor
+                                    : "var(--color-gray-400)",
+                                }}
+                              />
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="w-16 shrink-0 text-[11px] text-gray-400">
+                              타사 평균
+                            </span>
+                            <div className="flex-1">
+                              <div
+                                className="h-2 rounded"
+                                style={{
+                                  width: barPct(
+                                    pd.othersAvgModelCount,
+                                    modelMax,
+                                  ),
+                                  background: "var(--color-gray-250)",
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <p
+                          className="mt-2 text-xs font-semibold"
+                          style={{ color: modelColor }}
+                        >
+                          {pd.modelDiff < 0
+                            ? "타사 평균보다 적음"
+                            : pd.modelDiff > 0
+                              ? "타사 평균보다 많음"
+                              : "타사 평균과 동일"}
                           {" · "}
                           <span className="num">
-                            {feeGapPct > 0 ? "+" : ""}
-                            {feeGapPct.toFixed(1)}%
+                            {pd.modelDiff > 0 ? "+" : ""}
+                            {pd.modelDiff}개
                           </span>
-                        </>
-                      )}
-                    </p>
-                  </div>
-
-                  {/* 취급 모델 수 */}
-                  <div className="mt-4 pt-4 border-t border-gray-50">
-                    <p className="text-xs text-gray-400">취급 모델 수</p>
-                    <div className="mt-1 flex items-baseline gap-2">
-                      <span className="num text-xl font-bold text-gray-800">
-                        {fmt(pd.myModelCount)}개
-                      </span>
-                      <span className="text-xs text-gray-400">vs</span>
-                      <span className="num text-sm font-medium text-gray-500">
-                        {fmt(pd.othersAvgModelCount)}개
-                      </span>
-                    </div>
-                    <div className="mt-2 space-y-1.5">
-                      <div className="flex items-center gap-2">
-                        <span className="w-16 shrink-0 truncate text-[11px] text-gray-500">
-                          {label}
-                        </span>
-                        <div className="flex-1">
-                          <div
-                            className="h-2 rounded"
-                            style={{
-                              width: barPct(pd.myModelCount, modelMax),
-                              background: modelAdverse
-                                ? modelColor
-                                : "var(--color-gray-400)",
-                            }}
-                          />
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="w-16 shrink-0 text-[11px] text-gray-400">
-                          타사 평균
-                        </span>
-                        <div className="flex-1">
-                          <div
-                            className="h-2 rounded"
-                            style={{
-                              width: barPct(pd.othersAvgModelCount, modelMax),
-                              background: "var(--color-gray-250)",
-                            }}
-                          />
-                        </div>
+                        </p>
                       </div>
                     </div>
-                    <p
-                      className="mt-2 text-xs font-semibold"
-                      style={{ color: modelColor }}
-                    >
-                      {pd.modelDiff < 0
-                        ? "타사 평균보다 적음"
-                        : pd.modelDiff > 0
-                          ? "타사 평균보다 많음"
-                          : "타사 평균과 동일"}
-                      {" · "}
-                      <span className="num">
-                        {pd.modelDiff > 0 ? "+" : ""}
-                        {pd.modelDiff}개
-                      </span>
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* 요약 카드 */}
-      <div className="mb-8 grid grid-cols-3 gap-4">
-        {/* 이번달 매출 */}
-        <div className="rounded-xl border border-gray-100 bg-white shadow-sm px-6 py-5">
-          <p className="text-xs text-gray-400 mb-2">
-            {summary.curMonthLabel} 누계 매출
-          </p>
-          <p className="text-2xl font-bold text-gray-800">
-            {fmt(summary.curRevenue)}
-          </p>
-          <p className="text-xs text-gray-400 mt-1.5">총렌탈료 기준</p>
-        </div>
-
-        {/* 전월 동기간 대비 */}
-        <div className="rounded-xl border border-gray-100 bg-white shadow-sm px-6 py-5">
-          <p className="text-xs text-gray-400 mb-2">
-            전월 동기간 대비{" "}
-            <span className="text-gray-300">
-              (~{today.getMonth() + 1}/{today.getDate()})
-            </span>
-          </p>
-          {summary.revenueChange !== null ? (
-            <>
-              <p
-                className="text-2xl font-bold"
-                style={{
-                  color:
-                    summary.revenueChange > 0
-                      ? "var(--color-error)"
-                      : "var(--color-down)",
-                }}
-              >
-                {summary.revenueChange > 0 ? "▲" : "▼"}{" "}
-                {Math.abs(summary.revenueChange).toFixed(1)}%
-              </p>
-              <p className="text-xs text-gray-400 mt-1.5">
-                {summary.prevMonthLabel} 동기간{" "}
-                <span className="text-gray-500 font-medium">
-                  {fmtShort(summary.prevRevenue)}
-                </span>
-              </p>
-            </>
-          ) : (
-            <p className="text-2xl font-bold text-gray-300">-</p>
-          )}
-        </div>
-
-        {/* 건당 공헌이익 */}
-        <div className="rounded-xl border border-gray-100 bg-white shadow-sm px-6 py-5">
-          <p className="text-xs text-gray-400 mb-2">건당 공헌이익</p>
-          <p className="text-2xl font-bold text-gray-800">
-            {fmt(summary.marginPerContract)}
-          </p>
-          <p className="text-xs text-gray-400 mt-1.5">
-            {summary.curMonthLabel} 누계 기준
-          </p>
-        </div>
-      </div>
-
-
-      {/* 카테고리별 현황 */}
-      <div className="mb-4 flex items-center gap-2">
-        <h2 className="text-base font-semibold text-gray-700">
-          카테고리별 현황
-        </h2>
-        <span className="text-xs text-gray-400">
-          {view === "order" ? "주문확정" : "계약완료"} 기준
-        </span>
-      </div>
-
-      <CategoryTable
-        categoryStats={categoryStats}
-        weeks={weeks}
-        totalCount={totalCount}
-        weekProducts={categoryWeekProducts}
-      />
-
-      {/* Section A: 카테고리 × 렌탈사 점유율 */}
-      {categoryShareData.length > 0 && (
-        <div className="mt-10">
-          <div className="mb-4 flex items-center gap-2">
-            <h2 className="text-base font-semibold text-gray-700">
-              카테고리 × 렌탈사 점유율
-            </h2>
-            <span className="text-xs text-gray-400">
-              {now.getMonth() + 1}월 계약완료 기준
-            </span>
-          </div>
-          <div className="rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            <table className="text-sm bg-white w-full table-fixed">
-              <colgroup>
-                <col style={{ width: "30%" }} />
-                <col style={{ width: "23%" }} />
-                <col style={{ width: "23%" }} />
-                <col style={{ width: "24%" }} />
-              </colgroup>
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="px-5 py-3 text-center text-xs font-bold text-gray-800">
-                    카테고리
-                  </th>
-                  <th className="px-4 py-3 text-center text-xs font-bold text-gray-800">
-                    건수 점유율
-                  </th>
-                  <th className="px-4 py-3 text-center text-xs font-bold text-gray-800">
-                    매출 점유율
-                  </th>
-                  <th className="px-5 py-3 text-center text-xs font-bold text-gray-800">
-                    건수 순위
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {categoryShareData.map((cs) => (
-                  <tr key={cs.category} className="border-t border-gray-50">
-                    <td className="px-5 py-3 text-center font-medium text-gray-700">
-                      {cs.category}
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-800">
-                      {cs.countShare.toFixed(1)}%
-                      <span className="text-xs text-gray-400 ml-1">
-                        ({fmt(cs.myCount)}/{fmt(cs.totalCount)})
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-800">
-                      {cs.revenueShare.toFixed(1)}%
-                    </td>
-                    <td className="px-5 py-3 text-center font-semibold text-gray-700">
-                      {cs.countRank}/{cs.totalCompanies}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* 카테고리 포지션 */}
-      {growthRanks.length > 0 && (
-        <div className="mt-10">
-          <div className="mb-4 flex items-center gap-2">
-            <h2 className="text-base font-semibold text-gray-700">
-              {isTypeA ? "정수기 & 공청기·비데 내 포지션" : "가전&상조 내 포지션"}
-            </h2>
-            <span className="text-xs text-gray-400">
-              {view === "order" ? "주문확정 기준" : "계약완료 기준"}
-            </span>
-          </div>
-          <PositionChartModal
-            ranks={growthRanks}
-            categoryAllData={categoryAllData}
-            title={
-              isTypeA ? "정수기 & 공청기·비데 내 포지션" : "가전&상조 내 포지션"
-            }
-            companyLabel={label}
-            myDbName={dbName}
-          />
-        </div>
-      )}
-
-      {/* 카테고리별 경쟁 분석 */}
-      {(isTypeA
-        ? brandCompCategories.length > 0
-        : competitiveCategories.length > 0) && (
-        <div className="mt-10">
-          <div className="mb-4 flex items-center gap-2">
-            <h2 className="text-base font-semibold text-gray-700">
-              {isTypeA ? "브랜드 경쟁 분석" : "카테고리별 경쟁 분석"}
-            </h2>
-            <span className="text-xs text-gray-400">
-              {`${view === "order" ? "주문확정" : "계약완료"} 기준 · ${
-                isTypeA
-                  ? "내 브랜드 상위 상품 · 동일 관리방식 경쟁군"
-                  : "상위 5개 모델"
-              }`}
-            </span>
-          </div>
-          {isTypeA ? (
-            <BrandCompetitiveSection
-              categories={brandCompCategories}
-              productsByCategory={brandCompByCategory}
-            />
-          ) : (
-            <CategoryCompetitiveSection
-              categories={competitiveCategories}
-              productsByCategory={competitiveProductsByCategory}
-            />
-          )}
-        </div>
-      )}
-
-      {/* 카테고리별 상위 상품 */}
-      <div className="mt-10 mb-4 flex items-center gap-2">
-        <h2 className="text-base font-semibold text-gray-700">
-          카테고리별 상위 상품
-        </h2>
-        <span className="text-xs text-gray-400">
-          주문확정 기준 · 카테고리별 상위 5개
-        </span>
-      </div>
-
-      <div className="grid grid-cols-1 gap-6">
-        {categoryProductStats.slice(0, 3).map(({ category, products }) => (
-          <div
-            key={category}
-            className="rounded-xl shadow-sm border border-gray-100 overflow-hidden"
-          >
-            <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                {category}
-              </span>
-              <span className="text-xs text-gray-400">
-                · 총{" "}
-                <span className="font-semibold text-gray-600">
-                  {fmt(products.reduce((s, p) => s + p.count, 0))}건
-                </span>
-              </span>
-            </div>
-            <table className="text-sm bg-white w-full table-fixed">
-              <colgroup>
-                <col style={{ width: "40%" }} />
-                <col style={{ width: "30%" }} />
-                <col style={{ width: "15%" }} />
-                <col style={{ width: "15%" }} />
-              </colgroup>
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="px-5 py-2.5 text-center text-xs font-bold text-gray-800">
-                    제품명
-                  </th>
-                  <th className="px-4 py-2.5 text-center text-xs font-bold text-gray-800">
-                    모델명
-                  </th>
-                  <th className="px-4 py-2.5 text-center text-xs font-bold text-gray-800">
-                    건수
-                  </th>
-                  <th className="px-5 py-2.5 text-center text-xs font-bold text-gray-800">
-                    매출 (총렌탈료)
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {products.map((p, i) => (
-                  <tr key={i} className="border-t border-gray-50">
-                    <td className="px-5 py-3 text-center text-gray-700 truncate">
-                      {p.product_name || "-"}
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-400 text-xs truncate">
-                      {p.model_name || "-"}
-                    </td>
-                    <td className="px-4 py-3 text-center font-semibold text-gray-700">
-                      {fmt(p.count)}
-                    </td>
-                    <td className="px-5 py-3 text-center text-gray-700">
-                      {fmt(p.sales)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ))}
-      </div>
-
-      {/* 원본 데이터 — 숫자를 직접 확인할 때만 편다 */}
-      <div className="mt-10">
-        <div className="mb-4 flex items-center gap-2">
-          <h2 className="text-base font-semibold text-gray-700">원본 데이터</h2>
-          <span className="text-xs text-gray-400">
-            {view === "order" ? "주문확정" : "계약완료"} 기준
-          </span>
-        </div>
-
-        <details className="mb-3 rounded-xl shadow-sm border border-gray-100 bg-white overflow-hidden">
-          <summary className="cursor-pointer px-5 py-3.5 text-sm font-semibold text-gray-700">
-            월별 매출 현황
-            <span className="ml-2 text-xs font-normal text-gray-400">
-              차트 · 월별 현황 표
-            </span>
-          </summary>
-          <div className="px-5 pt-1 pb-2 border-t border-gray-50">
-
-          {/* 월별 총렌탈료 */}
-          {monthlyStats.length > 0 && (
-            <div className="mb-6">
-              <div className="pt-4 pb-2">
-                <MonthlyRevenueChart
-                  key={dbName}
-                  data={monthlyStats}
-                  color={view === "contract" ? "var(--color-primary-500)" : undefined}
-                  companyDbName={dbName}
-                  view={view}
-                  bm={bm}
-                />
+                  );
+                })}
               </div>
             </div>
           )}
 
-          {/* 월별 현황 테이블 */}
-          <MonthlyStatusTable data={monthlyFullStats} view={view} />
-          </div>
-        </details>
+          {/* 요약 카드 */}
+          <div className="mb-8 grid grid-cols-3 gap-4">
+            {/* 이번달 매출 */}
+            <div className="rounded-xl border border-gray-100 bg-white shadow-sm px-6 py-5">
+              <p className="text-xs text-gray-400 mb-2">
+                {summary.curMonthLabel} 누계 매출
+              </p>
+              <p className="text-2xl font-bold text-gray-800">
+                {fmt(summary.curRevenue)}
+              </p>
+              <p className="text-xs text-gray-400 mt-1.5">거래액 기준</p>
+            </div>
 
-        <details className="rounded-xl shadow-sm border border-gray-100 bg-white overflow-hidden">
-          <summary className="cursor-pointer px-5 py-3.5 text-sm font-semibold text-gray-700">
-            주차별 현황
-            <span className="ml-2 text-xs font-normal text-gray-400">
-              차트 · 지표 × 주차 표
+            {/* 전월 동기간 대비 */}
+            <div className="rounded-xl border border-gray-100 bg-white shadow-sm px-6 py-5">
+              <p className="text-xs text-gray-400 mb-2">
+                전월 동기간 대비{" "}
+                <span className="text-gray-300">
+                  (~{today.getMonth() + 1}/{today.getDate()})
+                </span>
+              </p>
+              {summary.revenueChange !== null ? (
+                <>
+                  <p
+                    className="text-2xl font-bold"
+                    style={{
+                      color:
+                        summary.revenueChange > 0
+                          ? "var(--color-error)"
+                          : "var(--color-down)",
+                    }}
+                  >
+                    {summary.revenueChange > 0 ? "▲" : "▼"}{" "}
+                    {Math.abs(summary.revenueChange).toFixed(1)}%
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1.5">
+                    {summary.prevMonthLabel} 동기간{" "}
+                    <span className="text-gray-500 font-medium">
+                      {fmtShort(summary.prevRevenue)}
+                    </span>
+                  </p>
+                </>
+              ) : (
+                <p className="text-2xl font-bold text-gray-300">-</p>
+              )}
+            </div>
+
+            {/* 건당 공헌이익 */}
+            <div className="rounded-xl border border-gray-100 bg-white shadow-sm px-6 py-5">
+              <p className="text-xs text-gray-400 mb-2">건당 공헌이익</p>
+              <p className="text-2xl font-bold text-gray-800">
+                {fmt(summary.marginPerContract)}
+              </p>
+              <p className="text-xs text-gray-400 mt-1.5">
+                {summary.curMonthLabel} 누계 기준
+              </p>
+            </div>
+          </div>
+
+          {/* 카테고리별 현황 */}
+          <div className="mb-4 flex items-center gap-2">
+            <h2 className="text-base font-semibold text-gray-700">
+              카테고리별 현황
+            </h2>
+            <span className="text-xs text-gray-400">
+              {view === "order" ? "주문확정" : "계약완료"} 기준
             </span>
-          </summary>
-          <div className="px-5 pt-1 pb-2 border-t border-gray-50">
-
-          {/* 주차별 매출 현황 차트 */}
-          {weeks.length > 0 &&
-            (() => {
-              const weekChartData = [...weeks]
-                .slice(0, 5)
-                .reverse()
-                .map((w, i, arr) => ({
-                  month: w.label,
-                  totalRentalFee: w.totalRentalFee,
-                  mom:
-                    i === 0 || arr[i - 1].totalRentalFee === 0
-                      ? null
-                      : ((w.totalRentalFee - arr[i - 1].totalRentalFee) /
-                          arr[i - 1].totalRentalFee) *
-                        100,
-                }));
-              return (
-                <div className="mb-6">
-                  <div className="mb-2 pt-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                    주차별 매출 추이
-                  </div>
-                  <div className="pb-2">
-                    <MonthlyRevenueChart
-                      data={weekChartData}
-                      color={view === "contract" ? "var(--color-primary-500)" : undefined}
-                    />
-                  </div>
-                </div>
-              );
-            })()}
-
-          {/* 주차별 현황 */}
-          <div className="mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-            지표 × 주차
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-gray-100 mb-6">
-            <table
-              className="text-sm bg-white"
-              style={{ minWidth: `${180 + weeks.length * 140}px` }}
-            >
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="px-5 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wider sticky left-0 bg-white z-10 min-w-[140px]">
-                    지표
-                  </th>
-                  {weeks.map((w, i) => (
-                    <th
-                      key={w.weekStart}
-                      className={`px-4 py-3 text-center min-w-[130px] ${i === 0 ? "cell-highlight" : ""}`}
-                    >
-                      <div className="font-semibold text-gray-700 text-xs">
-                        {w.label}
-                      </div>
-                      <div className="text-gray-400 text-[11px] font-normal mt-0.5">
-                        {w.weekStart}
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {/* 계약건수 */}
-                <tr className="border-t border-gray-50">
-                  <td className="px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider sticky left-0 bg-white">
-                    주문건수
-                  </td>
-                  {weeks.map((w, i) => (
-                    <td
-                      key={w.weekStart}
-                      className={`px-4 py-3.5 text-center text-gray-800 ${i === 0 ? "cell-highlight" : ""}`}
-                    >
-                      {fmt(w.count)}
-                    </td>
-                  ))}
-                </tr>
-                {/* 총렌탈료 */}
-                <tr className="border-t border-gray-50">
-                  <td className="px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider sticky left-0 bg-white">
-                    매출 (총렌탈료)
-                  </td>
-                  {weeks.map((w, i) => (
-                    <td
-                      key={w.weekStart}
-                      className={`px-4 py-3.5 text-center text-gray-800 ${i === 0 ? "cell-highlight" : ""}`}
-                    >
-                      {fmt(w.totalRentalFee)}
-                    </td>
-                  ))}
-                </tr>
-                {/* 공헌이익 */}
-                <tr className="border-t border-gray-50">
-                  <td className="px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider sticky left-0 bg-white">
-                    공헌이익
-                  </td>
-                  {weeks.map((w, i) => (
-                    <td
-                      key={w.weekStart}
-                      className={`px-4 py-3.5 text-center font-medium ${i === 0 ? "cell-highlight" : ""}`}
-                      style={{
-                        color:
-                          w.contributionMargin >= 0
-                            ? "var(--color-success)"
-                            : "var(--color-error)",
-                      }}
-                    >
-                      {fmt(w.contributionMargin)}
-                    </td>
-                  ))}
-                </tr>
-                {/* 건당공헌이익 */}
-                <tr className="border-t border-gray-50">
-                  <td className="px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider sticky left-0 bg-white">
-                    건당공헌이익
-                  </td>
-                  {weeks.map((w, i) => (
-                    <td
-                      key={w.weekStart}
-                      className={`px-4 py-3.5 text-center text-gray-600 ${i === 0 ? "cell-highlight" : ""}`}
-                    >
-                      {fmt(w.marginPerContract)}
-                    </td>
-                  ))}
-                </tr>
-                {/* 전주 대비 */}
-                <tr className="border-t-2 border-gray-200">
-                  <td className="px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider sticky left-0 bg-white">
-                    전주 대비 (건당공헌이익)
-                  </td>
-                  {weeks.map((w, i) => {
-                    const prev = weeks[i + 1];
-                    if (!prev || prev.marginPerContract === 0) {
-                      return (
-                        <td
-                          key={w.weekStart}
-                          className={`px-4 py-3 text-center text-gray-300 text-xs ${i === 0 ? "cell-highlight" : ""}`}
-                        >
-                          -
+          <CategoryTable
+            categoryStats={categoryStats}
+            weeks={weeks}
+            totalCount={totalCount}
+            weekProducts={categoryWeekProducts}
+          />
+
+          {/* Section A: 카테고리 × 렌탈사 점유율 */}
+          {categoryShareData.length > 0 && (
+            <div className="mt-10">
+              <div className="mb-4 flex items-center gap-2">
+                <h2 className="text-base font-semibold text-gray-700">
+                  카테고리 × 렌탈사 점유율
+                </h2>
+                <span className="text-xs text-gray-400">
+                  {now.getMonth() + 1}월 계약완료 기준
+                </span>
+              </div>
+              <div className="rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                <table className="text-sm bg-white w-full table-fixed">
+                  <colgroup>
+                    <col style={{ width: "30%" }} />
+                    <col style={{ width: "23%" }} />
+                    <col style={{ width: "23%" }} />
+                    <col style={{ width: "24%" }} />
+                  </colgroup>
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="px-5 py-3 text-center text-xs font-bold text-gray-800">
+                        카테고리
+                      </th>
+                      <th className="px-4 py-3 text-center text-xs font-bold text-gray-800">
+                        건수 점유율
+                      </th>
+                      <th className="px-4 py-3 text-center text-xs font-bold text-gray-800">
+                        매출 점유율
+                      </th>
+                      <th className="px-5 py-3 text-center text-xs font-bold text-gray-800">
+                        건수 순위
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {categoryShareData.map((cs) => (
+                      <tr key={cs.category} className="border-t border-gray-50">
+                        <td className="px-5 py-3 text-center font-medium text-gray-700">
+                          {cs.category}
                         </td>
-                      );
-                    }
-                    const rate =
-                      ((w.marginPerContract - prev.marginPerContract) /
-                        Math.abs(prev.marginPerContract)) *
-                      100;
-                    const isUp = rate > 0;
-                    return (
-                      <td
-                        key={w.weekStart}
-                        className={`px-4 py-3 text-center text-xs font-bold ${i === 0 ? "cell-highlight" : ""}`}
-                        style={{
-                          color: isUp ? "var(--color-error)" : "var(--color-down)",
-                        }}
-                      >
-                        {isUp ? "▲" : "▼"} {Math.abs(rate).toFixed(1)}%
-                      </td>
-                    );
-                  })}
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          </div>
-        </details>
-      </div>
+                        <td className="px-4 py-3 text-center text-gray-800">
+                          {cs.countShare.toFixed(1)}%
+                          <span className="text-xs text-gray-400 ml-1">
+                            ({fmt(cs.myCount)}/{fmt(cs.totalCount)})
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center text-gray-800">
+                          {cs.revenueShare.toFixed(1)}%
+                        </td>
+                        <td className="px-5 py-3 text-center font-semibold text-gray-700">
+                          {cs.countRank}/{cs.totalCompanies}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
+          {/* 카테고리 포지션 */}
+          {growthRanks.length > 0 && (
+            <div className="mt-10">
+              <div className="mb-4 flex items-center gap-2">
+                <h2 className="text-base font-semibold text-gray-700">
+                  {isTypeA
+                    ? "정수기 & 공청기·비데 내 포지션"
+                    : "가전&상조 내 포지션"}
+                </h2>
+                <span className="text-xs text-gray-400">
+                  {view === "order" ? "주문확정 기준" : "계약완료 기준"}
+                </span>
+              </div>
+              <PositionChartModal
+                ranks={growthRanks}
+                categoryAllData={categoryAllData}
+                title={
+                  isTypeA
+                    ? "정수기 & 공청기·비데 내 포지션"
+                    : "가전&상조 내 포지션"
+                }
+                companyLabel={label}
+                myDbName={dbName}
+              />
+            </div>
+          )}
+
+          {/* 카테고리별 경쟁 분석 */}
+          {(isTypeA
+            ? brandCompCategories.length > 0
+            : competitiveCategories.length > 0) && (
+            <div className="mt-10">
+              <div className="mb-4 flex items-center gap-2">
+                <h2 className="text-base font-semibold text-gray-700">
+                  {isTypeA ? "브랜드 경쟁 분석" : "카테고리별 경쟁 분석"}
+                </h2>
+                <span className="text-xs text-gray-400">
+                  {`${view === "order" ? "주문확정" : "계약완료"} 기준 · ${
+                    isTypeA
+                      ? "내 브랜드 상위 상품 · 동일 관리방식 경쟁군"
+                      : "상위 5개 모델"
+                  }`}
+                </span>
+              </div>
+              {isTypeA ? (
+                <BrandCompetitiveSection
+                  categories={brandCompCategories}
+                  productsByCategory={brandCompByCategory}
+                />
+              ) : (
+                <CategoryCompetitiveSection
+                  categories={competitiveCategories}
+                  productsByCategory={competitiveProductsByCategory}
+                />
+              )}
+            </div>
+          )}
+
+          {/* 카테고리별 상위 상품 */}
+          <div className="mt-10 mb-4 flex items-center gap-2">
+            <h2 className="text-base font-semibold text-gray-700">
+              카테고리별 상위 상품
+            </h2>
+            <span className="text-xs text-gray-400">
+              주문확정 기준 · 카테고리별 상위 5개
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 gap-6">
+            {categoryProductStats.slice(0, 3).map(({ category, products }) => (
+              <div
+                key={category}
+                className="rounded-xl shadow-sm border border-gray-100 overflow-hidden"
+              >
+                <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    {category}
+                  </span>
+                  <span className="text-xs text-gray-400">
+                    · 총{" "}
+                    <span className="font-semibold text-gray-600">
+                      {fmt(products.reduce((s, p) => s + p.count, 0))}건
+                    </span>
+                  </span>
+                </div>
+                <table className="text-sm bg-white w-full table-fixed">
+                  <colgroup>
+                    <col style={{ width: "40%" }} />
+                    <col style={{ width: "30%" }} />
+                    <col style={{ width: "15%" }} />
+                    <col style={{ width: "15%" }} />
+                  </colgroup>
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="px-5 py-2.5 text-center text-xs font-bold text-gray-800">
+                        제품명
+                      </th>
+                      <th className="px-4 py-2.5 text-center text-xs font-bold text-gray-800">
+                        모델명
+                      </th>
+                      <th className="px-4 py-2.5 text-center text-xs font-bold text-gray-800">
+                        건수
+                      </th>
+                      <th className="px-5 py-2.5 text-center text-xs font-bold text-gray-800">
+                        거래액
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {products.map((p, i) => (
+                      <tr key={i} className="border-t border-gray-50">
+                        <td className="px-5 py-3 text-center text-gray-700 truncate">
+                          {p.product_name || "-"}
+                        </td>
+                        <td className="px-4 py-3 text-center text-gray-400 text-xs truncate">
+                          {p.model_name || "-"}
+                        </td>
+                        <td className="px-4 py-3 text-center font-semibold text-gray-700">
+                          {fmt(p.count)}
+                        </td>
+                        <td className="px-5 py-3 text-center text-gray-700">
+                          {fmt(p.amount)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+          </div>
+
+          {/* 원본 데이터 — 숫자를 직접 확인할 때만 편다 */}
+          <div className="mt-10">
+            <div className="mb-4 flex items-center gap-2">
+              <h2 className="text-base font-semibold text-gray-700">
+                원본 데이터
+              </h2>
+              <span className="text-xs text-gray-400">
+                {view === "order" ? "주문확정" : "계약완료"} 기준
+              </span>
+            </div>
+
+            <details className="mb-3 rounded-xl shadow-sm border border-gray-100 bg-white overflow-hidden">
+              <summary className="cursor-pointer px-5 py-3.5 text-sm font-semibold text-gray-700">
+                월별 매출 현황
+                <span className="ml-2 text-xs font-normal text-gray-400">
+                  차트 · 월별 현황 표
+                </span>
+              </summary>
+              <div className="px-5 pt-1 pb-2 border-t border-gray-50">
+                {/* 월별 거래액 */}
+                {monthlyStats.length > 0 && (
+                  <div className="mb-6">
+                    <div className="pt-4 pb-2">
+                      <MonthlyRevenueChart
+                        key={dbName}
+                        data={monthlyStats}
+                        color={
+                          view === "contract"
+                            ? "var(--color-primary-500)"
+                            : undefined
+                        }
+                        companyDbName={dbName}
+                        view={view}
+                        bm={bm}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* 월별 현황 테이블 */}
+                <MonthlyStatusTable data={monthlyFullStats} view={view} />
+              </div>
+            </details>
+
+            <details className="rounded-xl shadow-sm border border-gray-100 bg-white overflow-hidden">
+              <summary className="cursor-pointer px-5 py-3.5 text-sm font-semibold text-gray-700">
+                주차별 현황
+                <span className="ml-2 text-xs font-normal text-gray-400">
+                  차트 · 지표 × 주차 표
+                </span>
+              </summary>
+              <div className="px-5 pt-1 pb-2 border-t border-gray-50">
+                {/* 주차별 매출 현황 차트 */}
+                {weeks.length > 0 &&
+                  (() => {
+                    const weekChartData = [...weeks]
+                      .slice(0, 5)
+                      .reverse()
+                      .map((w, i, arr) => ({
+                        month: w.label,
+                        totalRentalFee: w.totalRentalFee,
+                        mom:
+                          i === 0 || arr[i - 1].totalRentalFee === 0
+                            ? null
+                            : ((w.totalRentalFee - arr[i - 1].totalRentalFee) /
+                                arr[i - 1].totalRentalFee) *
+                              100,
+                      }));
+                    return (
+                      <div className="mb-6">
+                        <div className="mb-2 pt-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                          주차별 매출 추이
+                        </div>
+                        <div className="pb-2">
+                          <MonthlyRevenueChart
+                            data={weekChartData}
+                            color={
+                              view === "contract"
+                                ? "var(--color-primary-500)"
+                                : undefined
+                            }
+                          />
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                {/* 주차별 현황 */}
+                <div className="mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  지표 × 주차
+                </div>
+
+                <div className="overflow-x-auto rounded-xl border border-gray-100 mb-6">
+                  <table
+                    className="text-sm bg-white"
+                    style={{ minWidth: `${180 + weeks.length * 140}px` }}
+                  >
+                    <thead>
+                      <tr className="border-b border-gray-100">
+                        <th className="px-5 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wider sticky left-0 bg-white z-10 min-w-[140px]">
+                          지표
+                        </th>
+                        {weeks.map((w, i) => (
+                          <th
+                            key={w.weekStart}
+                            className={`px-4 py-3 text-center min-w-[130px] ${i === 0 ? "cell-highlight" : ""}`}
+                          >
+                            <div className="font-semibold text-gray-700 text-xs">
+                              {w.label}
+                            </div>
+                            <div className="text-gray-400 text-[11px] font-normal mt-0.5">
+                              {w.weekStart}
+                            </div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {/* 계약완료 */}
+                      <tr className="border-t border-gray-50">
+                        <td className="px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider sticky left-0 bg-white">
+                          주문건수
+                        </td>
+                        {weeks.map((w, i) => (
+                          <td
+                            key={w.weekStart}
+                            className={`px-4 py-3.5 text-center text-gray-800 ${i === 0 ? "cell-highlight" : ""}`}
+                          >
+                            {fmt(w.count)}
+                          </td>
+                        ))}
+                      </tr>
+                      {/* 거래액 */}
+                      <tr className="border-t border-gray-50">
+                        <td className="px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider sticky left-0 bg-white">
+                          거래액
+                        </td>
+                        {weeks.map((w, i) => (
+                          <td
+                            key={w.weekStart}
+                            className={`px-4 py-3.5 text-center text-gray-800 ${i === 0 ? "cell-highlight" : ""}`}
+                          >
+                            {fmt(w.totalRentalFee)}
+                          </td>
+                        ))}
+                      </tr>
+                      {/* 공헌이익 */}
+                      <tr className="border-t border-gray-50">
+                        <td className="px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider sticky left-0 bg-white">
+                          공헌이익
+                        </td>
+                        {weeks.map((w, i) => (
+                          <td
+                            key={w.weekStart}
+                            className={`px-4 py-3.5 text-center font-medium ${i === 0 ? "cell-highlight" : ""}`}
+                            style={{
+                              color:
+                                w.contributionMargin >= 0
+                                  ? "var(--color-success)"
+                                  : "var(--color-error)",
+                            }}
+                          >
+                            {fmt(w.contributionMargin)}
+                          </td>
+                        ))}
+                      </tr>
+                      {/* 건당공헌이익 */}
+                      <tr className="border-t border-gray-50">
+                        <td className="px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider sticky left-0 bg-white">
+                          건당공헌이익
+                        </td>
+                        {weeks.map((w, i) => (
+                          <td
+                            key={w.weekStart}
+                            className={`px-4 py-3.5 text-center text-gray-600 ${i === 0 ? "cell-highlight" : ""}`}
+                          >
+                            {fmt(w.marginPerContract)}
+                          </td>
+                        ))}
+                      </tr>
+                      {/* 전주 대비 */}
+                      <tr className="border-t-2 border-gray-200">
+                        <td className="px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider sticky left-0 bg-white">
+                          전주 대비 (건당공헌이익)
+                        </td>
+                        {weeks.map((w, i) => {
+                          const prev = weeks[i + 1];
+                          if (!prev || prev.marginPerContract === 0) {
+                            return (
+                              <td
+                                key={w.weekStart}
+                                className={`px-4 py-3 text-center text-gray-300 text-xs ${i === 0 ? "cell-highlight" : ""}`}
+                              >
+                                -
+                              </td>
+                            );
+                          }
+                          const rate =
+                            ((w.marginPerContract - prev.marginPerContract) /
+                              Math.abs(prev.marginPerContract)) *
+                            100;
+                          const isUp = rate > 0;
+                          return (
+                            <td
+                              key={w.weekStart}
+                              className={`px-4 py-3 text-center text-xs font-bold ${i === 0 ? "cell-highlight" : ""}`}
+                              style={{
+                                color: isUp
+                                  ? "var(--color-error)"
+                                  : "var(--color-down)",
+                              }}
+                            >
+                              {isUp ? "▲" : "▼"} {Math.abs(rate).toFixed(1)}%
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </details>
+          </div>
         </div>
       </details>
     </div>

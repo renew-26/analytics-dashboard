@@ -49,7 +49,7 @@ type RawOrderRow = {
   target_margin: number | null;
   sales_incentive: number | null;
   contribution_margin: number | null;
-  total_rental_fee: number | null;
+  gmv: number | null;
 };
 
 type RawContractRow = {
@@ -69,7 +69,7 @@ type RawContractRow = {
   target_margin: number | null;
   sales_incentive: number | null;
   contribution_margin: number | null;
-  total_rental_fee: number | null;
+  gmv: number | null;
 };
 
 export type OpEfficiencyRow = {
@@ -160,7 +160,7 @@ async function fetchRawOrders(start: string, end: string): Promise<RawOrderRow[]
     const { data, error } = await supabase
       .from("raw_prop_items")
       .select(
-        "prop_item_usid, order_confirmed_at, category, brand, product_name, model_name, management_type, management_cycle, contract_months, monthly_fee, partner_company, sales, bad_debt, target_margin, sales_incentive, contribution_margin, total_rental_fee",
+        "prop_item_usid, order_confirmed_at, category, brand, product_name, model_name, management_type, management_cycle, contract_months, monthly_fee, partner_company, sales, bad_debt, target_margin, sales_incentive, contribution_margin, gmv",
       )
       .not("order_confirmed_at", "is", null)
       .neq("category", "인터넷")
@@ -183,7 +183,7 @@ async function fetchRawContracts(start: string, end: string): Promise<RawContrac
     const { data, error } = await supabase
       .from("raw_prop_items")
       .select(
-        "prop_item_usid, contract_date, category, brand, product_name, model_name, management_type, management_cycle, contract_months, monthly_fee, partner_company, sales, bad_debt, target_margin, sales_incentive, contribution_margin, total_rental_fee",
+        "prop_item_usid, contract_date, category, brand, product_name, model_name, management_type, management_cycle, contract_months, monthly_fee, partner_company, sales, bad_debt, target_margin, sales_incentive, contribution_margin, gmv",
       )
       .not("contract_date", "is", null)
       .neq("category", "인터넷")
@@ -249,7 +249,7 @@ function mergeApplianceRows(orders: RawOrderRow[], contracts: RawContractRow[]):
       badDebt: r.bad_debt ?? 0,
       targetMargin,
       contributionMargin,
-      totalRentalFee: r.total_rental_fee ?? undefined,
+      totalRentalFee: r.gmv ?? undefined,
       opEfficiency: contributionMargin - targetMargin,
     };
   }

@@ -21,7 +21,7 @@ import {
 } from "@/lib/company-cards";
 import { getBM } from "@/lib/company-map";
 import { aggregateAxis } from "@/lib/category-aggregate";
-import { conversionStats, type ConvStats } from "@/lib/conversion";
+import { completionRate, conversionStats, type ConvStats } from "@/lib/conversion";
 import { diffMap, sumBy, trimLeadingGap } from "@/lib/decompose";
 import { EOK, MAN, fmt, pct, pctAbs, recentYmsOf } from "@/lib/format";
 import {
@@ -101,7 +101,7 @@ export default async function CategoryGroupPage({
   // 그룹 탭의 건수가 전 그룹을 세야 하므로 그룹 필터 전에 전 카테고리로 받는다
   const rows12 = await fetchRows<Row>({
     select:
-      "contract_date, rental_company, category, partner_company, total_rental_fee, contribution_margin, sales, product_name, brand",
+      "contract_date, rental_company, category, partner_company, gmv, contribution_margin, sales, product_name, brand",
     start: `${recentYms[0]}-01`,
     end: curr.end,
     orderBy: "prop_item_usid",
@@ -111,6 +111,7 @@ export default async function CategoryGroupPage({
   type OrderRow = {
     order_confirmed_at: string;
     contract_date: string | null;
+    status: string | null;
     rental_company: string | null;
     brand: string | null;
     category: string | null;
@@ -118,7 +119,7 @@ export default async function CategoryGroupPage({
 
   const orderRows = await fetchRows<OrderRow>({
     basis: "order",
-    select: "order_confirmed_at, contract_date, rental_company, brand, category",
+    select: "order_confirmed_at, contract_date, status, rental_company, brand, category",
     start: `${recentYms[0]}-01`,
     end: curr.end,
     orderBy: "prop_item_usid",
@@ -152,10 +153,14 @@ export default async function CategoryGroupPage({
   // ── KPI ────────────────────────────────────────────────
   const cnt = currRows.length;
   const cntPrev = prevRows.length;
+  // 계약완료율은 기간 방식 — 분자는 이 구간에 계약완료된 건(cnt), 분모는 순주문확정.
+  // conversionStats 는 분모(취소 제외)와 리드타임(avgDays)만 빌려 쓴다.
+  const compRate = completionRate(cnt, convCurr.orders);
+  const compRatePrev = completionRate(cntPrev, convPrev.orders);
   const sum = (rows: Row[], of: (r: Row) => number) =>
     rows.reduce((s, r) => s + of(r), 0);
-  const amt = sum(currRows, (r) => r.total_rental_fee ?? 0) / EOK;
-  const amtPrev = sum(prevRows, (r) => r.total_rental_fee ?? 0) / EOK;
+  const amt = sum(currRows, (r) => r.gmv ?? 0) / EOK;
+  const amtPrev = sum(prevRows, (r) => r.gmv ?? 0) / EOK;
   const sales = sum(currRows, (r) => r.sales ?? 0) / EOK;
   const salesPrev = sum(prevRows, (r) => r.sales ?? 0) / EOK;
   const margin = sum(currRows, (r) => r.contribution_margin ?? 0);
@@ -172,7 +177,7 @@ export default async function CategoryGroupPage({
     if (Number(r.contract_date.slice(8, 10)) > dayCut) continue;
     const ym = r.contract_date.slice(0, 7);
     cntByYm.set(ym, (cntByYm.get(ym) ?? 0) + 1);
-    amtByYm.set(ym, (amtByYm.get(ym) ?? 0) + (r.total_rental_fee ?? 0));
+    amtByYm.set(ym, (amtByYm.get(ym) ?? 0) + (r.gmv ?? 0));
     salesByYm.set(ym, (salesByYm.get(ym) ?? 0) + (r.sales ?? 0));
     mgByYm.set(ym, (mgByYm.get(ym) ?? 0) + (r.contribution_margin ?? 0));
   }
@@ -277,13 +282,13 @@ export default async function CategoryGroupPage({
     decimals: number;
     of: (r: Row) => number;
   }[] = [
-    { key: "count", label: "계약건수", unit: "건", decimals: 0, of: () => 1 },
+    { key: "count", label: "계약완료", unit: "건", decimals: 0, of: () => 1 },
     {
       key: "amount",
       label: "거래액",
       unit: "억",
       decimals: 1,
-      of: (r) => (r.total_rental_fee ?? 0) / EOK,
+      of: (r) => (r.gmv ?? 0) / EOK,
     },
     {
       key: "sales",
@@ -363,12 +368,12 @@ export default async function CategoryGroupPage({
   // 두면 여섯 그룹의 차트가 서로 비교되기도 한다.
   const trendSeries = [
     {
-      // 홈의 월별 차트(app/page.tsx:2078)가 이 지표를 "거래건수"로 부른다. 같은 그림을
-      // 두 화면이 다른 말로 부르지 않도록 홈을 따른다 — 이 화면 ①의 KPI 타일이
-      // "계약완료"인 것과 어긋나 보이지만, 그 어긋남은 홈에도 똑같이 있다(홈 KPI 1561
-      // 은 계약완료, 월별 차트 2078 은 거래건수). 화면 간 일치를 화면 내 일치보다
-      // 앞세운 사용자 판단(2026-09-13).
-      key: "거래건수",
+      // 계약완료 — 데이터레이크 정본 용어에 맞춘다(2026-09-13 사용자 확정).
+      // DW fact_settle_pnl.contract_complete_ts 를 "계약완료일시"라 부르고 그것이
+      // 손익원장 기간 필터의 정본 축이다. 이전에는 홈 월별 차트가 "거래건수"라
+      // 불러서 화면 간 일치를 위해 따라갔지만 이제 양쪽 다 계약완료라 그 절충이
+      // 필요 없다 — 화면 간·화면 내 일치가 동시에 성립한다.
+      key: "계약완료",
       color: "var(--color-cat-1)",
       unit: "건",
       titleUnit: "",
@@ -618,7 +623,7 @@ export default async function CategoryGroupPage({
     for (const r of rows) {
       const b = m[getBM(r.partner_company)];
       b.cnt += 1;
-      b.amt += (r.total_rental_fee ?? 0) / EOK;
+      b.amt += (r.gmv ?? 0) / EOK;
     }
     return m;
   };
@@ -759,25 +764,25 @@ export default async function CategoryGroupPage({
           <dl className="grid grid-cols-2 gap-px bg-[var(--color-line-2)]">
             {[
               {
-                label: "주문 → 계약완료 전환율",
-                value: convCurr.rate === null ? "—" : (convCurr.rate * 100).toFixed(1),
-                unit: convCurr.rate === null ? "" : "%",
-                sub: `${fmt(convCurr.converted)} / ${fmt(convCurr.orders)}건`,
+                label: "계약완료율",
+                value: compRate === null ? "—" : (compRate * 100).toFixed(1),
+                unit: compRate === null ? "" : "%",
+                sub: `${fmt(cnt)} / ${fmt(convCurr.orders)}건`,
                 delta:
-                  convCurr.rate !== null && convPrev.rate !== null
-                    ? (convCurr.rate - convPrev.rate) * 100
+                  compRate !== null && compRatePrev !== null
+                    ? (compRate - compRatePrev) * 100
                     : null,
                 deltaUnit: "%p",
                 // 퍼센트포인트의 "미미함"은 기반값에 따라 다르다. 5.3%에서 1.2%p는
                 // 큰 움직임이고 45%에서 1.4%p는 노이즈다 — DESIGN.md의 ±1.5%를
                 // 상대 기준으로 되돌려 적용한다.
                 deltaBand:
-                  convPrev.rate !== null
-                    ? Math.max(0.5, Math.abs(convPrev.rate * 100) * 0.015)
+                  compRatePrev !== null
+                    ? Math.max(0.5, Math.abs(compRatePrev * 100) * 0.015)
                     : undefined,
               },
               {
-                label: "주문 → 계약완료 평균 소요",
+                label: "리드타임",
                 value: convCurr.avgDays === null ? "—" : convCurr.avgDays.toFixed(1),
                 unit: convCurr.avgDays === null ? "" : "일",
                 sub:
@@ -817,8 +822,9 @@ export default async function CategoryGroupPage({
             ))}
           </dl>
           <p className="border-t border-[var(--color-line-2)] bg-[var(--color-gray-25)] p-[8px_15px] text-[11px] text-[var(--color-gray-500)]">
-            진행 중인 달은 아직 전환할 시간이 지나지 않은 최근 주문이 분모에 포함돼 값이
-            실제보다 낮게 나온다. 전환은 주문확정 후 30일까지 이어진다.
+            리드타임 = 주문확정 → 계약완료 평균 소요일(전환된 건만). 진행 중인 달은
+            아직 전환할 시간이 지나지 않은 최근 주문이 분모에 포함돼 전환율이 실제보다
+            낮게 나온다 — 전환은 주문확정 후 30일까지 이어진다.
           </p>
         </div>
       </section>
@@ -938,7 +944,7 @@ export default async function CategoryGroupPage({
         <div className={panel}>
           <div className="grid grid-cols-1 gap-x-7 px-[17px] pt-[14px] pb-[14px] lg:grid-cols-2">
             <BMMixBar
-              title="거래건수"
+              title="계약완료"
               unit="건"
               segments={(["BM1", "BM2", "BM3"] as const).map((b) => ({
                 key: b,

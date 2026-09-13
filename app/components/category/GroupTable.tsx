@@ -25,7 +25,7 @@ export type GroupRow = {
 const SORTS = [
   { key: "change", label: "매출 변화폭" },
   { key: "sales", label: "매출" },
-  { key: "count", label: "거래건수" },
+  { key: "count", label: "계약완료" },
   { key: "cpu", label: "건당 공헌이익" },
 ] as const;
 
@@ -77,7 +77,7 @@ export default function GroupTable({
             <tr className="border-b border-[var(--color-gray-200)]">
               <th className={`${th} text-left`}>카테고리</th>
               <th className={`${th} text-left`}>상위 카테고리</th>
-              <th className={th}>계약건수</th>
+              <th className={th}>계약완료</th>
               <th className={th}>전월 동기간</th>
               <th className={th}>증감</th>
               <th className={th}>비중</th>

@@ -495,7 +495,7 @@ function buildExceptionDetails(
 /**
  * 예외승인 손익 워터폴 — 예외승인 건(isException)만 모집단으로 4단계.
  *
- *   수수료 매출 · 예외승인 안 했을 때 공헌이익 · 예외승인 지원금 · 예외승인 시 공헌이익
+ *   매출 · 예외승인 안 했을 때 공헌이익 · 예외승인 지원금 · 예외승인 시 공헌이익
  *
  * 이 페이지가 답해야 하는 질문은 "예외승인이 손익을 얼마나 깎았나" 하나다. 그래서
  * 유일한 델타 막대를 예외승인 지원금으로 두고, 그 앞뒤를 공헌이익 두 상태로 세운다 —
@@ -509,7 +509,11 @@ function buildExceptionDetails(
  * sales 6,975만 vs gmv 1억6,426만(42.5%)이다. 온톨로지 prop_item_pnl.sales 정의는
  * "매출(BM1=수수료, BM2·3=자동견적연동값)"이고 인터넷은 BM2다(대손비가 BM2에서만
  * 비영이라는 실측과 일치). 상세표 헤더·계산공식 팝오버가 "수수료"라 부르므로
- * 라벨도 "수수료 매출"로 맞췄다(2026-09-10).
+ * 라벨은 2026-09-10 에 "수수료 매출"로 바꿨었는데, 2026-09-13 에 "매출"로 되돌렸다 —
+ * 온톨로지 SettlePropItem 이 명시한다: "수수료 매출"은 bm_type='BM1'(입점 파트너 직접
+ * 수수료)만 합산할 때 쓰는 말이고, BM2·3(자체운영)의 sales 는 자동견적 연동 매출이라
+ * 수수료가 아니다. 이 페이지는 인터넷=BM2 라서 "수수료 매출"이 오히려 틀린 이름이었다.
+ * 전사 KPI 타일과도 같은 말이 된다(사용자 확정 2026-09-13).
  *
  * 1→2단계 사이에는 렌트리 지원금·대손비·상품권이 들어간다 — 막대로 세우지 않는
  * 대신 섹션 설명문에 금액을 적어 감춰진 차감이 없게 한다. 둘 다 0에서 시작하는
@@ -543,7 +547,7 @@ function buildWaterfallData(rows: PropItemRow[]): WaterfallStage[] {
   const expectedContribution = totalContribution + totalExceptionAmount;
 
   return [
-    { label: "수수료 매출", value: Math.round(totalSales), delta: 0, isAnchor: true },
+    { label: "매출", value: Math.round(totalSales), delta: 0, isAnchor: true },
     {
       label: "예외승인 안 했을 때 공헌이익",
       value: Math.round(expectedContribution),
@@ -638,7 +642,7 @@ export default async function ExceptionApprovalPage({
       {/* 제목은 상단바(Header)가 진다 — 1차 내비 화면은 본문에서 h1을 다시 세우지 않는다 */}
       <div className="mb-6 flex items-start justify-between gap-4">
         <p className="text-sm text-[#788093]">
-          타사 지원금이 수수료 매출·타겟마진·대손비용에 미치는 영향과 역마진 여부를
+          타사 지원금이 매출·타겟마진·대손비용에 미치는 영향과 역마진 여부를
           분석합니다
         </p>
         <ViewToggle current={basis} />

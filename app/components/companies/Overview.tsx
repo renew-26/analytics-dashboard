@@ -8,7 +8,7 @@ import { deltaArrow, deltaColor } from "@/app/components/home/cardKit";
  * 반대가 된다. 그래서 성격으로 나눠 크기를 두 단계로 준다.
  *
  *   규모   "얼마나"  24px — 계약완료 · 거래액 · 매출
- *   효율   "어떻게"  20px — 건당 공헌이익 · 계약완료율 · 주문→계약 소요일
+ *   효율   "어떻게"  20px — 건당 공헌이익 · 계약완료율 · 리드타임
  */
 
 /** 비율·소요일의 데드존 — 기반값에 비례시킨다.
@@ -164,7 +164,8 @@ export type OverviewProps = {
   convRate: number | null;
   convRatePrev: number | null;
   /** 이번 달 코호트가 아직 익지 않았나 */
-  convMature: boolean;
+  /** 달 초면 분자에 전월 주문의 계약이 섞인다 — 각주로 밝힌다 */
+  earlyInMonth: boolean;
   leadDays: number | null;
   leadDaysPrev: number | null;
 };
@@ -216,20 +217,19 @@ export default function Overview(p: OverviewProps) {
           baseline={p.convRatePrev === null ? null : p.convRatePrev * 100}
           deltaUnit="%p"
           higherIsBetter
-          // 이번 달 코호트가 안 익었으면 전월과 견줄 수 없다 — 판정을 끄고
-          // 전월 값을 참고로만 적는다. "집계 중"이라 써놓고 옆에서 "주의"라고
-          // 판정하면 라벨이 무색해진다.
-          judged={p.convMature}
+          // 달 초에는 분자에 전월 주문의 계약이 섞여 높게 나온다 — 판정을 끄고
+          // 전월 값을 참고로만 적는다.
+          judged={!p.earlyInMonth}
           note={
-            p.convMature
+            !p.earlyInMonth
               ? undefined
               : p.convRatePrev === null
-                ? "집계 중"
-                : `집계 중 · 전월 ${(p.convRatePrev * 100).toFixed(1)}%`
+                ? "달 초 · 참고치"
+                : `달 초 · 참고치 (전월 ${(p.convRatePrev * 100).toFixed(1)}%)`
           }
         />
         <QualityStat
-          label="주문→계약"
+          label="리드타임"
           value={p.leadDays === null ? "—" : p.leadDays.toFixed(1)}
           unit="일"
           delta={
@@ -243,12 +243,12 @@ export default function Overview(p: OverviewProps) {
         />
       </div>
 
-      {!p.convMature && (
+      {p.earlyInMonth && (
         <p className="mt-[11px] border-t border-[var(--color-line-2)] pt-[9px] text-[11px] leading-[1.7] text-[var(--color-gray-400)]">
-          계약완료율은 <b>주문확정 기준 코호트</b>다 — 이번 달 주문 중 계약까지 간
-          비율. 전환은 주문확정 후 30일까지 이어지므로(7일 60.5% · 14일 75.5% · 30일
-          84.0%) 이번 달 값은 <b>아직 오르는 중</b>이다. 값은 보정하지 않고, 익은
-          전월과 견주지도 않는다 — 그 비교는 악화가 아니라 시간차를 재게 된다.
+          계약완료율 = <b>구간 내 계약완료 ÷ 구간 내 순주문확정</b>(주문확정 − 취소).
+          데이터레이크 stats_kpi 와 같은 기간 집계 방식이다. 달 초에는 분자에 전월
+          주문의 계약이 섞여 <b>실제보다 높게</b> 나오므로 전월과 견주지 않는다 — 그
+          비교는 개선이 아니라 시간차를 재게 된다.
         </p>
       )}
     </section>

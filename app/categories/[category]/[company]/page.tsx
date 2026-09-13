@@ -77,7 +77,7 @@ export default async function CategoryCompanyPage({
       const { data, error } = await supabase
         .from("raw_prop_items")
         .select(
-          "contract_date, rental_company, category, partner_company, total_rental_fee, contribution_margin, sales, product_name, model_name, monthly_fee",
+          "contract_date, rental_company, category, partner_company, gmv, contribution_margin, sales, product_name, model_name, monthly_fee",
         )
         .not("contract_date", "is", null)
         .in("rental_company", dbNamesOf(def))
@@ -110,8 +110,8 @@ export default async function CategoryCompanyPage({
     rows.reduce((s, r) => s + of(r), 0);
   const cnt = currRows.length;
   const cntPrev = prevRows.length;
-  const amtSum = sum(currRows, (r) => r.total_rental_fee ?? 0);
-  const amtSumPrev = sum(prevRows, (r) => r.total_rental_fee ?? 0);
+  const amtSum = sum(currRows, (r) => r.gmv ?? 0);
+  const amtSumPrev = sum(prevRows, (r) => r.gmv ?? 0);
   const amt = amtSum / EOK;
   const amtPrev = amtSumPrev / EOK;
   const salesSum = sum(currRows, (r) => r.sales ?? 0);
@@ -132,7 +132,7 @@ export default async function CategoryCompanyPage({
     if (Number(r.contract_date.slice(8, 10)) > dayCut) continue;
     const ym = r.contract_date.slice(0, 7);
     cntByYm.set(ym, (cntByYm.get(ym) ?? 0) + 1);
-    amtByYm.set(ym, (amtByYm.get(ym) ?? 0) + (r.total_rental_fee ?? 0));
+    amtByYm.set(ym, (amtByYm.get(ym) ?? 0) + (r.gmv ?? 0));
     salesByYm.set(ym, (salesByYm.get(ym) ?? 0) + (r.sales ?? 0));
     mgByYm.set(ym, (mgByYm.get(ym) ?? 0) + (r.contribution_margin ?? 0));
   }
@@ -286,7 +286,7 @@ export default async function CategoryCompanyPage({
           <dl className="grid grid-cols-2 gap-px bg-[var(--color-line-2)] lg:grid-cols-4">
             {[
               {
-                label: "계약건수",
+                label: "계약완료",
                 value: fmt(cnt),
                 unit: "건",
                 prev: `${fmt(cntPrev)}건`,
@@ -360,7 +360,7 @@ export default async function CategoryCompanyPage({
           </dl>
           <div className="flex flex-wrap items-center gap-x-[18px] gap-y-1 border-t border-[var(--color-gray-200)] bg-[var(--color-gray-25)] p-[9px_17px] text-[11px] text-[var(--color-gray-400)]">
             <span>
-              BM 구성 (계약건수):{" "}
+              BM 구성 (계약완료):{" "}
               {(["BM1", "BM2", "BM3"] as const)
                 .filter((b) => bmCnt[b] > 0)
                 .map((b) => `${b} ${fmt(bmCnt[b])}건`)
@@ -384,7 +384,7 @@ export default async function CategoryCompanyPage({
         <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
           {[
             {
-              title: "계약건수 기여",
+              title: "계약완료 기여",
               unit: "건",
               decimals: 0,
               diff: countDiff,
@@ -483,7 +483,7 @@ export default async function CategoryCompanyPage({
         <div className="mb-[11px] flex flex-wrap items-baseline gap-2.5">
           <h2 className={sectionHead}>상품별 성과</h2>
           <span className="text-[12px] text-[var(--color-gray-500)]">
-            이번 달 계약건수 상위 {topProducts.length}개 · 전월 동기간과 비교
+            이번 달 계약완료 상위 {topProducts.length}개 · 전월 동기간과 비교
           </span>
         </div>
         <div className={panel}>
@@ -500,7 +500,7 @@ export default async function CategoryCompanyPage({
                     <tr className="border-b border-[var(--color-gray-200)]">
                       <th className={`${th} text-left`}>상품</th>
                       {multiCat && <th className={`${th} text-left`}>카테고리</th>}
-                      <th className={th}>계약건수</th>
+                      <th className={th}>계약완료</th>
                       <th className={th}>전월 동기간</th>
                       <th className={th}>증감</th>
                       <th className={th}>평균 월렌탈료</th>

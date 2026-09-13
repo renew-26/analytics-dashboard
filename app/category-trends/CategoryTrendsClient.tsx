@@ -542,7 +542,7 @@ function MonthlyView({
                     className="px-4 py-3 text-right font-semibold"
                     style={{ color: "var(--color-gray-600)" }}
                   >
-                    계약건수
+                    계약완료
                   </th>
                   <th
                     className="px-4 py-3 text-right font-semibold"
@@ -1055,7 +1055,7 @@ function ScaleGrowthScatter({
   return (
     <Panel
       title="규모 × 성장률"
-      meta={`${yoyWindow.current} 거래건수 × 전년 동기간(${yoyWindow.previous}) 대비 증감률`}
+      meta={`${yoyWindow.current} 계약완료 × 전년 동기간(${yoyWindow.previous}) 대비 증감률`}
     >
       <svg
         viewBox={`0 0 ${W} ${H}`}
@@ -1117,7 +1117,7 @@ function ScaleGrowthScatter({
           fontSize={9.5}
           textAnchor="middle"
         >
-          거래건수 →
+          계약완료 →
         </text>
 
         {laid.map((d, i) => {
@@ -1180,7 +1180,7 @@ function SmallMultiples({
   const yoyMap = new Map(catYoY.map((c) => [c.cat, c]));
 
   return (
-    <Panel title="Top10 12개월 추이" meta="계약완료 기준 · 카테고리별 월 계약건수">
+    <Panel title="Top10 12개월 추이" meta="계약완료 기준 · 카테고리별 월 계약완료">
       <div
         className="grid gap-3"
         style={{ gridTemplateColumns: "repeat(auto-fill,minmax(178px,1fr))" }}

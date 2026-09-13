@@ -54,6 +54,10 @@ export default function Header({
         href: `${catHref}/${encodeURIComponent(co)}`,
       });
     title = prod ?? (co ? `${cat} × ${co}` : (cat ?? "카테고리"));
+  } else if (pathname.startsWith("/group/")) {
+    // 그룹 요약은 렌탈사 축의 2depth — 제목·경로는 다른 1차 내비 화면과 같게 상단바가 진다
+    title = pathname.replace("/group/", "");
+    crumbs = [{ label: "렌탈사", href: "/companies" }];
   } else if (pathname.startsWith("/company/")) {
     title = pathname.replace("/company/", "");
     crumbs = [{ label: "렌탈사", href: "/companies" }];

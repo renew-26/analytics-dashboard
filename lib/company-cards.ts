@@ -4,6 +4,7 @@
  * 같은 렌탈사가 화면마다 다른 상태로 보이므로 여기 하나만 둔다.
  */
 import { COMPANY_MAP, dbNamesOf, getBM } from "@/lib/company-map";
+import { EOK } from "@/lib/format";
 import { conversionStats } from "@/lib/conversion";
 import type { CompanyCard } from "@/app/components/home/CompanyCards";
 
@@ -12,14 +13,13 @@ export type CardContractRow = {
   rental_company: string | null;
   category: string | null;
   partner_company: string | null;
-  total_rental_fee: number | null;
+  gmv: number | null;
   contribution_margin: number | null;
   sales: number | null;
   /** 주문확정일 — 리드타임용. select 에 안 넣은 호출부는 leadDays 가 null 로 나온다 */
   order_confirmed_at?: string | null;
 };
 
-const EOK = 100_000_000;
 
 /** 그룹 필터 노출 순서 */
 export const CARD_GROUP_ORDER = ["정수기", "가전&상조", "통신"];
@@ -98,7 +98,15 @@ export function perDeal(margin: number, count: number) {
 function leadDaysOf(rows: CardContractRow[]): number | null {
   const withOrder = rows.flatMap((r) =>
     r.order_confirmed_at
-      ? [{ order_confirmed_at: r.order_confirmed_at, contract_date: r.contract_date }]
+      ? [
+          {
+            order_confirmed_at: r.order_confirmed_at,
+            contract_date: r.contract_date,
+            // 여기 오는 행은 전부 계약완료된 행이라 취소일 수 없다.
+            // conversionStats 의 취소 제외 분기를 타지 않게 null 로 둔다.
+            status: null,
+          },
+        ]
       : [],
   );
   return withOrder.length > 0 ? conversionStats(withOrder).avgDays : null;
@@ -159,7 +167,7 @@ export function buildCompanyCards({
       bmCount[getBM(r.partner_company)] += 1;
       sales += r.sales ?? 0;
       margin += r.contribution_margin ?? 0;
-      revenue += r.total_rental_fee ?? 0;
+      revenue += r.gmv ?? 0;
     }
     // 전월 매출은 "매출 급증/급감" 신호를 만들기 위해서만 쌓는다
     let salesPrevSum = 0;
@@ -169,7 +177,7 @@ export function buildCompanyCards({
     for (const r of pRows) {
       salesPrevSum += r.sales ?? 0;
       marginPrevSum += r.contribution_margin ?? 0;
-      revenuePrevSum += r.total_rental_fee ?? 0;
+      revenuePrevSum += r.gmv ?? 0;
     }
 
     const topCats = Array.from(catCount.entries()).sort((a, b) => b[1] - a[1]);

@@ -3,16 +3,16 @@
  * 정렬은 당월 건수 내림차순, 동률이면 전월 건수 내림차순.
  */
 export type AxisRow = {
-  total_rental_fee: number | null;
+  gmv: number | null;
   sales: number | null;
   contribution_margin: number | null;
 };
 
 export type AxisAgg = {
   label: string;
-  /** 당월 계약건수 */
+  /** 당월 계약완료 */
   cnt: number;
-  /** 전월 동기간 계약건수 */
+  /** 전월 동기간 계약완료 */
   cntPrev: number;
   /** 원 단위 — 표시할 때 억/만으로 나눈다 */
   amount: number;
@@ -37,7 +37,7 @@ export function aggregateAxis<T extends AxisRow>(
   for (const r of currRows) {
     const a = at(keyOf(r));
     a.cnt += 1;
-    a.amount += r.total_rental_fee ?? 0;
+    a.amount += r.gmv ?? 0;
     a.sales += r.sales ?? 0;
     a.margin += r.contribution_margin ?? 0;
   }

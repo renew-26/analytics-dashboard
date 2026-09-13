@@ -9,6 +9,8 @@ import {
   perDeal,
 } from "@/lib/company-cards";
 import { getPeriod, getDataAsOf } from "@/lib/period";
+import { EOK, MAN } from "@/lib/format";
+import { CANCELLED_STATUS } from "@/lib/conversion";
 import CategoryMonthlyChart, {
   type CategoryMonthPoint,
 } from "@/app/components/CategoryMonthlyChart";
@@ -80,7 +82,7 @@ type ContractRow = {
   rental_company: string | null;
   category: string | null;
   partner_company: string | null;
-  total_rental_fee: number | null;
+  gmv: number | null;
   contribution_margin: number | null;
   bad_debt: number | null;
   sales_incentive: number | null;
@@ -88,7 +90,7 @@ type ContractRow = {
 };
 
 const CONTRACT_COLS =
-  "contract_date, rental_company, category, partner_company, total_rental_fee, contribution_margin, bad_debt, sales_incentive, sales";
+  "contract_date, rental_company, category, partner_company, gmv, contribution_margin, bad_debt, sales_incentive, sales";
 
 function aggregateByBM(rows: ContractRow[]) {
   const counts = { BM1: 0, BM2: 0, BM3: 0, total: 0 };
@@ -101,8 +103,8 @@ function aggregateByBM(rows: ContractRow[]) {
     const bm = getBM(r.partner_company);
     counts[bm]++;
     counts.total++;
-    revenue[bm] += r.total_rental_fee ?? 0;
-    revenue.total += r.total_rental_fee ?? 0;
+    revenue[bm] += r.gmv ?? 0;
+    revenue.total += r.gmv ?? 0;
     margin[bm] += r.contribution_margin ?? 0;
     margin.total += r.contribution_margin ?? 0;
     badDebt[bm] += r.bad_debt ?? 0;
@@ -177,7 +179,7 @@ type YearContractRow = {
   category: string | null;
   partner_company: string | null;
   rental_company: string | null;
-  total_rental_fee: number | null;
+  gmv: number | null;
   /** 카테고리 카드의 12개월 매출 추이·평소 페이스에 쓴다 */
   sales: number | null;
   /** KPI 공헌이익 타일의 12개월 추이에 쓴다 */
@@ -196,7 +198,7 @@ async function fetchAllYearContractsUncached(
     const { data, error } = await supabase
       .from("raw_prop_items")
       .select(
-        "contract_date, category, partner_company, rental_company, total_rental_fee, sales, contribution_margin",
+        "contract_date, category, partner_company, rental_company, gmv, sales, contribution_margin",
       )
       .not("contract_date", "is", null)
       .gte("contract_date", yearStart)
@@ -513,11 +515,13 @@ export default async function Home({
   // 헤더(기준일 표기)와 동일한 구간을 쓴다 — lib/period.ts 단일 소스
   const { curr, prev, month, day: dayCut } = getPeriod(await getDataAsOf());
   const end = curr.end;
-  const yearStart = "2025-01-01"; // 섹션 2 월별 거래건수 조회 시작 시점
+  const yearStart = "2025-01-01"; // 섹션 2 월별 계약완료 조회 시작 시점
 
   const [
     currOrders,
     prevOrders,
+    currCancels,
+    prevCancels,
     currContracts,
     prevContracts,
     catRaw,
@@ -533,6 +537,23 @@ export default async function Home({
       .from("raw_prop_items")
       .select("*", { count: "exact", head: true })
       .not("order_confirmed_at", "is", null)
+      .gte("order_confirmed_at", prev.start)
+      .lte("order_confirmed_at", prev.end),
+    // 취소 — 설치인증률 분모를 순주문확정(주문확정 − 취소)으로 내리기 위해 따로 센다.
+    // 주문확정 타일 자체는 총계(gross)로 남긴다 — DW 도 order_confirmed 와
+    // net_order_confirmed 를 따로 둔다.
+    supabase
+      .from("raw_prop_items")
+      .select("*", { count: "exact", head: true })
+      .not("order_confirmed_at", "is", null)
+      .eq("status", CANCELLED_STATUS)
+      .gte("order_confirmed_at", curr.start)
+      .lte("order_confirmed_at", curr.end),
+    supabase
+      .from("raw_prop_items")
+      .select("*", { count: "exact", head: true })
+      .not("order_confirmed_at", "is", null)
+      .eq("status", CANCELLED_STATUS)
       .gte("order_confirmed_at", prev.start)
       .lte("order_confirmed_at", prev.end),
 
@@ -641,8 +662,6 @@ export default async function Home({
   //  입력받지 않아도 최근 3개월 같은 기간 평균만으로 성립한다.
   // ══════════════════════════════════════════════════════════════
   const rate = (num: number, den: number) => (den > 0 ? (num / den) * 100 : 0);
-  const EOK = 100_000_000; // 억
-  const MAN = 10_000; // 만원
 
   // ── 주문확정: BM별 집계 ────────────────────────────────
   const bmOrderCurr = { BM1: 0, BM2: 0, BM3: 0, total: 0 };
@@ -668,15 +687,22 @@ export default async function Home({
   //  운영자에게 더 중요한 달이 있고, 그건 거래액·매출만으로는 안 보인다.
   const orderCurr = currOrders.count ?? 0;
   const orderPrev = prevOrders.count ?? 0;
+  const cancelCurr = currCancels.count ?? 0;
+  const cancelPrev = prevCancels.count ?? 0;
+  // 순주문확정 — DW net_order_confirmed(= 확정 − 취소)와 같은 정의
+  const netOrderCurr = orderCurr - cancelCurr;
+  const netOrderPrev = orderPrev - cancelPrev;
   const contractCurr = currAgg.counts.total;
   const contractPrev = prevAgg.counts.total;
   const amountCurr = currAgg.revenue.total / EOK;
   const amountPrev = prevAgg.revenue.total / EOK;
   const salesCurr = currAgg.salesTotal.total / EOK;
   const salesPrev = prevAgg.salesTotal.total / EOK;
-  // 설치인증률 = 계약완료 / 주문확정 (앱 전반이 계약완료를 '설치인증'으로 부른다)
-  const certCurr = rate(contractCurr, orderCurr);
-  const certPrev = rate(contractPrev, orderPrev);
+  // 계약완료율 = 계약완료 ÷ 순주문확정(주문확정 − 취소) — 기간 방식(lib/conversion.ts
+  // completionRate 참조). 취소를 분모에 남기면 비율이 실제보다 크게 낮아진다
+  // (2026-08 실측 취소 비중 30.5%). 사용자 확정 2026-09-13.
+  const certCurr = rate(contractCurr, netOrderCurr);
+  const certPrev = rate(contractPrev, netOrderPrev);
 
   // ── BM별 지표 ──────────────────────────────────────────
   const BM_META = {
@@ -756,7 +782,7 @@ export default async function Home({
     contractByMonth.set(ym, (contractByMonth.get(ym) ?? 0) + 1);
     amountByMonth.set(
       ym,
-      (amountByMonth.get(ym) ?? 0) + (r.total_rental_fee ?? 0),
+      (amountByMonth.get(ym) ?? 0) + (r.gmv ?? 0),
     );
     salesByMonth.set(ym, (salesByMonth.get(ym) ?? 0) + (r.sales ?? 0));
     marginByMonth.set(
@@ -835,7 +861,7 @@ export default async function Home({
       const a = acc.get(key)!;
       a.count += 1;
       a.sales += r.sales ?? 0;
-      a.amount += r.total_rental_fee ?? 0;
+      a.amount += r.gmv ?? 0;
       a.margin += r.contribution_margin ?? 0;
       if (withCompanies) {
         const label = companyLabelOf(r);
@@ -912,7 +938,7 @@ export default async function Home({
   }[] = [
     {
       key: "count",
-      label: "계약건수",
+      label: "계약완료",
       unit: "건",
       decimals: 0,
       of: () => 1,
@@ -922,7 +948,7 @@ export default async function Home({
       label: "거래액",
       unit: "억",
       decimals: 1,
-      of: (r: ContractRow) => (r.total_rental_fee ?? 0) / EOK,
+      of: (r: ContractRow) => (r.gmv ?? 0) / EOK,
     },
     {
       key: "sales",
@@ -1123,7 +1149,7 @@ export default async function Home({
     .forEach(({ c, idx }) =>
       alerts.push({
         sev: idx < 80 ? "crit" : "warn",
-        title: `${c.label} 거래건수`,
+        title: `${c.label} 계약완료`,
         curr: `${c.curr.toLocaleString("ko-KR")}건`,
         base: `평소 ${Math.round(c.pace).toLocaleString("ko-KR")}건`,
         changePct: idx - 100,
@@ -1149,7 +1175,7 @@ export default async function Home({
         curr: `${c.sales.toFixed(2)}억`,
         base: `전월 동기간 ${c.salesPrev.toFixed(2)}억`,
         changePct: chg,
-        detail: `거래건수는 ${c.prev.toLocaleString("ko-KR")}→${c.curr.toLocaleString("ko-KR")}건 — 물량보다 단가 쪽`,
+        detail: `계약완료는 ${c.prev.toLocaleString("ko-KR")}→${c.curr.toLocaleString("ko-KR")}건 — 물량보다 단가 쪽`,
         action: "원인 확인",
         href: `/company/${c.label}`,
         hrefBase: "/company/",
@@ -1199,7 +1225,7 @@ export default async function Home({
   if (topNegGroup && topNegGroup.value <= -20) {
     alerts.push({
       sev: "warn",
-      title: `${topNegGroup.key} 거래건수`,
+      title: `${topNegGroup.key} 계약완료`,
       curr: `${topNegGroup.value.toLocaleString("ko-KR")}건`,
       base: `카테고리 그룹 중 낙폭 최대`,
       changePct: null,
@@ -1219,7 +1245,7 @@ export default async function Home({
       base: `전월 동기간 ${certPrev.toFixed(1)}%`,
       changePct: certCurr - certPrev,
       changeUnit: "%p",
-      detail: `주문확정 ${orderCurr.toLocaleString("ko-KR")}건 중 ${(orderCurr - contractCurr).toLocaleString("ko-KR")}건 미인증`,
+      detail: `순주문확정 ${netOrderCurr.toLocaleString("ko-KR")}건(취소 ${cancelCurr.toLocaleString("ko-KR")}건 제외) 중 ${(netOrderCurr - contractCurr).toLocaleString("ko-KR")}건 미인증`,
     });
   }
 
@@ -1233,7 +1259,7 @@ export default async function Home({
     .forEach(({ c, idx }) =>
       checks.push({
         sev: "good",
-        title: `${c.label} 거래건수`,
+        title: `${c.label} 계약완료`,
         curr: `${c.curr.toLocaleString("ko-KR")}건`,
         base: `평소 ${Math.round(c.pace).toLocaleString("ko-KR")}건`,
         changePct: idx - 100,
@@ -1248,7 +1274,7 @@ export default async function Home({
   if (topPosGroup && topPosGroup.value >= 20) {
     checks.push({
       sev: "good",
-      title: `${topPosGroup.key} 거래건수`,
+      title: `${topPosGroup.key} 계약완료`,
       curr: `+${topPosGroup.value.toLocaleString("ko-KR")}건`,
       base: `카테고리 그룹 중 증가폭 최대`,
       changePct: null,
@@ -1420,7 +1446,7 @@ export default async function Home({
     <div className="border-t border-[var(--color-line-2)] p-[9px_17px_13px]">
       {topCompanyGainers.length === 0 ? (
         <p className="py-4 text-center text-[12px] text-[var(--color-gray-400)]">
-          이번 달 계약건수가 늘어난 렌탈사가 없습니다.
+          이번 달 계약완료가 늘어난 렌탈사가 없습니다.
         </p>
       ) : (
         <ul>
@@ -1708,7 +1734,7 @@ export default async function Home({
                 flat: 1.5,
               },
               {
-                label: "설치인증률",
+                label: "계약완료율",
                 value: `${certCurr.toFixed(1)}%`,
                 delta: certPrev > 0 ? certCurr - certPrev : null,
                 unit: "%p",
@@ -1914,7 +1940,7 @@ export default async function Home({
                   굵은 바 = 이번 달 · 아래 얇은 바 = 전월 동기간 · 100% 기준
                 </div>
                 <BMMixBar
-                  title="거래건수"
+                  title="계약완료"
                   unit="건"
                   segments={bmStats.map((b) => ({
                     key: b.key,
@@ -1941,7 +1967,7 @@ export default async function Home({
                   BM별 지표
                 </div>
                 <div className="mb-2 text-[11px] text-[var(--color-gray-400)]">
-                  아래 숫자는 전월 동기간 대비 변화 · 비중은 계약건수 기준
+                  아래 숫자는 전월 동기간 대비 변화 · 비중은 계약완료 기준
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-[12px]">
@@ -1950,7 +1976,7 @@ export default async function Home({
                         {[
                           "BM",
                           "주문확정",
-                          "계약건수",
+                          "계약완료",
                           "계약 비중",
                           "거래액",
                           "매출",
@@ -2085,25 +2111,25 @@ export default async function Home({
         </summary>
         <div className="space-y-6 border-t border-[var(--color-line-2)] p-[16px_18px_20px]">
           <div className="flex items-center gap-2">
-            <h2 className="text-[15px] font-bold text-gray-700">거래건수</h2>
+            <h2 className="text-[15px] font-bold text-gray-700">계약완료</h2>
             <TransactionYearToggle hidden={hideOld2025} />
           </div>
 
-          {/* 카테고리 거래건수 — 추이 2종 + 월별 격자 */}
+          {/* 카테고리 계약완료 — 추이 2종 + 월별 격자 */}
           <div>
             <h3 className="text-sm font-semibold text-gray-500 mb-2">
-              카테고리 거래건수
+              카테고리 계약완료
             </h3>
             <div className="grid grid-cols-1 gap-4 mb-4 xl:grid-cols-2">
               <CategoryMonthlyChart
-                title="정수기 월별 거래건수"
+                title="정수기 월별 계약완료"
                 subtitle={chartRangeLabel}
                 data={categoryChartData}
                 series={waterCategorySeries}
                 yDomain={waterChartYDomain}
               />
               <CategoryMonthlyChart
-                title="카테고리 그룹별 거래건수 (정수기 제외)"
+                title="카테고리 그룹별 계약완료 (정수기 제외)"
                 subtitle="정수기는 자릿수가 달라 같은 축에 놓지 않는다 — 축 하나 원칙"
                 data={categoryChartData}
                 series={categoryGraphSeries}

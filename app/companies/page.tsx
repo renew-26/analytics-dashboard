@@ -9,7 +9,7 @@ import {
   perDeal,
   type CardContractRow,
 } from "@/lib/company-cards";
-import { conversionStats, type ConvRow } from "@/lib/conversion";
+import { completionRate, conversionStats, type ConvRow } from "@/lib/conversion";
 import { resolveTier, TIER_META, TIER_ORDER, type Tier } from "@/lib/tiers";
 import CompanyCards from "@/app/components/home/CompanyCards";
 import Overview from "@/app/components/companies/Overview";
@@ -47,7 +47,7 @@ export default async function CompaniesPage() {
     // 이 fetch 는 basis "contract" 라 계약완료된 행만 오므로 계약완료율의 분모
     // (주문은 됐지만 아직 계약 전인 행)는 여기 없다 — 그건 별도 fetch 다.
     select:
-      "contract_date, order_confirmed_at, rental_company, category, partner_company, total_rental_fee, contribution_margin, sales",
+      "contract_date, order_confirmed_at, rental_company, category, partner_company, gmv, contribution_margin, sales",
     start: `${recentYms[0]}-01`,
     end: curr.end,
     orderBy: "prop_item_usid",
@@ -65,7 +65,7 @@ export default async function CompaniesPage() {
   // 두 구간뿐이라 12개월을 긁지 않는다.
   const orderRows = await fetchRows<OrderRow>({
     basis: "order",
-    select: "order_confirmed_at, contract_date, rental_company, category",
+    select: "order_confirmed_at, contract_date, status, rental_company, category",
     start: prev.start,
     end: curr.end,
     orderBy: "prop_item_usid",
@@ -86,9 +86,8 @@ export default async function CompaniesPage() {
     mapped.filter((r) => inWindow(r, prev.start, prev.end)),
   );
 
-  // 코호트 성숙 — 전환은 주문확정 후 30일까지 이어진다(정수기 실측 30일 84.0%).
-  // 이번 달 코호트는 마지막 주문이 오늘이라 정의상 안 익었다.
-  const convMature = daysSince(curr.end) >= 30;
+  // 달 초에는 분자에 전월 주문의 계약이 섞여 비율이 높게 나온다 — 각주로 밝힌다.
+  const earlyInMonth = Number(curr.end.slice(8, 10)) < 10;
 
   const cards = buildCompanyCards({
     currContracts,
@@ -176,9 +175,9 @@ export default async function CompaniesPage() {
         salesPrevEok={sum((c) => c.salesPrev)}
         cpu={perDeal(sum((c) => c.cpu * c.curr), currSum)}
         cpuPrev={perDeal(sum((c) => c.cpuPrev * c.prev), prevSum)}
-        convRate={convCurr.rate}
-        convRatePrev={convPrev.rate}
-        convMature={convMature}
+        convRate={completionRate(currSum, convCurr.orders)}
+        convRatePrev={completionRate(prevSum, convPrev.orders)}
+        earlyInMonth={earlyInMonth}
         leadDays={weighted(
           (c) => c.leadDays,
           (c) => c.curr,

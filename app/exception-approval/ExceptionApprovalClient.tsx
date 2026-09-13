@@ -239,7 +239,7 @@ function PnlImpactSection({
       </h2>
       <p className="text-xs text-[#a1a5ac] mb-4">
         예외승인이 없었다면 남았을 공헌이익과, 예외승인 지원금이 그중 얼마를 깎아 실제
-        공헌이익이 됐는지 보여줍니다. 수수료 매출과 공헌이익 사이에는 렌트리 지원금{" "}
+        공헌이익이 됐는지 보여줍니다. 매출과 공헌이익 사이에는 렌트리 지원금{" "}
         {formatKRW(bridge.ourSubsidy, true)}·대손비 {formatKRW(bridge.badDebt, true)}이
         차감되고 상품권 {formatKRW(bridge.voucher, true)}이 더해집니다.
       </p>
@@ -252,7 +252,7 @@ function PnlImpactSection({
 
 /**
  * 이 차트의 주인공은 손익에 영향을 주는 항목이다 — 예외승인 지원금(차감)이 sev-crit,
- * 공헌이익 두 상태가 primary, 수수료 매출은 뒤로 물려 gray-250이다. 매출은 규모를
+ * 공헌이익 두 상태가 primary, 매출은 뒤로 물려 gray-250이다. 매출은 규모를
  * 가늠하는 기준면일 뿐이고 여기서 판단할 대상이 아니라, 가장 큰 막대가 시선을
  * 가져가지 않게 채도를 뺐다.
  *
@@ -284,7 +284,7 @@ function WaterfallChart({ stages }: { stages: WaterfallStage[] }) {
           bar: s.value,
           isAnchor: true,
           displayValue: s.value,
-          // 첫 단계는 수수료 매출 — 판단 대상이 아니라 기준면이라 색을 물린다
+          // 첫 단계는 매출 — 판단 대상이 아니라 기준면이라 색을 물린다
           isBaseline: i === 0,
         };
       }
