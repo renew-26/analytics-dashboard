@@ -34,7 +34,7 @@ export default async function CategoriesPage() {
 
   const rows12 = await fetchRows<CardContractRow>({
     select:
-      "contract_date, rental_company, category, partner_company, total_rental_fee, contribution_margin, sales",
+      "contract_date, rental_company, category, partner_company, gmv, contribution_margin, sales",
     start: `${recentYms[0]}-01`,
     end: curr.end,
     orderBy: "prop_item_usid",
@@ -52,8 +52,8 @@ export default async function CategoriesPage() {
     rows.reduce((s, r) => s + of(r), 0);
   const cnt = currRows.length;
   const cntPrev = prevRows.length;
-  const amt = sum(currRows, (r) => r.total_rental_fee ?? 0) / EOK;
-  const amtPrev = sum(prevRows, (r) => r.total_rental_fee ?? 0) / EOK;
+  const amt = sum(currRows, (r) => r.gmv ?? 0) / EOK;
+  const amtPrev = sum(prevRows, (r) => r.gmv ?? 0) / EOK;
   const sales = sum(currRows, (r) => r.sales ?? 0) / EOK;
   const salesPrev = sum(prevRows, (r) => r.sales ?? 0) / EOK;
   const cpu = perDeal(
@@ -76,7 +76,7 @@ export default async function CategoriesPage() {
     return recentYms.map((ym) => m.get(ym) ?? 0);
   };
   const cntSpark = byYm(() => 1);
-  const amtSpark = byYm((r) => (r.total_rental_fee ?? 0) / EOK);
+  const amtSpark = byYm((r) => (r.gmv ?? 0) / EOK);
   const salesSpark = byYm((r) => (r.sales ?? 0) / EOK);
 
   // ── 카테고리 그룹(6그룹) 성과 ──────────────────────────
@@ -108,7 +108,7 @@ export default async function CategoriesPage() {
   for (const r of currRows) {
     const a = groupOf(catGroupOf(r.category));
     a.cnt += 1;
-    a.amount += r.total_rental_fee ?? 0;
+    a.amount += r.gmv ?? 0;
     a.sales += r.sales ?? 0;
     a.margin += r.contribution_margin ?? 0;
   }
@@ -158,7 +158,7 @@ export default async function CategoriesPage() {
           <dl className="grid grid-cols-2 gap-px bg-[var(--color-line-2)] lg:grid-cols-4">
             {[
               {
-                label: "계약건수",
+                label: "계약완료",
                 value: fmt(cnt),
                 unit: "건",
                 prev: `${fmt(cntPrev)}건`,

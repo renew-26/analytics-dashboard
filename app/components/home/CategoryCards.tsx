@@ -60,7 +60,7 @@ export type CardLink = {
 const SORTS = [
   { key: "change", label: "매출 변화폭 큰 순" },
   { key: "sales", label: "매출 순" },
-  { key: "count", label: "거래건수 순" },
+  { key: "count", label: "계약완료 순" },
   { key: "cpu", label: "건당 공헌이익 순" },
 ] as const;
 
@@ -341,7 +341,7 @@ export default function CategoryCards({
               <div className="space-y-2 border-t border-[var(--color-line-2)] pt-[9px]">
                 <div className="flex items-end justify-between gap-2">
                   {[
-                    { k: "거래건수", v: `${c.count.toLocaleString("ko-KR")}건` },
+                    { k: "계약완료", v: `${c.count.toLocaleString("ko-KR")}건` },
                     { k: "거래액", v: moneyText(c.amount) },
                     {
                       k: "건당 공헌이익",

@@ -230,7 +230,7 @@ function PartnerIncentivePanel({
               건수
             </th>
             <th className="text-[11px] font-semibold text-[#788093] text-center pb-1.5 w-[24%]">
-              평균 총렌탈료
+              평균 거래액
             </th>
             <th className="text-[11px] font-semibold text-[#788093] text-center pb-1.5 w-[24%]">
               평균 판매장려금

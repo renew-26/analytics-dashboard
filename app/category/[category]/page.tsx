@@ -83,7 +83,7 @@ type ContractRow = {
   product_name: string | null;
   model_name: string | null;
   monthly_fee: number | null;
-  total_rental_fee: number | null;
+  gmv: number | null;
   contribution_margin: number | null;
   contract_months: number | null;
   partner_company: string | null;
@@ -107,7 +107,7 @@ async function fetchContracts(
     const { data, error } = await supabase
       .from("raw_prop_items")
       .select(
-        "contract_date, rental_company, product_name, model_name, monthly_fee, total_rental_fee, contribution_margin, contract_months, partner_company",
+        "contract_date, rental_company, product_name, model_name, monthly_fee, gmv, contribution_margin, contract_months, partner_company",
       )
       .not("contract_date", "is", null)
       .eq("category", category)
@@ -197,7 +197,7 @@ function aggregateModels(
       m.feeSum += r.monthly_fee;
       m.feeN += 1;
     }
-    m.rentalSum += r.total_rental_fee ?? 0;
+    m.rentalSum += r.gmv ?? 0;
     m.marginSum += r.contribution_margin ?? 0;
     if (r.rental_company) {
       const label = getCompanyLabel(r.rental_company, category);
@@ -459,8 +459,8 @@ export default async function CategoryDetailPage({
   const countDelta =
     prevCount > 0 ? ((currCount - prevCount) / prevCount) * 100 : null;
 
-  const currRevenue = currRows.reduce((s, r) => s + (r.total_rental_fee ?? 0), 0);
-  const prevRevenue = prevRows.reduce((s, r) => s + (r.total_rental_fee ?? 0), 0);
+  const currRevenue = currRows.reduce((s, r) => s + (r.gmv ?? 0), 0);
+  const prevRevenue = prevRows.reduce((s, r) => s + (r.gmv ?? 0), 0);
   const revenueDelta =
     prevRevenue > 0 ? ((currRevenue - prevRevenue) / prevRevenue) * 100 : null;
 
@@ -602,7 +602,7 @@ export default async function CategoryDetailPage({
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {[
             {
-              label: "거래건수",
+              label: "계약완료",
               value: n(currCount),
               unit: "건",
               delta: countDelta,

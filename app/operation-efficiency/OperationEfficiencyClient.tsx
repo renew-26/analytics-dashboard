@@ -379,7 +379,7 @@ function TargetMarginSimulation({ rows }: { rows: OpEfficiencyRow[] }) {
               <tr className="bg-[#f6f6f6] border-b border-[#e2e6ec]">
                 <th className="text-left px-4 py-2 text-xs font-bold text-[#586177]">가격대역</th>
                 <th className="text-right px-4 py-2 text-xs font-bold text-[#586177]">건수</th>
-                <th className="text-right px-4 py-2 text-xs font-bold text-[#586177]">평균 총렌탈료</th>
+                <th className="text-right px-4 py-2 text-xs font-bold text-[#586177]">평균 거래액</th>
                 <th className="text-right px-4 py-2 text-xs font-bold text-[#586177]">현재 실질요율</th>
                 <th className="text-right px-4 py-2 text-xs font-bold text-[#586177]">시뮬레이션 실질요율</th>
               </tr>

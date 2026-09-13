@@ -57,7 +57,7 @@ export type CompanyCard = {
 
 const SORTS = [
   { key: "change", label: "변화폭 큰 순" },
-  { key: "volume", label: "거래건수 순" },
+  { key: "volume", label: "계약완료 순" },
   { key: "sales", label: "매출 순" },
   { key: "cpu", label: "건당 공헌이익 순" },
 ] as const;

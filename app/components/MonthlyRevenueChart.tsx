@@ -103,7 +103,7 @@ function CustomTooltip({
         {label}
       </div>
       <div style={{ color: "var(--color-gray-500)" }}>
-        총렌탈료{" "}
+        거래액{" "}
         <span style={{ fontWeight: 600, color: "var(--color-gray-900)" }}>
           {d.totalRentalFee.toLocaleString("ko-KR")}원
         </span>

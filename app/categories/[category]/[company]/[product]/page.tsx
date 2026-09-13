@@ -71,7 +71,7 @@ export default async function ProductPage({
       const { data, error } = await supabase
         .from("raw_prop_items")
         .select(
-          "contract_date, rental_company, category, partner_company, total_rental_fee, contribution_margin, sales, product_name, model_name, monthly_fee, sales_incentive, promotion, bad_debt, cost_of_goods, financial_cost, management_type, contract_months",
+          "contract_date, rental_company, category, partner_company, gmv, contribution_margin, sales, product_name, model_name, monthly_fee, sales_incentive, promotion, bad_debt, cost_of_goods, financial_cost, management_type, contract_months",
         )
         .not("contract_date", "is", null)
         .in("rental_company", dbNamesOf(def))
@@ -108,8 +108,8 @@ export default async function ProductPage({
     rs.reduce((s, r) => s + of(r), 0);
   const cnt = currRows.length;
   const cntPrev = prevRows.length;
-  const amt = sum(currRows, (r) => r.total_rental_fee ?? 0) / EOK;
-  const amtPrev = sum(prevRows, (r) => r.total_rental_fee ?? 0) / EOK;
+  const amt = sum(currRows, (r) => r.gmv ?? 0) / EOK;
+  const amtPrev = sum(prevRows, (r) => r.gmv ?? 0) / EOK;
   const salesSum = sum(currRows, (r) => r.sales ?? 0);
   const salesSumPrev = sum(prevRows, (r) => r.sales ?? 0);
   const margin = sum(currRows, (r) => r.contribution_margin ?? 0);
@@ -126,7 +126,7 @@ export default async function ProductPage({
     if (Number(r.contract_date.slice(8, 10)) > dayCut) continue;
     const ym = r.contract_date.slice(0, 7);
     cntByYm.set(ym, (cntByYm.get(ym) ?? 0) + 1);
-    amtByYm.set(ym, (amtByYm.get(ym) ?? 0) + (r.total_rental_fee ?? 0));
+    amtByYm.set(ym, (amtByYm.get(ym) ?? 0) + (r.gmv ?? 0));
     salesByYm.set(ym, (salesByYm.get(ym) ?? 0) + (r.sales ?? 0));
     mgByYm.set(ym, (mgByYm.get(ym) ?? 0) + (r.contribution_margin ?? 0));
   }
@@ -253,7 +253,7 @@ export default async function ProductPage({
           <dl className="grid grid-cols-2 gap-px bg-[var(--color-line-2)] lg:grid-cols-4">
             {[
               {
-                label: "계약건수",
+                label: "계약완료",
                 value: fmt(cnt),
                 unit: "건",
                 prev: `${fmt(cntPrev)}건`,

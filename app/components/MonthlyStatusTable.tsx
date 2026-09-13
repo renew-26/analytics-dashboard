@@ -86,7 +86,7 @@ export default function MonthlyStatusTable({
             </tr>
             <tr className="border-t border-gray-50">
               <td className="px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider sticky left-0 bg-white">
-                매출 (총렌탈료)
+                거래액
               </td>
               {visibleStats.map((m) => (
                 <td key={m.month} className="px-4 py-3.5 text-center text-gray-800">

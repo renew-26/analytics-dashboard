@@ -10,8 +10,8 @@ import {
   type CardContractRow,
 } from "@/lib/company-cards";
 import type { CategoryCard } from "@/app/components/home/CategoryCards";
+import { EOK } from "@/lib/format";
 
-const EOK = 100_000_000;
 
 /**
  * @param windowRows 최근 12개월 계약완료 행 (필요한 범위로 이미 필터된 상태)
@@ -68,7 +68,7 @@ export function buildCategoryCards<T extends CardContractRow>({
       const a = m.get(k)!;
       a.count += 1;
       a.sales += r.sales ?? 0;
-      a.amount += r.total_rental_fee ?? 0;
+      a.amount += r.gmv ?? 0;
       a.margin += r.contribution_margin ?? 0;
       if (withCompanies) {
         const label = companyLabelOf(r);
