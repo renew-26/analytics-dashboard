@@ -39,6 +39,22 @@ export type CategoryCard = {
   prevRank: number;
   /** 12개월 매출 추이 (억) */
   spark: number[];
+  /**
+   * 카드의 목적지 — 없으면 세부 카테고리 규칙(/category/{label})을 따른다.
+   * 브랜드처럼 전용 라우트가 없는 축은 페이지 안 앵커를 직접 넘긴다.
+   */
+  link?: CardLink;
+};
+
+/** 카드 바닥에 경로를 병기해야 하므로 href 만으로는 부족하다 — 표기까지 같이 받는다 */
+export type CardLink = {
+  href: string;
+  /** 경로 앞머리 표기 (font-mono) */
+  base: string;
+  /** 경로 꼬리 표기 — 강조되는 부분 */
+  query: string;
+  /** 오른쪽 끝 힌트 문구 */
+  hint: string;
 };
 
 const SORTS = [
@@ -184,14 +200,26 @@ export default function CategoryCards({
           // 카드는 세부 카테고리 상세로 내려간다 — 새 IA의 드릴다운 흐름.
           // "그 외"는 상세 페이지가 없으므로 트렌드 화면으로 보낸다.
           const isRest = c.label === "그 외";
-          const href = isRest
-            ? `/category-trends?group=${encodeURIComponent(c.group)}`
-            : `/category/${encodeURIComponent(c.label)}`;
+          const link: CardLink =
+            c.link ??
+            (isRest
+              ? {
+                  href: `/category-trends?group=${encodeURIComponent(c.group)}`,
+                  base: "/category-trends",
+                  query: `?group=${c.group}`,
+                  hint: "월별·주차별 상세",
+                }
+              : {
+                  href: `/category/${encodeURIComponent(c.label)}`,
+                  base: "/category/",
+                  query: c.label,
+                  hint: "모델·가격 상세",
+                });
 
           return (
             <Link
               key={c.label}
-              href={href}
+              href={link.href}
               aria-label={`${c.label} 매출 ${moneyText(c.sales)}, ${st.text}`}
               className={CARD_SHELL}
             >
@@ -201,7 +229,7 @@ export default function CategoryCards({
                     {c.label}
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-[5px]">
-                    <span className={TAG}>{c.group}</span>
+                    {c.group && <span className={TAG}>{c.group}</span>}
                     <span className="num rounded-[4px] bg-[var(--color-gray-100)] px-[5px] py-0.5 font-mono text-[10px] font-bold text-[var(--color-gray-500)]">
                       #{c.rank}
                       {rankMove !== 0 && (
@@ -342,14 +370,14 @@ export default function CategoryCards({
               <div className="flex items-center justify-between gap-1.5 border-t border-dashed border-[var(--color-gray-200)] pt-2">
                 <span className="inline-flex items-center gap-1 font-mono text-[10px] font-semibold tracking-[-.2px] text-[var(--color-gray-400)] before:text-[9px] before:content-['↗'] group-hover:text-[var(--color-primary)]">
                   <b className="font-semibold text-[var(--color-gray-500)] group-hover:text-[var(--color-primary)]">
-                    {isRest ? "/category-trends" : "/category/"}
+                    {link.base}
                   </b>
                   <q className="font-bold text-[var(--color-primary)] [quotes:none]">
-                    {isRest ? `?group=${c.group}` : c.label}
+                    {link.query}
                   </q>
                 </span>
                 <span className="text-[10px] text-[var(--color-gray-400)]">
-                  {isRest ? "월별·주차별 상세" : "모델·가격 상세"}
+                  {link.hint}
                 </span>
               </div>
             </Link>

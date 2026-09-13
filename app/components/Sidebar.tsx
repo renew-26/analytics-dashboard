@@ -219,24 +219,6 @@ export default function Sidebar() {
             label="카테고리 상세"
             active={pathname.startsWith("/category/")}
           />
-          <NavItem
-            href="/brand-analysis"
-            label="브랜드 분석"
-            active={pathname === "/brand-analysis"}
-          />
-
-          {/* 렌탈사 분석 섹션 */}
-          <SectionHeader label="렌탈사 분석" />
-          <NavItem
-            href="/compare"
-            label="렌탈사 비교"
-            active={pathname === "/compare"}
-          />
-          <NavItem
-            href="/conversion"
-            label="전환율 분석"
-            active={pathname === "/conversion"}
-          />
 
           {/* 시장 정보 섹션 */}
           <SectionHeader label="시장 정보" />

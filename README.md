@@ -17,8 +17,6 @@
 |--------|------|
 | `/` | 홈 — 월별 카테고리 목표·현황, 동기간 비교(주문확정·설치인증·BM별), 거래건수(카테고리/BM/렌탈사별) |
 | `/category-trends` | 카테고리 트렌드 — 월별 카테고리 비중 추이, 렌탈사 드릴다운, 신규/이탈 감지, 주별 상품 현황 |
-| `/compare` | 비교 분석 — 렌탈사별 카테고리 거래건수 추이 비교 |
-| `/conversion` | 전환율 분석 |
 | `/competitive-subsidy` | 경쟁사 지원금 조사 |
 | `/company/[label]` | 렌탈사 상세 — 월별 총렌탈료(MOM), 주차별 지표, 카테고리·포지션·상위상품 분석 |
 
@@ -60,8 +58,6 @@ Next.js Pages
 app/
 ├── page.tsx                      # 홈 (카테고리 목표·동기간 비교·거래건수)
 ├── category-trends/              # 카테고리 트렌드 (월별 비중·드릴다운·주별 상품)
-├── compare/                      # 렌탈사별 비교 분석
-├── conversion/                   # 전환율 분석
 ├── competitive-subsidy/          # 경쟁사 지원금 조사
 ├── company/[company]/            # 렌탈사 상세
 ├── api/
