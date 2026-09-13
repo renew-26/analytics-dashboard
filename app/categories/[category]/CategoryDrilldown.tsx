@@ -70,9 +70,7 @@ export type TrendChart = {
 };
 
 /** 브랜드 묶음의 스크롤 앵커 — ④의 렌탈사 이름이 여기로 보낸다 */
-const brandAnchorId = (label: string) => `brand-${encodeURIComponent(label)}`;
-/** 접힌 브랜드 묶음 한 줄의 앵커 — 상위 N 밖 렌탈사는 여기로 보낸다 */
-const REST_ANCHOR_ID = "brand-rest";
+import { REST_ANCHOR_ID, brandAnchorId } from "./brand-anchor";
 
 /**
  * 건수 증감 — 비율이 아니라 절대 건수라 데드존(±1.5)을 쓰지 않는다.

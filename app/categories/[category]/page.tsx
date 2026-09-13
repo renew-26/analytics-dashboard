@@ -34,8 +34,11 @@ import CategoryDrilldown, {
   type BrandRest,
   type TrendChart,
 } from "./CategoryDrilldown";
+import { REST_ANCHOR_ID, brandAnchorId } from "./brand-anchor";
 import BMMixBar from "@/app/components/home/BMMixBar";
-import CategoryCards from "@/app/components/home/CategoryCards";
+import CategoryCards, {
+  type CardLink,
+} from "@/app/components/home/CategoryCards";
 import Sparkline from "@/app/components/home/Sparkline";
 import { deltaColor as dirColor, manwon } from "@/app/components/home/cardKit";
 import Delta from "@/app/components/Delta";
@@ -551,6 +554,60 @@ export default async function CategoryGroupPage({
   const topPosCat = catCountDiff.find((g) => g.value > 0);
   const topNegCat = catCountDiff.find((g) => g.value < 0);
 
+  // ── 브랜드 카드 ────────────────────────────────────────
+  // 세부 카테고리 카드와 같은 틀을 브랜드 축으로 한 번 더 돌린다. 세부가
+  // 하나뿐인 그룹(정수기·타이어·인터넷)은 위 카드가 아예 안 서므로, 이
+  // 화면에서 "누가 움직였나"를 카드로 보는 유일한 자리이기도 하다.
+  const brandKeys = allBrandGroups.map((g) => g.label);
+  // 태그 자리에는 그 브랜드의 주력 세부 카테고리를 건다. 세부가 하나뿐인
+  // 그룹에서는 전부 같은 값이라 정보가 아니므로 태그를 비운다.
+  const detailKeys = detailCatKeys(group);
+  const topDetailByBrand = new Map<string, string>();
+  if (detailKeys.length > 1) {
+    for (const [brand, rows] of bucketBy(currRows, brandOf)) {
+      const m = new Map<string, number>();
+      for (const r of rows) {
+        const k = catKeyOf(r);
+        m.set(k, (m.get(k) ?? 0) + 1);
+      }
+      const top = Array.from(m.entries()).sort((a, b) => b[1] - a[1])[0];
+      if (top) topDetailByBrand.set(brand, top[0]);
+    }
+  }
+  // 브랜드에는 전용 라우트가 없다(브랜드 분석 화면은 걷어냈다) — ⑤ 표의
+  // 그 브랜드 묶음으로 보낸다. 상위 N 밖으로 접힌 브랜드는 그것을 삼킨
+  // "그 외" 줄로 보낸다. CategoryDrilldown 의 anchorOf 와 같은 규칙이다.
+  const shownBrandLabels = new Set(brandGroups.map((g) => g.label));
+  const brandLinkOf = (label: string): CardLink => {
+    const shown = shownBrandLabels.has(label);
+    return {
+      href: `#${shown ? brandAnchorId(label) : REST_ANCHOR_ID}`,
+      base: "#brand-",
+      query: shown ? label : "rest",
+      hint: "상품별 상세",
+    };
+  };
+  const brandCards = buildCategoryCards({
+    windowRows: groupRows,
+    currRows,
+    prevRows,
+    recentYms,
+    dayCut,
+    catKeyOf: brandOf,
+    catKeys: brandKeys,
+  }).map((c) => ({
+    ...c,
+    group: topDetailByBrand.get(c.label) ?? "",
+    link: brandLinkOf(c.label),
+  }));
+
+  const brandCountDiff = diffMap(
+    sumBy(currRows, brandOf, () => 1),
+    sumBy(prevRows, brandOf, () => 1),
+  );
+  const topPosBrand = brandCountDiff.find((g) => g.value > 0);
+  const topNegBrand = brandCountDiff.find((g) => g.value < 0);
+
   // ── BM 구성 ────────────────────────────────────────────
   const bmAgg = (rows: Row[]) => {
     const m = {
@@ -826,7 +883,51 @@ export default async function CategoryGroupPage({
         </section>
       )}
 
-      {/* ── ⑥ BM 구성 ───────────────────────────────── */}
+      {/* ── ⑥ 브랜드 ────────────────────────────────── */}
+      {brandCards.length > 1 && (
+        <section>
+          <div className="mb-[11px] flex flex-wrap items-baseline gap-2.5">
+            <h2 className={sectionHead}>브랜드</h2>
+            <span className="text-[12px] text-[var(--color-gray-500)]">
+              {topPosBrand && netDelta > 0 && topPosBrand.value > 0 ? (
+                <>
+                  이번 달 증가분의{" "}
+                  <b className="num text-[var(--color-gray-700)]">
+                    {Math.min(
+                      100,
+                      (topPosBrand.value / netDelta) * 100,
+                    ).toFixed(0)}
+                    %
+                  </b>
+                  가{" "}
+                  <b className="text-[var(--color-gray-700)]">
+                    {topPosBrand.key}
+                  </b>
+                  에서 발생
+                </>
+              ) : topNegBrand && netDelta < 0 ? (
+                <>
+                  이번 달 감소의 최대 출처는{" "}
+                  <b className="text-[var(--color-gray-700)]">
+                    {topNegBrand.key}
+                  </b>{" "}
+                  <b
+                    className="num"
+                    style={{ color: dirColor(topNegBrand.value, 0) }}
+                  >
+                    {fmt(topNegBrand.value)}건
+                  </b>
+                </>
+              ) : (
+                "전월 동기간과 큰 차이가 없습니다"
+              )}
+            </span>
+          </div>
+          <CategoryCards categories={brandCards} groups={[]} />
+        </section>
+      )}
+
+      {/* ── ⑦ BM 구성 ───────────────────────────────── */}
       <section>
         <div className="mb-[11px] flex flex-wrap items-baseline gap-2.5">
           <h2 className={sectionHead}>BM(판매 채널)별 성과</h2>
