@@ -4,10 +4,28 @@ import { recentYmsOf } from "@/lib/format";
 import {
   buildCompanyCards,
   countInstall90d,
+  CARD_DEFS,
+  matchesCompany,
+  perDeal,
   type CardContractRow,
 } from "@/lib/company-cards";
+import { conversionStats, type ConvRow } from "@/lib/conversion";
 import { resolveTier, TIER_META, TIER_ORDER, type Tier } from "@/lib/tiers";
 import CompanyCards from "@/app/components/home/CompanyCards";
+import Overview from "@/app/components/companies/Overview";
+import Priority from "@/app/components/companies/Priority";
+
+/** fetch B 행 — 전환율 분모용. 렌탈사·카테고리는 COMPANY_MAP 매칭에만 쓴다 */
+type OrderRow = ConvRow & {
+  rental_company: string | null;
+  category: string | null;
+};
+
+const DAY = 86_400_000;
+/** 기준일로부터 오늘까지 며칠 지났나 — 코호트 성숙 판정용 */
+function daysSince(ymd: string): number {
+  return Math.floor((Date.now() - new Date(`${ymd}T00:00:00`).getTime()) / DAY);
+}
 
 // 크론(revalidatePath)이 실제 무효화를 담당하고,
 // 이 값은 크론이 실패해도 캐시가 영구히 얼지 않게 하는 안전망이다.
@@ -25,8 +43,11 @@ export default async function CompaniesPage() {
   const recentYms = recentYmsOf(curr.end);
 
   const rows = await fetchRows<CardContractRow>({
+    // order_confirmed_at 은 리드타임(주문→계약 평균 소요일)용이다.
+    // 이 fetch 는 basis "contract" 라 계약완료된 행만 오므로 계약완료율의 분모
+    // (주문은 됐지만 아직 계약 전인 행)는 여기 없다 — 그건 별도 fetch 다.
     select:
-      "contract_date, rental_company, category, partner_company, total_rental_fee, contribution_margin, sales",
+      "contract_date, order_confirmed_at, rental_company, category, partner_company, total_rental_fee, contribution_margin, sales",
     start: `${recentYms[0]}-01`,
     end: curr.end,
     orderBy: "prop_item_usid",
@@ -38,6 +59,36 @@ export default async function CompaniesPage() {
   const prevContracts = rows.filter(
     (r) => r.contract_date >= prev.start && r.contract_date <= prev.end,
   );
+
+  // fetch B — 계약완료율의 분모. 위 fetch 는 basis "contract" 라 계약된 행만 오므로
+  // "주문은 됐지만 아직 계약 전"인 행이 통째로 빠져 있다. ① 이 쓰는 건 이번 달·전월
+  // 두 구간뿐이라 12개월을 긁지 않는다.
+  const orderRows = await fetchRows<OrderRow>({
+    basis: "order",
+    select: "order_confirmed_at, contract_date, rental_company, category",
+    start: prev.start,
+    end: curr.end,
+    orderBy: "prop_item_usid",
+  });
+
+  // 점유율·합계의 분모와 같은 모집단을 쓴다 — COMPANY_MAP 에 있는 렌탈사만.
+  // 여기서 안 맞추면 전환율 분모에만 취급 밖 렌탈사가 섞인다.
+  const mapped = orderRows.filter((r) =>
+    CARD_DEFS.some((d) => matchesCompany(d, r)),
+  );
+  const inWindow = (r: OrderRow, s: string, e: string) =>
+    r.order_confirmed_at >= s && r.order_confirmed_at <= e;
+
+  const convCurr = conversionStats(
+    mapped.filter((r) => inWindow(r, curr.start, curr.end)),
+  );
+  const convPrev = conversionStats(
+    mapped.filter((r) => inWindow(r, prev.start, prev.end)),
+  );
+
+  // 코호트 성숙 — 전환은 주문확정 후 30일까지 이어진다(정수기 실측 30일 84.0%).
+  // 이번 달 코호트는 마지막 주문이 오늘이라 정의상 안 익었다.
+  const convMature = daysSince(curr.end) >= 30;
 
   const cards = buildCompanyCards({
     currContracts,
@@ -60,6 +111,30 @@ export default async function CompaniesPage() {
   const tierCount = new Map<Tier, number>();
   for (const c of visibleCards)
     tierCount.set(c.tier, (tierCount.get(c.tier) ?? 0) + 1);
+
+  // ① 전체 현황 — 카드 합계로 낸다. 카드가 이미 COMPANY_MAP 모집단이라
+  // 점유율 분모와 같은 축이 된다.
+  const sum = (f: (c: (typeof visibleCards)[number]) => number) =>
+    visibleCards.reduce((s, c) => s + f(c), 0);
+  const currSum = sum((c) => c.curr);
+  const prevSum = sum((c) => c.prev);
+  const paceSum = sum((c) => c.pace);
+  // 리드타임 전체 평균은 건수 가중이어야 한다 — 렌탈사별 평균을 그냥 평균하면
+  // 4건짜리 렌탈사가 6,000건짜리와 같은 무게를 갖는다.
+  const weighted = (
+    days: (c: (typeof visibleCards)[number]) => number | null,
+    cnt: (c: (typeof visibleCards)[number]) => number,
+  ) => {
+    let num = 0;
+    let den = 0;
+    for (const c of visibleCards) {
+      const d = days(c);
+      if (d === null) continue;
+      num += d * cnt(c);
+      den += cnt(c);
+    }
+    return den > 0 ? num / den : null;
+  };
 
   return (
     <div className="min-h-screen space-y-[18px] bg-[var(--color-page)] px-10 pt-8 pb-16">
@@ -90,6 +165,31 @@ export default async function CompaniesPage() {
           ))}
         </div>
       </div>
+
+      <Overview
+        contracts={currSum}
+        contractsPrev={prevSum}
+        contractsPaceIdx={paceSum > 0 ? (currSum / paceSum) * 100 : null}
+        amountEok={sum((c) => c.amount)}
+        amountPrevEok={sum((c) => c.amountPrev)}
+        salesEok={sum((c) => c.sales)}
+        salesPrevEok={sum((c) => c.salesPrev)}
+        cpu={perDeal(sum((c) => c.cpu * c.curr), currSum)}
+        cpuPrev={perDeal(sum((c) => c.cpuPrev * c.prev), prevSum)}
+        convRate={convCurr.rate}
+        convRatePrev={convPrev.rate}
+        convMature={convMature}
+        leadDays={weighted(
+          (c) => c.leadDays,
+          (c) => c.curr,
+        )}
+        leadDaysPrev={weighted(
+          (c) => c.leadDaysPrev,
+          (c) => c.prev,
+        )}
+      />
+
+      <Priority companies={visibleCards} />
 
       <CompanyCards companies={visibleCards} />
 

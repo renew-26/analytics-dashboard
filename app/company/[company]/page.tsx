@@ -21,7 +21,7 @@ import {
   trimLeadingGap,
 } from "@/lib/decompose";
 import { EOK, MAN, pct, pctAbs, recentYmsOf, signedInt } from "@/lib/format";
-import { judgeState } from "@/lib/status";
+import { judgeState, paceColor } from "@/lib/status";
 import Sparkline from "@/app/components/home/Sparkline";
 import {
   deltaColor as dirColor,
@@ -1568,6 +1568,19 @@ export default async function CompanyPage({
     kMgByYm.set(ym, (kMgByYm.get(ym) ?? 0) + (r.contribution_margin ?? 0));
   }
 
+  // 카테고리 그룹 × 월 건수 — ④ 카테고리별 성과의 "평소 대비" 판정용.
+  // 판정 기준은 자기 과거 대비다(DESIGN.md) — 여기서는 이 렌탈사 × 이 카테고리의
+  // 최근 3개월 같은 기간 평균이다. 전사 평균이나 목표치를 쓰지 않는다.
+  const catCntByYm = new Map<string, Map<string, number>>();
+  for (const r of iaRows) {
+    if (Number(r.contract_date.slice(8, 10)) > dayCut) continue;
+    const g = catGroupOf(r.category);
+    const ym = r.contract_date.slice(0, 7);
+    if (!catCntByYm.has(g)) catCntByYm.set(g, new Map());
+    const m = catCntByYm.get(g)!;
+    m.set(ym, (m.get(ym) ?? 0) + 1);
+  }
+
   // 상태(평소 페이스 = 직전 3개월 같은 기간 평균 건수)·티어
   const paceMonths = recentYms.slice(-4, -1);
   const pace = paceMonths.length
@@ -1576,6 +1589,7 @@ export default async function CompanyPage({
     : 0;
   const state = judgeState(iaCurr.length, pace);
   const tier = resolveTier(countInstall90d(iaRows, curr.end).get(label) ?? 0);
+
 
   // KPI 4종
   const iaSum = (rows: IaRow[], of: (r: IaRow) => number) =>
@@ -1630,10 +1644,22 @@ export default async function CompanyPage({
     g.margin += r.contribution_margin ?? 0;
   }
   for (const r of iaPrev) groupOf(catGroupOf(r.category)).cntPrev += 1;
-  const groupRows = CATEGORY_GROUPS.map((g) => ({
-    key: g.key,
-    ...(groupAgg.get(g.key) ?? { cnt: 0, cntPrev: 0, sales: 0, margin: 0 }),
-  })).filter((g) => g.cnt > 0 || g.cntPrev > 0);
+  // 6그룹을 전부 세운다 — 거래가 없는 그룹을 빼지 않는다. 안 파는 카테고리가
+  // 안 보이면 "이 렌탈사는 정수기만 판다"와 "대형가전이 이번 달 0이 됐다"를
+  // 구별할 수 없다. 안 파는 것도 정보다(크로스셀 여지가 어디인지).
+  const groupRows = CATEGORY_GROUPS.map((g) => {
+    const months = catCntByYm.get(g.key);
+    return {
+      key: g.key,
+      ...(groupAgg.get(g.key) ?? { cnt: 0, cntPrev: 0, sales: 0, margin: 0 }),
+      // 판정은 자기 과거 대비 — 이 렌탈사 × 이 카테고리의 최근 3개월 같은 기간 평균
+      pace: paceMonths.length
+        ? paceMonths.reduce((s, ym) => s + (months?.get(ym) ?? 0), 0) /
+          paceMonths.length
+        : 0,
+    };
+  });
+  const groupCntTotal = groupRows.reduce((s, g) => s + g.cnt, 0);
 
   // 상품별 성과 + 증감 요인 + 수익성 분해 (조합 페이지와 같은 상품 키)
   const prodKeyOf = (r: IaRow) => `${r.product_name ?? ""}|${r.model_name ?? ""}`;
@@ -1851,13 +1877,15 @@ export default async function CompanyPage({
           </div>
           <div className={`${iaPanel} overflow-hidden`}>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[480px] bg-white text-[12px]">
+              <table className="w-full min-w-[620px] bg-white text-[12px]">
                 <thead>
                   <tr className="border-b border-[var(--color-gray-200)]">
                     <th className={`${iaTh} text-left`}>그룹</th>
                     <th className={iaTh}>계약완료</th>
                     <th className={iaTh}>전월</th>
                     <th className={iaTh}>증감</th>
+                    <th className={iaTh}>평소 대비</th>
+                    <th className={iaTh}>점유율</th>
                     <th className={iaTh}>매출</th>
                     <th className={iaTh}>건당 공헌이익</th>
                   </tr>
@@ -1865,20 +1893,34 @@ export default async function CompanyPage({
                 <tbody>
                   {groupRows.map((g) => {
                     const diff = g.cnt - g.cntPrev;
+                    // 이번 달도 전월도 0 — 이 렌탈사가 안 파는 카테고리다.
+                    // 숨기지 않되 회색으로 눕혀 시선은 뺏지 않는다. 갈 곳이 없으므로
+                    // 링크로도 만들지 않는다 — 눌러도 빈 화면이면 거짓 약속이다.
+                    const empty = g.cnt === 0 && g.cntPrev === 0;
+                    const idx = g.pace > 0 ? (g.cnt / g.pace) * 100 : null;
+                    const muted = "text-[var(--color-gray-400)]";
                     return (
                       <tr
                         key={g.key}
                         className="border-t border-[var(--color-line-2)] hover:bg-[var(--color-gray-25)]"
                       >
                         <td className={`${iaTd} text-left`}>
-                          <Link
-                            href={`/categories/${encodeURIComponent(g.key)}/${encodeURIComponent(label)}`}
-                            className="font-bold text-[var(--color-gray-700)] hover:text-[var(--color-primary)] hover:underline"
-                          >
-                            {g.key}
-                          </Link>
+                          {empty ? (
+                            <span className={`font-bold ${muted}`}>
+                              {g.key}
+                            </span>
+                          ) : (
+                            <Link
+                              href={`/categories/${encodeURIComponent(g.key)}/${encodeURIComponent(label)}`}
+                              className="font-bold text-[var(--color-gray-700)] hover:text-[var(--color-primary)] hover:underline"
+                            >
+                              {g.key}
+                            </Link>
+                          )}
                         </td>
-                        <td className={`${iaTd} num font-bold`}>
+                        <td
+                          className={`${iaTd} num font-bold ${empty ? muted : ""}`}
+                        >
                           {fmtN(g.cnt)}
                         </td>
                         <td className={`${iaTd} num text-[var(--color-gray-500)]`}>
@@ -1888,13 +1930,27 @@ export default async function CompanyPage({
                           className={`${iaTd} num font-bold`}
                           style={{ color: dirColor(diff, 0) }}
                         >
-                          {signedInt(diff)}
+                          {diff === 0 ? "—" : signedInt(diff)}
                         </td>
-                        <td className={`${iaTd} num`}>
-                          {fmtN(g.sales / MAN)}만원
+                        <td className={`${iaTd} num font-semibold`}>
+                          {idx === null ? (
+                            <span className={muted}>—</span>
+                          ) : (
+                            <span style={{ color: paceColor(idx) }}>
+                              {idx.toFixed(0)}%
+                            </span>
+                          )}
                         </td>
-                        <td className={`${iaTd} num`}>
-                          {manwon(perDeal(g.margin, g.cnt))}
+                        <td className={`${iaTd} num ${empty ? muted : ""}`}>
+                          {groupCntTotal > 0 && g.cnt > 0
+                            ? `${((g.cnt / groupCntTotal) * 100).toFixed(1)}%`
+                            : "—"}
+                        </td>
+                        <td className={`${iaTd} num ${empty ? muted : ""}`}>
+                          {empty ? "—" : `${fmtN(g.sales / MAN)}만원`}
+                        </td>
+                        <td className={`${iaTd} num ${empty ? muted : ""}`}>
+                          {g.cnt > 0 ? manwon(perDeal(g.margin, g.cnt)) : "—"}
                         </td>
                       </tr>
                     );

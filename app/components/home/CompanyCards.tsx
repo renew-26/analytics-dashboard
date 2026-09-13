@@ -27,12 +27,23 @@ export type CompanyCard = {
   pace: number;
   /** 거래액 GMV (억) */
   amount: number;
+  /** 전월 동기간 거래액 (억) */
+  amountPrev: number;
   /** 매출 (억) */
   sales: number;
   /** 전월 동기간 매출 (억) — 홈 매출 급증/급감 신호 판정에 쓴다 */
   salesPrev: number;
   /** 건당 공헌이익 (원) */
   cpu: number;
+  /** 전월 동기간 건당 공헌이익 (원) — "공헌이익 급변" 신호 판정용 */
+  cpuPrev: number;
+  /**
+   * 주문→계약 평균 소요일. select 에 order_confirmed_at 이 없으면 null 이다.
+   * 오르면 나쁜 지표이므로 방향색을 쓰지 않는다 — 심각도색 + 텍스트 라벨.
+   */
+  leadDays: number | null;
+  /** 전월 동기간 소요일 */
+  leadDaysPrev: number | null;
   topCategory: string;
   topShare: number;
   rank: number;
