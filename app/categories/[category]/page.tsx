@@ -31,6 +31,7 @@ import {
 import { type CategoryMonthPoint } from "@/app/components/CategoryMonthlyChart";
 import CategoryDrilldown, {
   type BrandGroup,
+  type BrandRest,
   type TrendChart,
 } from "./CategoryDrilldown";
 import BMMixBar from "@/app/components/home/BMMixBar";
@@ -59,6 +60,9 @@ const BM_COLORS: Record<string, string> = {
 
 /** ⑤ 브랜드 묶음 하나에 세울 상품 수 (당월 계약완료 상위) */
 const BRAND_PRODUCT_LIMIT = 5;
+
+/** ⑤ 표에 세울 브랜드 묶음 수 — 나머지는 "그 외"로 접는다 */
+const BRAND_GROUP_LIMIT = 10;
 
 type Row = CardContractRow & {
   product_name: string | null;
@@ -200,7 +204,7 @@ export default async function CategoryGroupPage({
       : undefined;
 
   // ── 축 집계 — 렌탈사(1차) · 렌탈사별 브랜드(2차) ────────
-  // 렌탈사별 행 버킷을 한 번만 만들어 돌려 쓴다. 지표 4개 × 렌탈사 N곳마다
+  // 렌탈사별 행 버킷을 한 번만 만들어 돌려 쓴다. 지표 3개 × 렌탈사 N곳마다
   // currRows/prevRows 를 다시 훑으면 큰 그룹(수천 행)에서 곱으로 늘어난다.
   const brandOf = (r: Row) => r.brand?.trim() || "(브랜드 없음)";
   const bucketBy = <T,>(rows: T[], keyOf: (r: T) => string) => {
@@ -227,11 +231,11 @@ export default async function CategoryGroupPage({
     companies.push({ label, cnt: 0, cntPrev: 0, amount: 0, sales: 0, margin: 0 });
   }
 
-  // ④ 행을 누르면 ⑤에서 그 렌탈사의 브랜드 묶음으로 스크롤한다. 한 렌탈사가
-  // 여러 브랜드를 달고 있으면 당월 계약완료가 가장 많은 브랜드로 보낸다.
+  // ④의 렌탈사 이름은 ⑤의 브랜드 묶음으로 가는 앵커다. 한 렌탈사가 여러
+  // 브랜드를 달고 있으면 당월 계약완료가 가장 많은 브랜드로 보낸다.
   const topBrandByCompany: Record<string, string> = {};
   const convByCompany: Record<string, ConvStats> = {};
-  // 렌탈사 상세로 가는 경로 — ④ 표는 행 클릭이 선택이라 링크를 따로 건다
+  // 렌탈사 상세로 가는 경로 — ④의 이름은 ⑤로 가는 앵커라 상세 링크를 따로 건다
   const coHrefByCompany: Record<string, string> = {};
   for (const co of companies) {
     const href = coHref(co.label);
@@ -250,7 +254,7 @@ export default async function CategoryGroupPage({
   // ── 워터폴 축 롤업 — 상위 6 + 기타 (④ 표의 companies는 원본 그대로 둔다) ──
   // 사용자 확정(2026-09-13). companies는 이미 당월 계약건수(cnt) 내림차순이라
   // 앞 6개가 곧 상위 6이다. 접는 건 차트 가독성 문제이지 표에서 숨기는 게
-  // 아니므로 ④/⑤(companies, brandByCompany 등)는 이 아래에서 건드리지 않는다.
+  // 아니므로 ④(companies)는 이 아래에서 건드리지 않는다.
   const TOP_N = 6;
   const topCompanyLabels = new Set(companies.slice(0, TOP_N).map((c) => c.label));
   const rollupRemainder = companies.slice(TOP_N);
@@ -335,13 +339,13 @@ export default async function CategoryGroupPage({
     };
   });
 
-  // ── ③ 12개월 추이 — 거래건수·매출 ───────────────────────
+  // ── ③ 12개월 추이 — 계약완료·매출 ───────────────────────
   // 워터폴 4번째 탭(건당 공헌이익)을 걷어낸 자리. "왜 변했나"보다 "1년 동안 어떤
   // 모양이었나"가 낫다는 사용자 판단(2026-09-13).
   //
   // ①의 스파크라인은 달마다 1~dayCut 으로 잘라 같은 기간끼리 비교하지만, 여기는
   // 한 해의 모양을 보는 자리라 지난달까지는 달을 통째로 쓴다. 마지막 달만 진행
-  // 중이라 낮게 찍히므로 부제에 그 사실을 적는다.
+  // 중이라 낮게 찍히므로 부제에 적고, 마지막 점은 속 빈 원으로 그린다.
   const trendCntByYm = new Map<string, number>();
   const trendSalesByYm = new Map<string, number>();
   for (const r of groupRows) {
@@ -349,55 +353,68 @@ export default async function CategoryGroupPage({
     trendCntByYm.set(ym, (trendCntByYm.get(ym) ?? 0) + 1);
     trendSalesByYm.set(ym, (trendSalesByYm.get(ym) ?? 0) + (r.sales ?? 0));
   }
-  // 값이 잡히기 전 구간을 0으로 그리면 "그때는 0이었다"는 거짓말이 된다 —
-  // 손익은 2026-01부터만 채워져 있다. 앞을 잘라낸다.
-  const trendPoints = (
-    seriesKey: string,
-    valueOf: (ym: string) => number,
-  ): CategoryMonthPoint[] => {
-    const vals = recentYms.map(valueOf);
-    const first = vals.findIndex((v) => v !== 0);
-    if (first < 0) return [];
-    return recentYms.slice(first).map((ym, i) => ({
-      month: `${ym.slice(2, 4)}.${ym.slice(5, 7)}`,
-      [seriesKey]: vals[first + i],
-    }));
-  };
-  // 매출 단위는 그룹 크기에 따라 고른다. 억으로 고정하면 타이어(월 40~60만원)가
-  // 열두 달 내내 0.00~0.01 로 접혀 축이 바닥에 눌어붙는다 — 그건 축이 아니라
-  // 반올림이 모양을 지운 것이다. 1억을 못 넘는 그룹은 만원으로 그린다.
-  const maxSalesMan = Math.max(
-    0,
-    ...recentYms.map((ym) => (trendSalesByYm.get(ym) ?? 0) / MAN),
-  );
-  const salesInEok = maxSalesMan >= EOK / MAN;
-  const salesOf = (ym: string) => {
-    const won = trendSalesByYm.get(ym) ?? 0;
-    return salesInEok
-      ? Math.round((won / EOK) * 100) / 100
-      : Math.round(won / MAN);
-  };
-  // 자릿수가 달라 한 축에 못 올린다(거래건수는 백 단위, 매출은 억) — 차트를 나눈다.
-  const trendSubtitle = `최근 12개월 · ${month}월은 ${dayCut}일까지 (진행중)`;
-  const trendCharts: TrendChart[] = [
+  // 매출은 그룹 크기와 무관하게 만원으로 그린다. 억으로 고정하면 타이어(월
+  // 40~60만원)가 열두 달 내내 0.00~0.01 로 접혀 반올림이 모양을 지우고, 그렇다고
+  // "1억 넘으면 억"으로 가르면 12개월 최대가 경계에 걸친 그룹(대형가전 1.20억)이
+  // 그 달이 창 밖으로 굴러가는 순간 축이 10,000배로 조용히 바뀐다. 만원 하나로
+  // 두면 여섯 그룹의 차트가 서로 비교되기도 한다.
+  const trendSeries = [
     {
-      title: `${key} 월별 거래건수`,
-      subtitle: trendSubtitle,
-      seriesKey: "거래건수",
+      key: "계약완료",
       color: "var(--color-cat-1)",
       unit: "건",
-      data: trendPoints("거래건수", (ym) => trendCntByYm.get(ym) ?? 0),
+      titleUnit: "",
+      values: recentYms.map((ym) => trendCntByYm.get(ym) ?? 0),
     },
     {
-      // Y축에 단위 라벨이 없고 단위가 그룹마다 갈리므로 제목에 적는다
-      title: `${key} 월별 매출 (${salesInEok ? "억" : "만원"})`,
-      subtitle: trendSubtitle,
-      seriesKey: "매출",
+      // Y축에 단위 라벨이 없으므로 제목에 적는다
+      key: "매출",
       color: "var(--color-cat-2)",
-      unit: salesInEok ? "억" : "만원",
-      data: trendPoints("매출", salesOf),
+      unit: "만원",
+      titleUnit: " (만원)",
+      values: recentYms.map((ym) =>
+        Math.round((trendSalesByYm.get(ym) ?? 0) / MAN),
+      ),
     },
-  ].filter((c) => c.data.length > 0);
+  ];
+  // 두 차트는 나란히 선다. 계열마다 앞을 잘라내면 같은 가로 위치가 서로 다른
+  // 달을 가리켜 "건수는 늘었는데 매출은 줄었다"가 딴 달끼리의 비교가 된다 —
+  // 시작 월은 먼저 값이 잡히는 계열 하나로 맞춘다.
+  const firstOf = (vals: number[]) => vals.findIndex((v) => v !== 0);
+  const trendFirsts = trendSeries
+    .map((s) => firstOf(s.values))
+    .filter((i) => i >= 0);
+  const trendStart = trendFirsts.length > 0 ? Math.min(...trendFirsts) : -1;
+  const trendSubtitle = `최근 12개월 · ${month}월은 ${dayCut}일까지 (진행중)`;
+  const trendCharts: TrendChart[] =
+    trendStart < 0
+      ? []
+      : trendSeries
+          .filter((s) => firstOf(s.values) >= 0)
+          .map((s) => {
+            const own = firstOf(s.values);
+            const vals = s.values.slice(trendStart);
+            return {
+              title: `${key} 월별 ${s.key}${s.titleUnit}`,
+              subtitle: trendSubtitle,
+              seriesKey: s.key,
+              color: s.color,
+              unit: s.unit,
+              // 값이 잡히기 전 구간은 null 이다 — 0 으로 그리면 "그때는 0이었다"는
+              // 거짓말이 되고(손익은 2026-01부터 채워진다), null 은 선이 끊긴다.
+              data: recentYms.slice(trendStart).map(
+                (ym, i): CategoryMonthPoint => ({
+                  month: `${ym.slice(2, 4)}.${ym.slice(5, 7)}`,
+                  [s.key]: i + trendStart < own ? null : vals[i],
+                }),
+              ),
+              // 0 에서 시작하지 않는 축은 밑동을 속인다 — 밑동을 0 으로 못박는다
+              yDomain: [0, Math.ceil(Math.max(...vals) * 1.12)] as [
+                number,
+                number,
+              ],
+            };
+          });
 
   // ── ⑤ 브랜드별 상품 성과 ────────────────────────────────
   // "SK·쿠쿠 각 렌탈사마다 잘나가는 상품"을 한 화면에서 훑는 표 — ④에서 고른
@@ -454,29 +471,56 @@ export default async function CategoryGroupPage({
   const prodByBrand = bucketBy(Array.from(prodMap.values()), (p) => p.brand);
   // 브랜드 묶음은 당월 계약완료 내림차순. 당월 0건이라도 전월에 있었으면 남긴다
   // — "이 브랜드가 통째로 빠졌다"도 이 표가 답해야 할 것 중 하나다.
-  const brandGroups: BrandGroup[] = aggregateAxis(
+  const allBrandGroups: BrandGroup[] = aggregateAxis(
     currRows,
     prevRows,
     brandOf,
-  ).map((b) => ({
-    label: b.label,
-    cnt: b.cnt,
-    cntPrev: b.cntPrev,
-    sales: b.sales,
-    margin: b.margin,
-    products: (prodByBrand.get(b.label) ?? [])
-      .filter((p) => p.cnt > 0)
-      .sort((x, y) => y.cnt - x.cnt || y.cntPrev - x.cntPrev)
-      .slice(0, BRAND_PRODUCT_LIMIT)
-      .map((p) => ({
-        product: p.product,
-        cnt: p.cnt,
-        cntPrev: p.cntPrev,
-        sales: p.sales,
-        margin: p.margin,
-        href: prodHref(p),
-      })),
-  }));
+  ).map((b) => {
+    const sold = (prodByBrand.get(b.label) ?? []).filter((p) => p.cnt > 0);
+    return {
+      label: b.label,
+      cnt: b.cnt,
+      cntPrev: b.cntPrev,
+      sales: b.sales,
+      margin: b.margin,
+      // 머리줄 합계가 아래 다섯 줄보다 큰 이유를 그 줄에서 바로 대게 한다
+      moreProducts: Math.max(0, sold.length - BRAND_PRODUCT_LIMIT),
+      products: sold
+        .sort((x, y) => y.cnt - x.cnt || y.cntPrev - x.cntPrev)
+        .slice(0, BRAND_PRODUCT_LIMIT)
+        .map((p) => ({
+          product: p.product,
+          cnt: p.cnt,
+          cntPrev: p.cntPrev,
+          sales: p.sales,
+          margin: p.margin,
+          href: prodHref(p),
+        })),
+    };
+  });
+  // 기타 그룹은 브랜드 묶음이 28개(≈5,500px)라 표가 화면이 아니라 두루마리가
+  // 된다. 상위 N만 세우고 나머지는 한 줄로 접되, 합계를 실어 열이 카테고리
+  // 합계와 그대로 맞게 둔다 — 접는 건 가독성 문제이지 숨기는 게 아니다.
+  // 접힐 게 하나뿐이면 "그 외 1개 브랜드"일 뿐이라 그냥 그 브랜드를 세운다
+  // (위 워터폴 축 롤업과 같은 판단).
+  const rollupBrands = allBrandGroups.length - BRAND_GROUP_LIMIT >= 2;
+  const brandGroups = rollupBrands
+    ? allBrandGroups.slice(0, BRAND_GROUP_LIMIT)
+    : allBrandGroups;
+  const restBrandGroups = rollupBrands
+    ? allBrandGroups.slice(BRAND_GROUP_LIMIT)
+    : [];
+  const restTotal = (of: (g: BrandGroup) => number) =>
+    restBrandGroups.reduce((s, g) => s + of(g), 0);
+  const brandRest: BrandRest | undefined = rollupBrands
+    ? {
+        brands: restBrandGroups.length,
+        cnt: restTotal((g) => g.cnt),
+        cntPrev: restTotal((g) => g.cntPrev),
+        sales: restTotal((g) => g.sales),
+        margin: restTotal((g) => g.margin),
+      }
+    : undefined;
 
   // ── 세부 카테고리 카드 ─────────────────────────────────
   // 그룹 안에 세부가 하나뿐이면(정수기·타이어·인터넷) 카드가 KPI의 복사본이라 세우지 않는다
@@ -727,6 +771,7 @@ export default async function CategoryGroupPage({
         topBrandByCompany={topBrandByCompany}
         convByCompany={convByCompany}
         brandGroups={brandGroups}
+        brandRest={brandRest}
         productLimit={BRAND_PRODUCT_LIMIT}
         initialCompany={initialCompany}
         panelClass={panel}

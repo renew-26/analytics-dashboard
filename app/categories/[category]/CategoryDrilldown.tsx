@@ -43,7 +43,18 @@ export type BrandGroup = {
   cntPrev: number;
   sales: number;
   margin: number;
+  /** 상위 N 밖으로 밀린 상품 수 — 머리줄 합계가 아래 줄 합보다 큰 이유 */
+  moreProducts: number;
   products: ProductDelta[];
+};
+
+/** 상위 N 밖으로 접힌 브랜드 묶음들의 합계 — 열이 카테고리 합계와 맞게 */
+export type BrandRest = {
+  brands: number;
+  cnt: number;
+  cntPrev: number;
+  sales: number;
+  margin: number;
 };
 
 /** ③ 아래에 세우는 월별 추이 차트 한 장 */
@@ -54,10 +65,14 @@ export type TrendChart = {
   color: string;
   unit: string;
   data: CategoryMonthPoint[];
+  /** 밑동을 0 으로 못박은 축 범위 */
+  yDomain: [number, number];
 };
 
-/** 브랜드 묶음의 스크롤 앵커 — ④ 행 클릭이 여기로 보낸다 */
+/** 브랜드 묶음의 스크롤 앵커 — ④의 렌탈사 이름이 여기로 보낸다 */
 const brandAnchorId = (label: string) => `brand-${encodeURIComponent(label)}`;
+/** 접힌 브랜드 묶음 한 줄의 앵커 — 상위 N 밖 렌탈사는 여기로 보낸다 */
+const REST_ANCHOR_ID = "brand-rest";
 
 /**
  * 건수 증감 — 비율이 아니라 절대 건수라 데드존(±1.5)을 쓰지 않는다.
@@ -76,6 +91,18 @@ function DeltaCount({ value }: { value: number }) {
   );
 }
 
+/** 만원 금액 — 단위는 값보다 작고 흐리게 (DESIGN.md 타이포그래피) */
+function Manwon({ won }: { won: number }) {
+  return (
+    <>
+      {fmt(won / MAN)}
+      <i className="ml-0.5 text-[10px] font-medium not-italic text-[var(--color-gray-500)]">
+        만원
+      </i>
+    </>
+  );
+}
+
 /**
  * 렌탈사(1차) → 브랜드(2차) → 상품(3차) 드릴다운.
  *
@@ -91,6 +118,7 @@ export default function CategoryDrilldown({
   topBrandByCompany,
   convByCompany,
   brandGroups,
+  brandRest,
   productLimit,
   initialCompany,
   panelClass,
@@ -106,6 +134,8 @@ export default function CategoryDrilldown({
   topBrandByCompany: Record<string, string>;
   convByCompany: Record<string, ConvStats>;
   brandGroups: BrandGroup[];
+  /** 상위 N 밖으로 접힌 묶음들. 접을 게 없으면 없다. */
+  brandRest?: BrandRest;
   productLimit: number;
   /** ?company= 딥링크. 목록에 없으면 무시하고 1위 렌탈사를 연다. */
   initialCompany?: string;
@@ -118,12 +148,26 @@ export default function CategoryDrilldown({
   );
   const totalCnt = companies.reduce((s, c) => s + c.cnt, 0);
 
+  // ④ → ⑤ 이동 대상. 당월 계약이 0건인 렌탈사(주문만 있는 곳)는 브랜드 묶음이
+  // 없으므로 앵커도 없다 — 죽은 링크 대신 링크를 안 건다. 상위 N 밖으로 접힌
+  // 브랜드면 그 브랜드를 삼킨 "그 외" 줄로 보낸다.
+  const shownBrands = new Set(brandGroups.map((g) => g.label));
+  const anchorOf = (company: string) => {
+    const brand = topBrandByCompany[company];
+    if (!brand) return undefined;
+    if (shownBrands.has(brand)) return brandAnchorId(brand);
+    return brandRest ? REST_ANCHOR_ID : undefined;
+  };
+
   // ⑤는 더 이상 렌탈사로 걸러지지 않는다 — 행 클릭은 필터가 아니라 이동이다.
+  // 이름 자체는 진짜 링크(<a href="#...">)라 키보드·JS 없이도 간다. 이 핸들러는
+  // 행 아무 데나 누른 마우스용이고, 링크 쪽은 stopPropagation 으로 갈라 둘이
+  // 같은 스크롤을 두 번 시키지 않게 한다.
   const goToBrand = (company: string) => {
     setSelected(company);
-    const brand = topBrandByCompany[company];
-    if (!brand) return;
-    const el = document.getElementById(brandAnchorId(brand));
+    const id = anchorOf(company);
+    if (!id) return;
+    const el = document.getElementById(id);
     if (!el) return;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
@@ -154,7 +198,9 @@ export default function CategoryDrilldown({
                 subtitle={c.subtitle}
                 data={c.data}
                 series={[{ key: c.seriesKey, color: c.color }]}
+                yDomain={c.yDomain}
                 unit={c.unit}
+                hollowLast
               />
             ))}
           </div>
@@ -184,11 +230,14 @@ export default function CategoryDrilldown({
               {companies.map((c) => {
                 const cv = convByCompany[c.label];
                 const on = c.label === selected;
+                const anchor = anchorOf(c.label);
                 return (
                   <tr
                     key={c.label}
                     onClick={() => goToBrand(c.label)}
-                    className={`cursor-pointer border-t border-[var(--color-line-2)] ${
+                    className={`border-t border-[var(--color-line-2)] ${
+                      anchor ? "cursor-pointer" : ""
+                    } ${
                       on
                         ? "bg-[var(--color-primary-50)]"
                         : "hover:bg-[var(--color-gray-25)]"
@@ -196,19 +245,25 @@ export default function CategoryDrilldown({
                   >
                     <td className="p-[8px_12px] text-left">
                       {/* 행 전체 클릭(마우스)은 그대로 두고, 이동 자체는 이
-                          버튼에 둔다 — 셀 안에 이미 Link 가 있어 행을 통째로
-                          <button> 로 감쌀 수 없다(인터랙티브 요소 중첩 금지). */}
-                      <button
-                        type="button"
-                        onClick={() => goToBrand(c.label)}
-                        aria-pressed={on}
-                        className="press rounded-[4px] font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]"
-                      >
-                        {c.label}
-                      </button>
-                      {/* 행 클릭은 ⑤로 가는 이동이라 상세로 가는 길이 따로
-                          필요하다. 경로를 병기하고, 클릭이 이동까지 발동하지
-                          않게 막는다. */}
+                          앵커에 둔다 — 진짜 링크라야 포커스가 목적지로 따라가고
+                          JS 없이도 간다. 셀 안에 이미 Link 가 있어 행을 통째로
+                          감쌀 수는 없다(인터랙티브 요소 중첩 금지). */}
+                      {anchor ? (
+                        <a
+                          href={`#${anchor}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelected(c.label);
+                          }}
+                          className="press rounded-[4px] font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]"
+                        >
+                          {c.label}
+                        </a>
+                      ) : (
+                        <span className="font-semibold">{c.label}</span>
+                      )}
+                      {/* 이름은 ⑤로 가는 앵커라 상세로 가는 길이 따로 필요하다.
+                          경로를 병기하고, 클릭이 이동까지 발동하지 않게 막는다. */}
                       {coHref[c.label] && (
                         <Link
                           href={coHref[c.label]}
@@ -264,11 +319,23 @@ export default function CategoryDrilldown({
           <span className="text-[12px] text-[var(--color-gray-500)]">
             카테고리 전체 · 브랜드마다 계약완료 상위{" "}
             <b className="num text-[var(--color-gray-700)]">{productLimit}</b>개
+            {brandRest && (
+              <>
+                {" "}
+                · 브랜드 묶음은 상위{" "}
+                <b className="num text-[var(--color-gray-700)]">
+                  {brandGroups.length}
+                </b>
+                개 (나머지는 마지막 한 줄에 합계)
+              </>
+            )}
           </span>
         </div>
-        <div className={`${panelClass} overflow-x-auto`}>
+        {/* 세로 스크롤을 이 상자가 가져가야 머리줄이 붙어 있는다 — 페이지가
+            스크롤하면 sticky 가 걸릴 스크롤 컨테이너가 없다. */}
+        <div className={`${panelClass} max-h-[70vh] overflow-auto`}>
           <table className="w-full min-w-[760px] bg-white text-[12px]">
-            <thead>
+            <thead className="sticky top-0 z-10">
               <tr>
                 <th className={`${th} text-left`}>상품</th>
                 <th className={th}>계약완료</th>
@@ -285,9 +352,21 @@ export default function CategoryDrilldown({
                 className="scroll-mt-[16px]"
               >
                 <tr className="border-t border-[var(--color-gray-250)] bg-[var(--color-gray-25)]">
-                  <td className="p-[8px_12px] text-left font-bold text-[var(--color-gray-900)]">
+                  <th
+                    scope="rowgroup"
+                    className="p-[8px_12px] text-left font-bold text-[var(--color-gray-900)]"
+                  >
                     {g.label}
-                  </td>
+                    {/* 머리줄 합계가 아래 다섯 줄의 합보다 큰 이유를 그 자리에서
+                        댄다 — 섹션 머리의 "상위 5개"는 22번째 묶음까지 내려오면
+                        이미 화면 밖이다. */}
+                    {g.moreProducts > 0 && (
+                      <span className="ml-1.5 text-[11px] font-medium text-[var(--color-gray-500)]">
+                        외 <span className="num">{fmt(g.moreProducts)}</span>개
+                        상품
+                      </span>
+                    )}
+                  </th>
                   <td className={`${td} num font-bold`}>{fmt(g.cnt)}</td>
                   <td className={`${td} num text-[var(--color-gray-500)]`}>
                     {fmt(g.cntPrev)}
@@ -295,7 +374,9 @@ export default function CategoryDrilldown({
                   <td className={td}>
                     <DeltaCount value={g.cnt - g.cntPrev} />
                   </td>
-                  <td className={`${td} num`}>{fmt(g.sales / MAN)}만원</td>
+                  <td className={`${td} num`}>
+                    <Manwon won={g.sales} />
+                  </td>
                   <td className={`${td} num`}>
                     {manwon(g.cnt > 0 ? g.margin / g.cnt : 0)}
                   </td>
@@ -335,7 +416,9 @@ export default function CategoryDrilldown({
                       <td className={td}>
                         <DeltaCount value={p.cnt - p.cntPrev} />
                       </td>
-                      <td className={`${td} num`}>{fmt(p.sales / MAN)}만원</td>
+                      <td className={`${td} num`}>
+                        <Manwon won={p.sales} />
+                      </td>
                       <td className={`${td} num`}>
                         {manwon(p.cnt > 0 ? p.margin / p.cnt : 0)}
                       </td>
@@ -344,6 +427,35 @@ export default function CategoryDrilldown({
                 )}
               </tbody>
             ))}
+            {/* 접힌 묶음 한 줄 — 합계를 실어 열이 카테고리 합계와 맞게 둔다 */}
+            {brandRest && (
+              <tbody id={REST_ANCHOR_ID} className="scroll-mt-[16px]">
+                <tr className="border-t border-[var(--color-gray-250)] bg-[var(--color-gray-25)]">
+                  <th
+                    scope="rowgroup"
+                    className="p-[8px_12px] text-left font-bold text-[var(--color-gray-600)]"
+                  >
+                    그 외 <span className="num">{fmt(brandRest.brands)}</span>개
+                    브랜드
+                  </th>
+                  <td className={`${td} num font-bold`}>{fmt(brandRest.cnt)}</td>
+                  <td className={`${td} num text-[var(--color-gray-500)]`}>
+                    {fmt(brandRest.cntPrev)}
+                  </td>
+                  <td className={td}>
+                    <DeltaCount value={brandRest.cnt - brandRest.cntPrev} />
+                  </td>
+                  <td className={`${td} num`}>
+                    <Manwon won={brandRest.sales} />
+                  </td>
+                  <td className={`${td} num`}>
+                    {manwon(
+                      brandRest.cnt > 0 ? brandRest.margin / brandRest.cnt : 0,
+                    )}
+                  </td>
+                </tr>
+              </tbody>
+            )}
           </table>
         </div>
         <p className="mt-[6px] text-[11px] text-[var(--color-gray-500)]">
