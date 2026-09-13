@@ -213,11 +213,15 @@ async function fetchAllYearContractsUncached(
   return all;
 }
 
-const fetchAllYearContracts = unstable_cache(
-  fetchAllYearContractsUncached,
-  ["home-year-contracts"],
-  { tags: ["dashboard-data"], revalidate: 86400 },
-);
+// unstable_cache 를 걷었다. 한도(2MB)를 넘으면 Next 는 캐시만 건너뛰는 게 아니라
+// **빈 값을 돌려준다** — 이 조회는 14.3MB 라 항상 [] 이었고, 그래서 월별 계약완료
+// 차트와 카테고리 격자가 전부 0 으로 찍혔다(2026-09-13 확인. 캐시를 우회하자
+// 25.10 정수기 2,340 … 26.09 1,314 로 DB 실측과 일치했다).
+// 한도를 넘는 동안에도 캐시 set 만 실패할 뿐 정합성은 안 깨진다고 적어 뒀던 이전
+// 주석은 틀렸다. 조회 비용은 그대로다 — 어차피 매 요청 재조회하고 있었다.
+// 캐시를 되살리려면 fetchAllYearOrders 처럼 조회 안에서 집계를 접어 한도 아래로
+// 내려야 하는데, 이 결과는 행 자체를 카드·차트 네 곳에 그대로 넘겨서 접히지 않는다.
+const fetchAllYearContracts = fetchAllYearContractsUncached;
 
 /**
  * 주문확정 — BM별 집계에만 쓴다(app/page.tsx 의 bmOrderCurr/bmOrderPrev).

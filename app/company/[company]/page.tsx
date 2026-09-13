@@ -629,10 +629,9 @@ async function fetchIaAllUncached(
   }
   return out;
 }
-const fetchIaAll = unstable_cache(fetchIaAllUncached, ["company-ia-all"], {
-  tags: ["dashboard-data"],
-  revalidate: 86400,
-});
+// unstable_cache 를 걷었다 — 5.2MB 로 한도(2MB)를 넘는데, 넘으면 Next 가 빈 값을
+// 돌려줘서 이 화면의 집계가 통째로 0 이 된다(app/page.tsx 의 같은 주석 참고).
+const fetchIaAll = fetchIaAllUncached;
 
 // 카테고리 점유율용 — 이번 달 전 렌탈사 계약완료(렌탈사 필터 없음)이라 회사와
 // 무관하다. 기간(start·end)만 키에 넣는다.
@@ -772,11 +771,8 @@ async function fetchGrowthRowsUncached(
   }
   return out;
 }
-const fetchGrowthRows = unstable_cache(
-  fetchGrowthRowsUncached,
-  ["company-growth-rows"],
-  { tags: ["dashboard-data"], revalidate: 86400 },
-);
+// 위 fetchIaAll 과 같은 이유 — 2.9MB 로 한도를 넘어 빈 값이 돌아온다.
+const fetchGrowthRows = fetchGrowthRowsUncached;
 
 export default async function CompanyPage({
   params,
