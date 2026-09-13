@@ -19,7 +19,34 @@ export interface CategorySeries {
 
 export interface CategoryMonthPoint {
   month: string;
-  [category: string]: string | number;
+  /** null = 그 달에는 값이 아예 없다(0 이 아니라) — 선이 끊긴다 */
+  [category: string]: string | number | null;
+}
+
+/**
+ * 진행 중인 마지막 달의 점만 속을 비운다 (DESIGN.md 데이터 시각화).
+ * `hollowLast` 를 켠 차트에서만 쓰인다 — 기본값은 예전 그대로 꽉 찬 점.
+ */
+function trendDot(
+  props: { cx?: number; cy?: number; index?: number },
+  color: string,
+  lastIndex: number,
+) {
+  const { cx, cy, index } = props;
+  const k = `dot-${index}`;
+  if (cx == null || cy == null) return <g key={k} />;
+  const open = index === lastIndex;
+  return (
+    <circle
+      key={k}
+      cx={cx}
+      cy={cy}
+      r={3}
+      fill={open ? "#fff" : color}
+      stroke={open ? color : "#fff"}
+      strokeWidth={2}
+    />
+  );
 }
 
 function CustomTooltip({
@@ -29,7 +56,7 @@ function CustomTooltip({
   unit,
 }: {
   active?: boolean;
-  payload?: { value: number; name: string; color: string }[];
+  payload?: { value: number | null; name: string; color: string }[];
   label?: string;
   unit: string;
 }) {
@@ -53,15 +80,17 @@ function CustomTooltip({
       >
         {label}
       </div>
-      {payload.map((p) => (
-        <div key={p.name} style={{ color: "var(--color-gray-600)" }}>
-          {p.name}{" "}
-          <span style={{ fontWeight: 600, color: p.color }}>
-            {p.value.toLocaleString("ko-KR")}
-            {unit}
-          </span>
-        </div>
-      ))}
+      {payload
+        .filter((p) => p.value != null)
+        .map((p) => (
+          <div key={p.name} style={{ color: "var(--color-gray-600)" }}>
+            {p.name}{" "}
+            <span style={{ fontWeight: 600, color: p.color }}>
+              {p.value!.toLocaleString("ko-KR")}
+              {unit}
+            </span>
+          </div>
+        ))}
     </div>
   );
 }
@@ -73,6 +102,7 @@ export default function CategoryMonthlyChart({
   series,
   yDomain,
   unit = "건",
+  hollowLast = false,
 }: {
   title: string;
   subtitle?: string;
@@ -80,6 +110,8 @@ export default function CategoryMonthlyChart({
   series: CategorySeries[];
   yDomain?: [number, number];
   unit?: string;
+  /** 마지막 달이 진행 중이면 켠다 — 그 점만 속을 비워 완결된 달과 구분한다 */
+  hollowLast?: boolean;
 }) {
   if (data.length === 0) return null;
 
@@ -125,7 +157,12 @@ export default function CategoryMonthlyChart({
               name={s.key}
               stroke={s.color}
               strokeWidth={2}
-              dot={{ r: 3, fill: s.color, strokeWidth: 2, stroke: "#fff" }}
+              dot={
+                hollowLast
+                  ? (props: { cx?: number; cy?: number; index?: number }) =>
+                      trendDot(props, s.color, data.length - 1)
+                  : { r: 3, fill: s.color, strokeWidth: 2, stroke: "#fff" }
+              }
               activeDot={{ r: 5, fill: s.color, strokeWidth: 2, stroke: "#fff" }}
             />
           ))}
