@@ -621,7 +621,7 @@ export default async function CategoryGroupPage({
       BM3: { cnt: 0, amt: 0 },
     };
     for (const r of rows) {
-      const b = m[getBM(r.partner_company)];
+      const b = m[getBM(r.partner_company, r.category)];
       b.cnt += 1;
       b.amt += (r.gmv ?? 0) / EOK;
     }

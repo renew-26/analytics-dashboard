@@ -164,7 +164,7 @@ export function buildCompanyCards({
     for (const r of cRows) {
       const c = r.category ?? "기타";
       catCount.set(c, (catCount.get(c) ?? 0) + 1);
-      bmCount[getBM(r.partner_company)] += 1;
+      bmCount[getBM(r.partner_company, r.category)] += 1;
       sales += r.sales ?? 0;
       margin += r.contribution_margin ?? 0;
       revenue += r.gmv ?? 0;

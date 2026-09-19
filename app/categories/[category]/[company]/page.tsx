@@ -231,7 +231,7 @@ export default async function CategoryCompanyPage({
 
   // BM 구성 (이번 달)
   const bmCnt = { BM1: 0, BM2: 0, BM3: 0 };
-  for (const r of currRows) bmCnt[getBM(r.partner_company)] += 1;
+  for (const r of currRows) bmCnt[getBM(r.partner_company, r.category)] += 1;
 
   const multiCat = group.cats.length > 1;
 

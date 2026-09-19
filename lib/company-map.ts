@@ -88,20 +88,40 @@ export const RENTRE_PARTNER_NAMES = new Set([
   "렌트리 안심구독(TPS)",
 ]);
 
-// BM 분류 (partner_company 기준)
-export const BM3_COMPANIES = new Set([
+// ── BM 분류 ──────────────────────────────────────────────────────────────────
+//
+// DW 정본: fact_settle_pnl.bm_type (백엔드 BmType) / 규칙은 bridge_partner_bm
+// (= fn_get_bm_type 이식). 규칙의 단위는 **파트너 × 카테고리**이지 파트너 단독이 아니다:
+//   · seller_class=RE(렌트리 자체운영)  → 인터넷(TPS) = BM2, 그 외 전부 = BM3
+//   · seller_class=OA/S (공식제휴·우수) → 카테고리와 무관하게 BM2
+//   · 그 외                             → BM1 (입점 파트너 직접 수수료)
+// 2026 계약완료 실측으로 RE 파트너(렌트리 안심구독, partner_id 56424·61914)만
+// 두 BM에 걸친다. 나머지 파트너는 전부 단일 BM이라 이름 집합으로 충분하다.
+
+/**
+ * 렌트리 자체운영 파트너 계정 (DW seller_class = 'RE').
+ *
+ * ⚠️ 계정 이름의 (TPS)/(렌탈)/(타이어) 꼬리표는 **계정 개설 목적**일 뿐 그 행의
+ * 카테고리가 아니다 — "렌트리 안심구독(TPS)" 계정으로도 유심 건이 들어오고
+ * (2026 계약완료 131건), DW는 그것들을 BM3로 본다. 그래서 이 집합에 걸리면
+ * 이름이 아니라 행의 카테고리로 BM2/BM3를 가른다.
+ */
+export const SELF_OPERATED_PARTNERS = new Set([
   "렌트리 안심구독(렌탈)",
   "렌트리 안심구독(타이어)",
+  "렌트리 안심구독(TPS)",
 ]);
 
+/** RE 파트너 안에서 BM2가 되는 카테고리 — DW의 TPS(통신) 버티컬 */
+const TPS_CATEGORY = "인터넷";
+
 export const BM2_COMPANIES = new Set([
-  "렌타나",
+  "렌타나 공식몰",
   "이니렌탈 공식몰",
   "헬로렌탈 공식몰",
   "㈜씨에스렌탈",
   "포스라렌탈",
   "현대유버스 공식몰",
-  "렌트리 안심구독(TPS)",
   "한국AM렌탈",
   "미래비즈 코리아 공식몰",
   "BS렌탈 공식몰",
@@ -111,6 +131,7 @@ export const BM2_COMPANIES = new Set([
   "포스라렌탈 공식몰",
   "세라젬 공식몰",
   "더블체크파트너스",
+  "바디프랜드 공식몰",
   "금호타이어 공식몰",
   "기가웨이브샵",
   "유니통신",
@@ -163,9 +184,18 @@ export function getCompanyLabel(
   );
 }
 
-export function getBM(partnerCompany: string | null): "BM1" | "BM2" | "BM3" {
+/**
+ * 행의 BM. DW 규칙이 파트너 × 카테고리라서 **카테고리를 반드시 같이 넘긴다** —
+ * 선택 인자로 두면 빠뜨린 호출부가 조용히 틀린다(RE 파트너가 통째로 BM3가 된다).
+ */
+export function getBM(
+  partnerCompany: string | null,
+  category: string | null,
+): "BM1" | "BM2" | "BM3" {
   if (!partnerCompany) return "BM1";
-  if (BM3_COMPANIES.has(partnerCompany)) return "BM3";
+  if (SELF_OPERATED_PARTNERS.has(partnerCompany)) {
+    return category === TPS_CATEGORY ? "BM2" : "BM3";
+  }
   if (BM2_COMPANIES.has(partnerCompany)) return "BM2";
   return "BM1";
 }

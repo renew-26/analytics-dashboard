@@ -100,7 +100,7 @@ function aggregateByBM(rows: ContractRow[]) {
   const incentive = { BM1: 0, BM2: 0, BM3: 0, total: 0 };
   const salesTotal = { BM1: 0, BM2: 0, BM3: 0, total: 0 };
   for (const r of rows) {
-    const bm = getBM(r.partner_company);
+    const bm = getBM(r.partner_company, r.category);
     counts[bm]++;
     counts.total++;
     revenue[bm] += r.gmv ?? 0;
@@ -252,7 +252,7 @@ async function fetchAllYearOrdersUncached(
   while (true) {
     const { data, error } = await supabase
       .from("raw_prop_items")
-      .select("order_confirmed_at, partner_company")
+      .select("order_confirmed_at, partner_company, category")
       .not("order_confirmed_at", "is", null)
       .gte("order_confirmed_at", yearStart)
       .lte("order_confirmed_at", end)
@@ -267,7 +267,7 @@ async function fetchAllYearOrdersUncached(
         row = { date: d, BM1: 0, BM2: 0, BM3: 0 };
         byDate.set(d, row);
       }
-      row[getBM(r.partner_company)] += 1;
+      row[getBM(r.partner_company, r.category)] += 1;
     }
     if (data.length < PAGE) break;
     from += PAGE;

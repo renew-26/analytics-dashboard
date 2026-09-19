@@ -255,11 +255,11 @@ function mergeApplianceRows(orders: RawOrderRow[], contracts: RawContractRow[]):
   }
 
   for (const o of orders) {
-    if (getBM(o.partner_company) === "BM1") continue;
+    if (getBM(o.partner_company, o.category) === "BM1") continue;
     byId.set(o.prop_item_usid, toRow(o, o.order_confirmed_at));
   }
   for (const c of contracts) {
-    if (getBM(c.partner_company) === "BM1") continue;
+    if (getBM(c.partner_company, c.category) === "BM1") continue;
     byId.set(c.prop_item_usid, toRow(c, c.contract_date));
   }
 

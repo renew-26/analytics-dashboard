@@ -957,7 +957,7 @@ export default async function CompanyPage({
     bm === "all"
       ? normalizedRows
       : normalizedRows.filter(
-          (r) => getBM(r.partner_company) === bm.toUpperCase(),
+          (r) => getBM(r.partner_company, r.category) === bm.toUpperCase(),
         );
 
   // 매출·공헌이익 등도 거래건수와 동일하게 2025년~ 전체 반영
@@ -1800,7 +1800,7 @@ export default async function CompanyPage({
 
   // BM 구성 (이번 달 계약완료)
   const bmCntIa = { BM1: 0, BM2: 0, BM3: 0 };
-  for (const r of iaCurr) bmCntIa[getBM(r.partner_company)] += 1;
+  for (const r of iaCurr) bmCntIa[getBM(r.partner_company, r.category)] += 1;
 
   const iaPanel =
     "rounded-[12px] border border-[var(--color-gray-200)] bg-white shadow-[0_1px_2px_rgba(28,35,56,.04),0_2px_8px_rgba(28,35,56,.05)]";
