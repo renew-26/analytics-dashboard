@@ -44,6 +44,14 @@ export function signedWon(won: number): string {
   return `${won > 0 ? "+" : "−"}${koreanWon(Math.abs(won))}`;
 }
 
+/** 페이지 헤더의 "데이터 기준" 표기 — 동기화 시각만 밝힌다(출처·건수는 지표 정의로 옮김) */
+export function dataAsOfLabel(syncedAt: string | null): string {
+  const stamp = syncedAt
+    ? new Date(syncedAt).toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" })
+    : "확인 불가";
+  return `데이터 기준 ${stamp}`;
+}
+
 /**
  * 기준일이 속한 달을 마지막으로 과거 n개월의 "YYYY-MM" 목록 (과거→현재).
  * @param end "YYYY-MM-DD" 또는 "YYYY-MM"

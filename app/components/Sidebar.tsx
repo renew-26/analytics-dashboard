@@ -231,6 +231,20 @@ export default function Sidebar() {
         </div>
 
         <NavItem
+          href="/revenue-analysis"
+          label="수수료 매출"
+          active={pathname === "/revenue-analysis"}
+          variant="top"
+        />
+
+        <NavItem
+          href="/transaction-count"
+          label="전체 거래건수"
+          active={pathname === "/transaction-count"}
+          variant="top"
+        />
+
+        <NavItem
           href="/exception-approval"
           label="예외승인 분석"
           active={pathname === "/exception-approval"}
