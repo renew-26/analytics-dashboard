@@ -33,6 +33,11 @@ const NAV_SECTIONS = ["가전&상조", "정수기", "통신"].map((group) => {
   };
 });
 
+const REVENUE_ITEMS = [
+  { href: "/revenue-analysis", label: "수수료 매출" },
+  { href: "/transaction-count", label: "전체 거래건수" },
+];
+
 const MARKET_ITEMS = [
   { href: "/margin-analysis", label: "타사 비교" },
   { href: "/products", label: "상품 관리" },
@@ -65,24 +70,6 @@ export default function Sidebar() {
       : activeGroupIndex !== -1
         ? activeGroupIndex
         : null;
-
-  // 시장 정보도 같은 규칙을 쓴다 — 하위가 활성이면 열린 채로 시작하고,
-  // at(그때의 활성 여부)이 달라지는 순간 사용자의 여닫음은 스스로 무효가 된다.
-  const marketActive = MARKET_ITEMS.some((i) => i.href === pathname);
-  const [marketOverride, setMarketOverride] = useState<{
-    at: boolean;
-    open: boolean;
-  } | null>(null);
-  const marketOpen =
-    marketOverride && marketOverride.at === marketActive
-      ? marketOverride.open
-      : marketActive;
-
-  // 활성일 땐 접지 않는다 — 현재 위치를 내비에서 잃게 된다(그룹과 같은 규칙).
-  const toggleMarket = () => {
-    if (marketActive) return;
-    setMarketOverride({ at: marketActive, open: !marketOpen });
-  };
 
   const toggle = (index: number) => {
     // 활성 그룹은 접지 않는다 — 현재 위치를 내비에서 잃게 된다.
@@ -230,19 +217,7 @@ export default function Sidebar() {
           })}
         </div>
 
-        <NavItem
-          href="/revenue-analysis"
-          label="수수료 매출"
-          active={pathname === "/revenue-analysis"}
-          variant="top"
-        />
-
-        <NavItem
-          href="/transaction-count"
-          label="전체 거래건수"
-          active={pathname === "/transaction-count"}
-          variant="top"
-        />
+        <NavFolder label="매출 분석" items={REVENUE_ITEMS} pathname={pathname} />
 
         <NavItem
           href="/exception-approval"
@@ -251,51 +226,7 @@ export default function Sidebar() {
           variant="top"
         />
 
-        {/* 시장 정보 — 렌탈사 그룹과 같은 접이식 행. 다만 이 라벨에는 목적지가
-            없어서(그룹은 /group/… 이 있다) 행 전체가 토글 버튼이다.
-            접이 애니메이션·레일·▾ 위치는 위 그룹과 같은 것을 쓴다. */}
-        <button
-          type="button"
-          onClick={toggleMarket}
-          aria-expanded={marketOpen}
-          className="press mb-1 flex w-full items-center rounded-lg transition hover:bg-[var(--color-gray-100)]"
-        >
-          <span className="min-w-0 flex-1 truncate py-2 pr-1 pl-3 text-left text-sm font-semibold text-[var(--color-gray-900)]">
-            시장 정보
-          </span>
-          <span className="shrink-0 py-2 pr-[11px] pl-1 text-[10px] text-[var(--color-gray-400)]">
-            <span
-              className={`block transition-transform duration-150 ease-[var(--ease-out)] motion-reduce:transition-none ${
-                marketOpen ? "rotate-180" : ""
-              }`}
-            >
-              ▾
-            </span>
-          </span>
-        </button>
-
-        <div
-          className="grid transition-[grid-template-rows,opacity] duration-200 ease-[var(--ease-out)] motion-reduce:transition-none"
-          style={{
-            gridTemplateRows: marketOpen ? "1fr" : "0fr",
-            opacity: marketOpen ? 1 : 0,
-          }}
-          inert={!marketOpen}
-        >
-          <div className="min-h-0 overflow-hidden">
-            <div className="ml-[19px] border-l border-[var(--color-gray-200)] pl-[5px]">
-              {MARKET_ITEMS.map((item) => (
-                <NavItem
-                  key={item.href}
-                  href={item.href}
-                  label={item.label}
-                  active={pathname === item.href}
-                  variant="sub"
-                />
-              ))}
-            </div>
-          </div>
-        </div>
+        <NavFolder label="시장 정보" items={MARKET_ITEMS} pathname={pathname} />
       </nav>
     </aside>
   );
@@ -337,5 +268,77 @@ function NavItem({
     >
       {label}
     </Link>
+  );
+}
+
+/**
+ * 목적지 없는 접이식 폴더(매출 분석·시장 정보) — 라벨 행 전체가 토글 버튼이다.
+ * 하위가 활성이면 열린 채로 시작하고, at(그때의 활성 여부)이 달라지는 순간
+ * 사용자의 여닫음은 스스로 무효가 된다. 접이 애니메이션·레일·▾ 위치는 렌탈사 그룹과 같다.
+ */
+function NavFolder({
+  label,
+  items,
+  pathname,
+}: {
+  label: string;
+  items: { href: string; label: string }[];
+  pathname: string;
+}) {
+  const active = items.some((i) => i.href === pathname);
+  const [override, setOverride] = useState<{ at: boolean; open: boolean } | null>(null);
+  const open = override && override.at === active ? override.open : active;
+
+  // 활성일 땐 접지 않는다 — 현재 위치를 내비에서 잃게 된다(그룹과 같은 규칙).
+  const toggle = () => {
+    if (active) return;
+    setOverride({ at: active, open: !open });
+  };
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={open}
+        className="press mb-1 flex w-full items-center rounded-lg transition hover:bg-[var(--color-gray-100)]"
+      >
+        <span className="min-w-0 flex-1 truncate py-2 pr-1 pl-3 text-left text-sm font-semibold text-[var(--color-gray-900)]">
+          {label}
+        </span>
+        <span className="shrink-0 py-2 pr-[11px] pl-1 text-[10px] text-[var(--color-gray-400)]">
+          <span
+            className={`block transition-transform duration-150 ease-[var(--ease-out)] motion-reduce:transition-none ${
+              open ? "rotate-180" : ""
+            }`}
+          >
+            ▾
+          </span>
+        </span>
+      </button>
+
+      <div
+        className="grid transition-[grid-template-rows,opacity] duration-200 ease-[var(--ease-out)] motion-reduce:transition-none"
+        style={{
+          gridTemplateRows: open ? "1fr" : "0fr",
+          opacity: open ? 1 : 0,
+        }}
+        inert={!open}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div className="ml-[19px] border-l border-[var(--color-gray-200)] pl-[5px]">
+            {items.map((item) => (
+              <NavItem
+                key={item.href}
+                href={item.href}
+                label={item.label}
+                active={pathname === item.href}
+                variant="sub"
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </>
   );
 }

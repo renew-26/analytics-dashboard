@@ -39,8 +39,10 @@ export default function Header({
     title = "예외승인 분석";
   } else if (pathname === "/revenue-analysis") {
     title = "수수료 매출";
+    crumbs = [{ label: "매출 분석" }];
   } else if (pathname === "/transaction-count") {
     title = "전체 거래건수";
+    crumbs = [{ label: "매출 분석" }];
   } else if (pathname === "/companies") {
     title = "렌탈사 요약";
   } else if (pathname === "/categories") {
