@@ -264,11 +264,14 @@ async function fetchCohortRowsUncached(
 
   const rows: ReviewRow[] = [];
   for (let from = 0; ; from += COHORT_PAGE) {
-    const { data, error } = await supabase
+    let query = supabase
       .from(table)
       .select(select)
       .gte(dateCol, start)
-      .lte(dateCol, end)
+      .lte(dateCol, end);
+    // 통합 원장은 계약 안 된 주문도 담는다 — 계약 코호트는 계약완료일이 있는 행만.
+    if (basis === "contract") query = query.not(SOURCE.contract.dateCol, "is", null);
+    const { data, error } = await query
       .order(dateCol, { ascending: true })
       .order("prop_item_usid", { ascending: true })
       .range(from, from + COHORT_PAGE - 1);

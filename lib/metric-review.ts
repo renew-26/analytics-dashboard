@@ -13,14 +13,15 @@ import * as weekHelpers from "@/lib/week";
 import type { WaterfallItem } from "@/app/components/home/Waterfall";
 
 /**
- * 원천 — 이관 완료 시 이 블록만 raw_prop_items / 4678 로 교체한다.
+ * 원천 — 4678 통합 원장(raw_prop_items) 한 테이블을 기준 날짜 컬럼으로 가른다.
  *
- * 2026-09-08 실측: phase2 뷰 마이그레이션이 이 DB 에 적용되지 않아
- * raw_orders 는 여전히 레거시 물리 테이블이다(status·gmv·quantity 없음).
+ * 레거시 raw_orders / raw_contracts 는 sync 가 더 이상 쓰지 않아
+ * 2026-09-12 에서 멈춰 있다(2026-10-02 실측). main 의 lib/date-basis.ts 와 같은 규칙이다.
+ * 기준 날짜로 gte/lte 를 걸면 그 날짜가 빈 행(그 기준에 없는 건)은 자연히 빠진다.
  */
 export const SOURCE = {
-  order: { table: "raw_orders", dateCol: "order_confirmed_at", redash: 4441, label: "주문확정" },
-  contract: { table: "raw_contracts", dateCol: "contract_date", redash: 4445, label: "계약완료" },
+  order: { table: "raw_prop_items", dateCol: "order_confirmed_at", redash: 4678, label: "주문확정" },
+  contract: { table: "raw_prop_items", dateCol: "contract_date", redash: 4678, label: "계약완료" },
 } as const;
 
 export type Basis = keyof typeof SOURCE;

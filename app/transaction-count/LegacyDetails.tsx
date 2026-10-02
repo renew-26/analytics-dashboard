@@ -146,7 +146,7 @@ async function fetchContracts(
   const PAGE = 50000;
   while (true) {
     const { data, error } = await supabase
-      .from("raw_contracts")
+      .from("raw_prop_items")
       .select("brand, partner_company, total_rental_fee, contribution_margin, bad_debt, sales_incentive, sales")
       .gte("contract_date", start)
       .lte("contract_date", end)
@@ -182,7 +182,7 @@ async function fetchAllYearContracts(
   const PAGE = 50000;
   while (true) {
     const { data, error } = await supabase
-      .from("raw_contracts")
+      .from("raw_prop_items")
       .select(
         "contract_date, category, brand, partner_company, rental_company, contribution_margin",
       )
@@ -255,12 +255,12 @@ export default async function LegacyDetails({
     Promise.all(
       GOAL_ROWS.flatMap((row) => {
         const oQ = supabase
-          .from("raw_orders")
+          .from("raw_prop_items")
           .select("*", { count: "exact", head: true })
           .gte("order_confirmed_at", start)
           .lte("order_confirmed_at", end);
         const cQ = supabase
-          .from("raw_contracts")
+          .from("raw_prop_items")
           .select("*", { count: "exact", head: true })
           .gte("contract_date", start)
           .lte("contract_date", end);
@@ -275,36 +275,36 @@ export default async function LegacyDetails({
       }),
     ),
     supabase
-      .from("raw_orders")
+      .from("raw_prop_items")
       .select("*", { count: "exact", head: true })
       .gte("order_confirmed_at", curr.start)
       .lte("order_confirmed_at", curr.end),
     supabase
-      .from("raw_orders")
+      .from("raw_prop_items")
       .select("*", { count: "exact", head: true })
       .gte("order_confirmed_at", prev.start)
       .lte("order_confirmed_at", prev.end),
     supabase
-      .from("raw_contracts")
+      .from("raw_prop_items")
       .select("*", { count: "exact", head: true })
       .eq("category", "정수기")
       .gte("contract_date", curr.start)
       .lte("contract_date", curr.end),
     supabase
-      .from("raw_contracts")
+      .from("raw_prop_items")
       .select("*", { count: "exact", head: true })
       .eq("category", "정수기")
       .gte("contract_date", prev.start)
       .lte("contract_date", prev.end),
     supabase
-      .from("raw_contracts")
+      .from("raw_prop_items")
       .select("*", { count: "exact", head: true })
       .eq("category", "정수기")
       .eq("partner_company", "더블체크파트너스")
       .gte("contract_date", curr.start)
       .lte("contract_date", curr.end),
     supabase
-      .from("raw_contracts")
+      .from("raw_prop_items")
       .select("*", { count: "exact", head: true })
       .eq("category", "정수기")
       .eq("partner_company", "더블체크파트너스")
