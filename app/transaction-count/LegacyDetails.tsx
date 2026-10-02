@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { getBM } from "@/lib/company-map";
+import { getRowBM } from "@/lib/company-map";
 import { getWeekIndex, getWeekLabel } from "@/lib/week";
 import { type CategoryMonthPoint } from "@/app/components/CategoryMonthlyChart";
 import TransactionCountSection, {
@@ -105,6 +105,7 @@ function IdxCell({
 type ContractRow = {
   brand: string | null;
   partner_company: string | null;
+  rental_company: string | null;
   total_rental_fee: number | null;
   contribution_margin: number | null;
   bad_debt: number | null;
@@ -120,7 +121,7 @@ function aggregateByBM(rows: ContractRow[]) {
   const incentive = { BM1: 0, BM2: 0, BM3: 0, total: 0 };
   const salesTotal = { BM1: 0, BM2: 0, BM3: 0, total: 0 };
   for (const r of rows) {
-    const bm = getBM(r.partner_company);
+    const bm = getRowBM(r);
     counts[bm]++;
     counts.total++;
     revenue[bm] += r.total_rental_fee ?? 0;
@@ -147,7 +148,7 @@ async function fetchContracts(
   while (true) {
     const { data, error } = await supabase
       .from("raw_prop_items")
-      .select("brand, partner_company, total_rental_fee, contribution_margin, bad_debt, sales_incentive, sales")
+      .select("brand, partner_company, rental_company, total_rental_fee, contribution_margin, bad_debt, sales_incentive, sales")
       .gte("contract_date", start)
       .lte("contract_date", end)
       .order("prop_item_usid", { ascending: true })
@@ -408,7 +409,7 @@ export default async function LegacyDetails({
     const cat = KNOWN_CATS.has(r.category ?? "")
       ? (r.category as string)
       : "그 외";
-    const bm = getBM(r.partner_company);
+    const bm = getRowBM(r);
     const rc = r.rental_company ?? "";
 
     // 카테고리

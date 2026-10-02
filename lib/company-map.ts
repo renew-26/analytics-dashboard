@@ -169,3 +169,18 @@ export function getBM(partnerCompany: string | null): "BM1" | "BM2" | "BM3" {
   if (BM2_COMPANIES.has(partnerCompany)) return "BM2";
   return "BM1";
 }
+
+/**
+ * 행 단위 BM — 파트너 기준(getBM)에 브랜드 예외를 얹는다.
+ * 스마트렌탈로 판 아싸컴은 물품매입이라 BM3. 단 BM1 파트너가 판 아싸컴은 그대로 BM1.
+ * (DW bm_type 은 이 예외 없이 파트너 기준이라 이 건들을 BM2 로 본다.)
+ */
+export function getRowBM(row: {
+  partner_company: string | null;
+  brand: string | null;
+  rental_company: string | null;
+}): "BM1" | "BM2" | "BM3" {
+  const bm = getBM(row.partner_company);
+  if (bm !== "BM1" && row.brand === "아싸컴" && row.rental_company === "스마트렌탈") return "BM3";
+  return bm;
+}

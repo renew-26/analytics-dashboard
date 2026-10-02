@@ -11,7 +11,7 @@ import BasisFilter from "@/app/components/BasisFilter";
 import BMFilter from "@/app/components/BMFilter";
 import { PendingNavProvider, PendingRegion } from "@/app/components/PendingNav";
 import LegacyDetailsShell from "@/app/components/LegacyDetailsShell";
-import { getBM } from "@/lib/company-map";
+import { getRowBM } from "@/lib/company-map";
 import KpiStrip from "@/app/components/metric-review/KpiStrip";
 import TrendPanel from "@/app/components/metric-review/TrendPanel";
 import CompositionPanel from "@/app/components/metric-review/CompositionPanel";
@@ -71,7 +71,7 @@ export default async function RevenueAnalysisPage({
   // 모두 같은 필터를 거쳐야 코호트·리드타임 패널이 다른 패널과 같은 모집단을
   // 보여준다(그렇지 않으면 ?bm=BM3 화면에서 코호트만 전체 BM 수치가 섞여 나온다).
   const byBm = (list: ReviewRow[]): ReviewRow[] =>
-    bm === "all" ? list : list.filter((r) => getBM(r.partner_company) === bmKey);
+    bm === "all" ? list : list.filter((r) => getRowBM(r) === bmKey);
 
   const rows = byBm(allRows);
   const cohortOrders = byBm(allCohortOrders);

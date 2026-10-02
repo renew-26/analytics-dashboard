@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { getWeekIndex, getWeekLabel } from "@/lib/week";
-import { getBM } from "@/lib/company-map";
+import { getRowBM } from "@/lib/company-map";
 import { type CategoryMonthPoint } from "@/app/components/CategoryMonthlyChart";
 import RevenueAmountSection, {
   type PeriodColumn,
@@ -139,7 +139,7 @@ export default async function LegacyRevenueDetails({
     const m = r.date.slice(0, 7);
     const w = getWeekIndex(r.date);
     const cat = KNOWN_CATS.has(r.category ?? "") ? (r.category as string) : "그 외";
-    const b = getBM(r.partner_company);
+    const b = getRowBM(r);
     const rc = r.rental_company ?? "";
 
     if (!monthCatMap.has(m)) monthCatMap.set(m, new Map());
